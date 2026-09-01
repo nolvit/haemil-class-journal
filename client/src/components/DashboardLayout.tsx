@@ -127,8 +127,9 @@ export default function DashboardLayout({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const localLogin = trpc.auth.localLogin.useMutation({
-    onSuccess: async () => {
-      await authUtils.auth.me.invalidate();
+    onSuccess: result => {
+      authUtils.auth.me.setData(undefined, result.user);
+      setPassword("");
     },
     onError: error => toast.error(error.message),
   });

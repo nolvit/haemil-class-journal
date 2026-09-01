@@ -99,7 +99,14 @@ export const appRouter = router({
           ...getSessionCookieOptions(ctx.req),
           maxAge: ONE_YEAR_MS,
         });
-        return { success: true } as const;
+        const user = await db.getUserByOpenId(openId);
+        if (!user) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "관리자 계정을 불러오지 못했습니다.",
+          });
+        }
+        return { success: true, user } as const;
       }),
     logout: publicProcedure.mutation(({ ctx }) => {
       const cookieOptions = getSessionCookieOptions(ctx.req);
