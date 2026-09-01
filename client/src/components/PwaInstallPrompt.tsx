@@ -109,6 +109,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
     { enabled: Boolean(token), retry: false }
   );
   const subscribe = trpc.academy.parentPush.subscribe.useMutation();
+  const unsubscribe = trpc.academy.parentPush.unsubscribe.useMutation();
   const testNotification = trpc.academy.parentPush.test.useMutation({
     onSuccess: result => {
       if (result.sent > 0) toast.success("테스트 알림을 전송했습니다.");
@@ -194,6 +195,49 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       setState("unsupported");
     }
   };
+  const reconnect = async () => {
+    if (
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      !config.data?.publicKey
+    ) {
+      setState("unsupported");
+      return;
+    }
+    setState("loading");
+    try {
+      const registration = await navigator.serviceWorker.ready;
+      const existing = await registration.pushManager.getSubscription();
+      if (existing) {
+        await unsubscribe.mutateAsync({ token, endpoint: existing.endpoint });
+        await existing.unsubscribe();
+      }
+      const fresh = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(config.data.publicKey),
+      });
+      const payload = fresh.toJSON();
+      if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys.auth)
+        throw new Error("invalid push subscription");
+      await subscribe.mutateAsync({
+        token,
+        subscription: {
+          endpoint: payload.endpoint,
+          keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
+        },
+      });
+      setState("enabled");
+      toast.success("모바일 알림을 새로 연결했습니다.");
+      await testNotification.mutateAsync({ token });
+    } catch {
+      setState(
+        "Notification" in window && Notification.permission === "denied"
+          ? "blocked"
+          : "unsupported"
+      );
+      toast.error("알림을 다시 연결하지 못했습니다. 브라우저의 사이트 알림 설정을 확인해 주세요.");
+    }
+  };
   return (
     <div className="rounded-2xl border border-[#C9DDD4] bg-[#F1F8F4] p-4">
       <div className="flex items-start gap-3">
@@ -218,6 +262,15 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
                 onClick={() => testNotification.mutate({ token })}
               >
                 {testNotification.isPending ? "전송 중…" : "테스트 알림 보내기"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="mt-2 text-[#765E10]"
+                disabled={testNotification.isPending}
+                onClick={reconnect}
+              >
+                모바일 알림 다시 연결
               </Button>
             </div>
           ) : state !== "blocked" ? (
