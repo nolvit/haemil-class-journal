@@ -19,7 +19,7 @@ manifest.href = parentToken
 document.head.appendChild(manifest);
 const appIcon = document.createElement("link");
 appIcon.rel = "apple-touch-icon";
-appIcon.href = parentToken ? "/icons/parent-180.png" : "/icons/admin.svg";
+appIcon.href = "/icons/haemil-logo-180.png";
 document.head.appendChild(appIcon);
 const themeColor = document.createElement("meta");
 themeColor.name = "theme-color";

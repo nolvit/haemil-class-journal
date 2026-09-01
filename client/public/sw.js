@@ -1,5 +1,5 @@
-const CACHE_NAME = "haemil-shell-v2";
-const APP_SHELL = ["/", "/admin.webmanifest", "/parent.webmanifest", "/icons/admin.svg", "/icons/parent-192.png", "/icons/parent-512.png"];
+const CACHE_NAME = "haemil-shell-v3";
+const APP_SHELL = ["/", "/admin.webmanifest", "/parent.webmanifest", "/icons/haemil-logo-192.png", "/icons/haemil-logo-512.png", "/icons/notification-badge.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));
@@ -23,8 +23,8 @@ self.addEventListener("push", event => {
   const title = data.title || "해밀학원 알림";
   const options = {
     body: data.body || "새로운 알림이 있습니다.",
-    icon: "/icons/parent-192.png",
-    badge: "/icons/parent-192.png",
+    icon: "/icons/haemil-logo-192.png",
+    badge: "/icons/notification-badge.png",
     tag: data.tag || "haemil-parent",
     data: { url: data.url || "/" },
   };
