@@ -2,6 +2,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import {
@@ -24,7 +25,7 @@ import {
   GraduationCap,
   HeartHandshake,
 } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute } from "wouter";
 
 function todayInKorea() {
@@ -110,10 +111,12 @@ function CalendarEventPanel({
   event,
   dates,
   mobile = false,
+  onExpandImage,
 }: {
   event: CalendarEvent;
   dates: string[];
   mobile?: boolean;
+  onExpandImage?: (url: string, alt: string) => void;
 }) {
   const period =
     dates.length === 1
@@ -132,11 +135,9 @@ function CalendarEventPanel({
           alt=""
           aria-hidden="true"
         />
-        <img
-          className="portal-calendar-image-original"
-          src={event.imageUrl}
-          alt={`${event.name} 안내 이미지`}
-        />
+        <button type="button" className="portal-calendar-image-button" onClick={() => onExpandImage?.(event.imageUrl!, `${event.name} 안내 이미지`)} aria-label={`${event.name} 안내 이미지 크게 보기`}>
+          <img className="portal-calendar-image-original" src={event.imageUrl} alt={`${event.name} 안내 이미지`} />
+        </button>
         <div className="portal-calendar-image-caption">
           <span>{eventLabel}</span>
           <b>{event.name}</b>
@@ -177,6 +178,8 @@ export default function StudentPortal() {
   const token = params?.token ?? "";
   const [journalDate, setJournalDate] = useState(initialPortalDate);
   const [includeWeekend, setIncludeWeekend] = useState(false);
+  const [expandedImage, setExpandedImage] = useState<{ url: string; alt: string } | null>(null);
+  const viewRecordedRef = useRef(false);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const input = useMemo(
     () => ({ token, journalDate, includeWeekend }),
@@ -186,6 +189,19 @@ export default function StudentPortal() {
     input,
     { enabled: Boolean(token), refetchInterval: 15_000 }
   );
+  const recordView = trpc.academy.portalView.record.useMutation();
+  useEffect(() => {
+    if (!token || viewRecordedRef.current) return;
+    const monthKey = todayInKorea().slice(0, 7);
+    const storageKey = `haemil.portalView:${token}:${monthKey}`;
+    if (window.sessionStorage.getItem(storageKey) === "1") return;
+    viewRecordedRef.current = true;
+    recordView.mutate({ token }, {
+      onSuccess: result => {
+        if (result.recorded) window.sessionStorage.setItem(storageKey, "1");
+      },
+    });
+  }, [token]);
   if (isLoading)
     return (
       <div className="portal-shell">
@@ -616,6 +632,7 @@ export default function StudentPortal() {
                   <CalendarEventPanel
                     event={segment.event}
                     dates={segment.dates}
+                    onExpandImage={(url, alt) => setExpandedImage({ url, alt })}
                   />
                 </div>
               ))}
@@ -632,6 +649,7 @@ export default function StudentPortal() {
                 event={segment.event}
                 dates={segment.dates}
                 mobile
+                onExpandImage={(url, alt) => setExpandedImage({ url, alt })}
               />
             </Card>
           ))}
@@ -721,6 +739,12 @@ export default function StudentPortal() {
             <b>소중한 자녀를 믿고 맡겨 주셔서 감사드립니다.</b>
           </div>
         </footer>
+        <Dialog open={Boolean(expandedImage)} onOpenChange={open => { if (!open) setExpandedImage(null); }}>
+          <DialogContent className="max-h-[94vh] max-w-[94vw] border-0 bg-black/95 p-2 sm:max-w-[900px]">
+            <DialogTitle className="sr-only">휴강 안내 이미지 크게 보기</DialogTitle>
+            {expandedImage && <img src={expandedImage.url} alt={expandedImage.alt} className="max-h-[88vh] w-full object-contain" />}
+          </DialogContent>
+        </Dialog>
       </main>
     </div>
   );

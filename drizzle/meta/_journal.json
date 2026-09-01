@@ -113,6 +113,20 @@
       "when": 1788222919261,
       "tag": "0015_parent-pwa-attendance",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "5",
+      "when": 1788310500000,
+      "tag": "0016_departure_time",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "5",
+      "when": 1788310800000,
+      "tag": "0017_parent_portal_views",
+      "breakpoints": true
     }
   ]
 }

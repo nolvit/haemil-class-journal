@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { trpc } from "@/lib/trpc";
-import { attendanceStatusLabels, chooseRememberedGrade, formatArrivalTimeForDisplay, getMonday, selectableAttendanceStatusValues, type AttendanceStatus } from "@shared/journalRules";
+import { attendanceStatusLabels, formatArrivalTimeForDisplay, getMonday, selectableAttendanceStatusValues, type AttendanceStatus } from "@shared/journalRules";
 import { isAttendancePending } from "@shared/attendanceSummaryRules";
 import { AlertCircle, CalendarDays, CalendarPlus, Check, CheckCheck, ChevronLeft, ChevronRight, Clock3, RotateCcw, Save } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -31,7 +31,7 @@ export default function Attendance() {
   }, []);
   const [weekAnchor, setWeekAnchor] = useState(() => requestedTarget.journalDate);
   const [includeWeekend, setIncludeWeekend] = useState(false);
-  const [selectedGrade, setSelectedGrade] = useState<string | undefined>(() => window.localStorage.getItem(attendanceGradeFilterKey) || undefined);
+  const [selectedGrades, setSelectedGrades] = useState<Set<string>>(() => new Set((window.localStorage.getItem(attendanceGradeFilterKey) ?? "").split("|").filter(Boolean)));
   const [attentionOnly, setAttentionOnly] = useState(false);
   const weekStart = getMonday(weekAnchor);
   const input = useMemo(() => ({ weekAnchor: weekStart, includeWeekend }), [weekStart, includeWeekend]);
@@ -62,17 +62,17 @@ export default function Attendance() {
   const grades = useMemo(() => Array.from(new Set(students.map(student => student.grade))).sort((a, b) => gradeOrder(a) - gradeOrder(b) || a.localeCompare(b, "ko")), [students]);
   useEffect(() => {
     if (!grades.length) return;
-    setSelectedGrade(current => {
-      if (current && grades.includes(current)) return current;
-      return chooseRememberedGrade(grades, window.localStorage.getItem(attendanceGradeFilterKey) || undefined);
+    setSelectedGrades(current => {
+      const valid = Array.from(current).filter(grade => grades.includes(grade));
+      return new Set(valid.length ? valid : [grades[0]!]);
     });
   }, [grades]);
   const today = todayInKorea();
   const visibleDates = useMemo(() => attentionOnly ? (data?.dates ?? []).filter(date => date <= today) : (data?.dates ?? []), [attentionOnly, data?.dates, today]);
   const visibleStudents = useMemo(() => students.filter(student => {
-    if (selectedGrade && student.grade !== selectedGrade) return false;
+    if (selectedGrades.size && !selectedGrades.has(student.grade)) return false;
     return !attentionOnly || visibleDates.some(date => isAttendancePending(student.entries.get(date)?.status ?? null));
-  }), [attentionOnly, selectedGrade, students, visibleDates]);
+  }), [attentionOnly, selectedGrades, students, visibleDates]);
   const hasFocusedRequestedStudent = useRef(false);
   useEffect(() => {
     if (!requestedTarget.studentId || hasFocusedRequestedStudent.current || isLoading) return;
@@ -82,11 +82,11 @@ export default function Attendance() {
     target.scrollIntoView({ behavior: "smooth", block: "center" });
     target.focus({ preventScroll: true });
   }, [isLoading, requestedTarget.studentId, students]);
-  const selectGrade = (grade: string) => { setSelectedGrade(grade); window.localStorage.setItem(attendanceGradeFilterKey, grade); };
+  const selectGrade = (grade: string) => { setSelectedGrades(current => { const next = new Set(current); if (next.has(grade) && next.size > 1) next.delete(grade); else next.add(grade); window.localStorage.setItem(attendanceGradeFilterKey, Array.from(next).join("|")); return next; }); };
   return <div className="journal-page-shell"><section className="journal-page-heading"><div><p className="eyebrow">WEEKLY ATTENDANCE</p><h1>출석 관리</h1><p>한 주의 출석을 한 화면에서 입력합니다. 필요한 경우 주말 수업도 함께 기록할 수 있습니다.</p></div><div className="flex flex-wrap items-center justify-end gap-2"><Button variant="outline" className="bg-white" onClick={() => setLocation("/closures")}><CalendarPlus className="mr-1.5 h-4 w-4" />휴강 관리</Button><div className="journal-date-nav"><Button variant="outline" size="icon" onClick={() => setWeekAnchor(shiftDate(weekStart, -7))} aria-label="이전 주"><ChevronLeft className="h-4 w-4" /></Button><Input type="date" value={weekStart} onChange={event => setWeekAnchor(event.target.value)} /><Button variant="outline" size="icon" onClick={() => setWeekAnchor(shiftDate(weekStart, 7))} aria-label="다음 주"><ChevronRight className="h-4 w-4" /></Button></div></div></section>
-    <section className="journal-filter-bar"><div className="flex min-w-0 flex-1 flex-wrap items-center gap-2" aria-label="학년 선택"><span className="mr-1 text-xs font-semibold text-[#556C68]">학년</span>{grades.map(grade => <Button type="button" key={grade} variant={selectedGrade === grade ? "default" : "outline"} size="sm" className={selectedGrade === grade ? "journal-primary-button h-9" : "h-9 bg-[#FFFEFA]"} onClick={() => selectGrade(grade)}>{grade}</Button>)}</div><button type="button" className={`journal-attention-filter ${attentionOnly ? "is-active" : ""}`} onClick={() => setAttentionOnly(value => !value)}><AlertCircle className="h-4 w-4" />등원 전 항목만 보기</button><div className="flex items-center gap-2 rounded-xl border border-[#E5DFD3] bg-[#FCFBF7] px-3 py-2"><Switch checked={includeWeekend} onCheckedChange={setIncludeWeekend} id="weekend-attendance" /><label htmlFor="weekend-attendance" className="cursor-pointer text-xs font-semibold text-[#556C68]">주말 입력 포함</label></div></section>
-    <div className="journal-guidance mt-4"><Clock3 className="h-4 w-4" /><span><b>주간 입력 방식입니다.</b> {attentionOnly ? `${today}까지 실제 출석 입력이 필요한 학생만 표시합니다.` : <>요일별 상태를 선택하고, 등원 시간은 오후 기준으로 입력하세요. 예: 3:15 → 15:15<br className="hidden md:block" /><span className="text-[#55716C]">법정공휴일은 이름과 함께 평일에 자동 적용되며 선택 목록에는 보이지 않습니다. 실제 수업한 경우 출석 상태로 재정의할 수 있고, 학원 자체 휴강은 ‘휴강’으로 입력하거나 휴강 관리에서 기간 등록할 수 있습니다.</span></>}</span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">{attentionOnly ? `등원 전 ${visibleStudents.length}명` : selectedGrade ? `${selectedGrade} ${visibleStudents.length}명` : "등원 전은 노란색"}</Badge></div>
-    <section className="mt-6 space-y-3">{isLoading ? Array.from({ length: 5 }).map((_, index) => <Skeleton className="h-44 w-full" key={index} />) : visibleStudents.length ? visibleStudents.map(student => <AttendanceWeekCard key={student.id} student={student} dates={visibleDates} pending={save.isPending || fillWeekdays.isPending || resetCodeEvents.isPending} onSave={(journalDate, status, arrivalTime, departureTime) => save.mutate({ studentId: student.id, journalDate, status, arrivalTime, departureTime })} onReset={journalDate => { if (window.confirm(`${student.name} 학생의 ${journalDate} 등하원 번호 입력 기록과 시간을 초기화할까요?\n\n초기화 후 학생 고유번호를 다시 입력할 수 있습니다.`)) resetCodeEvents.mutate({ studentId: student.id, eventDate: journalDate }); }} onFillWeekdays={journalDates => fillWeekdays.mutate({ studentId: student.id, journalDates })} />) : <NoStudentMessage grade={selectedGrade} attentionOnly={attentionOnly} />}</section>
+    <section className="journal-filter-bar"><div className="flex min-w-0 flex-1 flex-wrap items-center gap-2" aria-label="학년 복수 선택"><span className="mr-1 text-xs font-semibold text-[#556C68]">학년</span>{grades.map(grade => { const selected = selectedGrades.has(grade); return <Button type="button" key={grade} variant={selected ? "default" : "outline"} size="sm" className={selected ? "journal-primary-button h-9" : "h-9 bg-[#FFFEFA]"} onClick={() => selectGrade(grade)} aria-pressed={selected}>{grade}</Button>; })}</div><button type="button" className={`journal-attention-filter ${attentionOnly ? "is-active" : ""}`} onClick={() => setAttentionOnly(value => !value)}><AlertCircle className="h-4 w-4" />등원 전 항목만 보기</button><div className="flex items-center gap-2 rounded-xl border border-[#E5DFD3] bg-[#FCFBF7] px-3 py-2"><Switch checked={includeWeekend} onCheckedChange={setIncludeWeekend} id="weekend-attendance" /><label htmlFor="weekend-attendance" className="cursor-pointer text-xs font-semibold text-[#556C68]">주말 입력 포함</label></div></section>
+    <div className="journal-guidance mt-4"><Clock3 className="h-4 w-4" /><span><b>주간 입력 방식입니다.</b> {attentionOnly ? `${today}까지 실제 출석 입력이 필요한 학생만 표시합니다.` : <>요일별 상태를 선택하고, 등원 시간은 오후 기준으로 입력하세요. 예: 3:15 → 15:15<br className="hidden md:block" /><span className="text-[#55716C]">법정공휴일은 이름과 함께 평일에 자동 적용되며 선택 목록에는 보이지 않습니다. 실제 수업한 경우 출석 상태로 재정의할 수 있고, 학원 자체 휴강은 ‘휴강’으로 입력하거나 휴강 관리에서 기간 등록할 수 있습니다.</span></>}</span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">{attentionOnly ? `등원 전 ${visibleStudents.length}명` : `${Array.from(selectedGrades).join(" · ")} ${visibleStudents.length}명`}</Badge></div>
+    <section className="mt-6 space-y-3">{isLoading ? Array.from({ length: 5 }).map((_, index) => <Skeleton className="h-44 w-full" key={index} />) : visibleStudents.length ? visibleStudents.map(student => <AttendanceWeekCard key={student.id} student={student} dates={visibleDates} pending={save.isPending || fillWeekdays.isPending || resetCodeEvents.isPending} onSave={(journalDate, status, arrivalTime, departureTime) => save.mutate({ studentId: student.id, journalDate, status, arrivalTime, departureTime })} onReset={journalDate => { if (window.confirm(`${student.name} 학생의 ${journalDate} 등하원 번호 입력 기록과 시간을 초기화할까요?\n\n초기화 후 학생 고유번호를 다시 입력할 수 있습니다.`)) resetCodeEvents.mutate({ studentId: student.id, eventDate: journalDate }); }} onFillWeekdays={journalDates => fillWeekdays.mutate({ studentId: student.id, journalDates })} />) : <NoStudentMessage grade={Array.from(selectedGrades).join(" · ") || undefined} attentionOnly={attentionOnly} />}</section>
   </div>;
 }
 

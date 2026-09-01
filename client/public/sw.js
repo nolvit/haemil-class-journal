@@ -1,4 +1,4 @@
-const CACHE_NAME = "haemil-shell-v3";
+const CACHE_NAME = "haemil-shell-v4";
 const APP_SHELL = ["/", "/admin.webmanifest", "/parent.webmanifest", "/icons/haemil-logo-192.png", "/icons/haemil-logo-512.png", "/icons/notification-badge.png"];
 
 self.addEventListener("install", event => {

@@ -23,6 +23,7 @@ import {
   InsertUser,
   legalHolidayNotices,
   lessonJournals,
+  parentPortalMonthlyViews,
   parentPushSubscriptions,
   registrationCountHistories,
   studentEnrollments,
@@ -440,7 +441,7 @@ function parseMeetingDays(value: string | null | undefined) {
     .filter(day => Number.isInteger(day) && day >= 0 && day <= 6);
 }
 
-async function settlePreviousWeekCounts(today = todayInKorea()) {
+export async function settlePreviousWeekCounts(today = todayInKorea()) {
   const weekStart = getPreviousWeekStart(today);
   const now = Date.now();
   if (
@@ -539,6 +540,7 @@ export type StudentInput = {
   totalCount: number;
   validUntil?: string;
   paymentMethod?: string;
+  attendanceCode?: string;
   classGroupIds: number[];
   portalEnabled: boolean;
 };
@@ -718,6 +720,24 @@ export async function listStudents(
     }
   }
   const records = Array.from(result.values());
+  const currentMonth = todayInKorea().slice(0, 7);
+  const monthlyViews = records.length
+    ? await db
+        .select({
+          studentId: parentPortalMonthlyViews.studentId,
+          viewCount: parentPortalMonthlyViews.viewCount,
+        })
+        .from(parentPortalMonthlyViews)
+        .where(
+          and(
+            eq(parentPortalMonthlyViews.monthKey, currentMonth),
+            inArray(parentPortalMonthlyViews.studentId, records.map(student => student.id))
+          )
+        )
+    : [];
+  const monthlyViewsByStudent = new Map(
+    monthlyViews.map(item => [item.studentId, Number(item.viewCount ?? 0)])
+  );
   const studentIds = records.map(student => student.id);
   const dates = getBusinessWeekDates(weekAnchor);
   const attendance = studentIds.length
@@ -756,6 +776,7 @@ export async function listStudents(
           : "";
     return {
       ...student,
+      monthlyViewCount: monthlyViewsByStudent.get(student.id) ?? 0,
       countInfo: {
         afterCount,
         remainingCount,
@@ -1228,6 +1249,19 @@ export async function updateStudent(
     const beforeTotalCount = Number(student.totalCount ?? 0);
     const afterTotalCount = input.totalCount;
     const totalCountChanged = beforeTotalCount !== afterTotalCount;
+    if (input.attendanceCode) {
+      const duplicate = await tx
+        .select({ id: students.id })
+        .from(students)
+        .where(
+          and(
+            eq(students.attendanceCode, input.attendanceCode),
+            ne(students.id, id)
+          )
+        )
+        .limit(1);
+      if (duplicate[0]) throw new Error("이미 다른 학생이 사용 중인 출결번호입니다.");
+    }
     await tx
       .update(students)
       .set({
@@ -1247,6 +1281,7 @@ export async function updateStudent(
           : input.validUntil || null,
         paymentMethod: input.paymentMethod || null,
         portalEnabled: input.portalEnabled,
+        ...(input.attendanceCode ? { attendanceCode: input.attendanceCode } : {}),
       })
       .where(eq(students.id, id));
     if (totalCountChanged) {
@@ -1949,61 +1984,64 @@ export async function saveAttendance(input: {
           targetDate: null,
         };
       }
-      if (input.overwriteCurrentJournal) {
-        for (const current of currentJournals) {
-          if (hasJournalValue(current))
-            await tx
-              .update(lessonJournals)
-              .set({
-                content: "",
-                homework: "",
-                notes: "",
-                isDraft: false,
-                updatedByUserId: input.userId,
-              })
-              .where(eq(lessonJournals.id, current.id));
-        }
+      if (input.overwriteCurrentJournal && currentJournals.length)
+        await tx.update(lessonJournals).set({ content: "", homework: "", notes: "", isDraft: false, updatedByUserId: input.userId }).where(inArray(lessonJournals.id, currentJournals.map(row => row.id)));
+      const futureJournals = await tx
+        .select()
+        .from(lessonJournals)
+        .where(
+          and(
+            eq(lessonJournals.studentId, input.studentId),
+            gt(lessonJournals.journalDate, input.journalDate),
+            or(ne(lessonJournals.content, ""), ne(lessonJournals.homework, ""), ne(lessonJournals.notes, ""))
+          )
+        )
+        .orderBy(asc(lessonJournals.classGroupId), asc(lessonJournals.journalDate));
+      const horizon = new Date(`${futureJournals.at(-1)?.journalDate ?? input.journalDate}T00:00:00Z`);
+      horizon.setUTCDate(horizon.getUTCDate() + 366);
+      const horizonDate = horizon.toISOString().slice(0, 10);
+      const rangeDates: string[] = [];
+      for (let date = input.journalDate; date <= horizonDate; date = getAdjacentJournalDate(date, 1, true)) rangeDates.push(date);
+      const [blockedAttendances, calendarEvents] = await Promise.all([
+        tx.select({ journalDate: attendanceRecords.journalDate, status: attendanceRecords.status })
+          .from(attendanceRecords)
+          .where(and(eq(attendanceRecords.studentId, input.studentId), gte(attendanceRecords.journalDate, input.journalDate), lte(attendanceRecords.journalDate, horizonDate))),
+        getCalendarEventsForDates(rangeDates),
+      ]);
+      const blockedDates = new Set(calendarEvents.keys());
+      for (const attendance of blockedAttendances)
+        if (["absent", "not_registered", "holiday", "closed"].includes(attendance.status)) blockedDates.add(attendance.journalDate);
+      blockedDates.delete(input.journalDate);
+      const futureByClass = new Map<number, typeof futureJournals>();
+      for (const journal of futureJournals) {
+        const group = futureByClass.get(journal.classGroupId) ?? [];
+        group.push(journal);
+        futureByClass.set(journal.classGroupId, group);
       }
-      for (const current of currentJournals) {
-        let searchDate = getNextBusinessDate(input.journalDate);
-        for (let safety = 0; searchDate && safety < 120; safety += 1) {
-          const futureRows = await tx
-            .select()
-            .from(lessonJournals)
-            .where(
-              and(
-                eq(lessonJournals.studentId, input.studentId),
-                eq(lessonJournals.classGroupId, current.classGroupId),
-                eq(lessonJournals.journalDate, searchDate)
-              )
-            )
-            .limit(1);
-          const future = futureRows[0];
-          if (future && hasJournalValue(future)) {
-            await tx
-              .update(lessonJournals)
-              .set({
-                content: future.content,
-                homework: future.homework,
-                notes: future.notes,
-                isDraft: future.isDraft,
-                updatedByUserId: input.userId,
-              })
-              .where(eq(lessonJournals.id, current.id));
-            await tx
-              .update(lessonJournals)
-              .set({
-                content: "",
-                homework: "",
-                notes: "",
-                isDraft: false,
-                updatedByUserId: input.userId,
-              })
-              .where(eq(lessonJournals.id, future.id));
-            pulledFrom.push(searchDate);
-            break;
-          }
-          searchDate = getNextBusinessDate(searchDate);
+      for (const [classGroupId, sources] of Array.from(futureByClass.entries())) {
+        const targetDates: string[] = [];
+        for (let date = input.journalDate; targetDates.length < sources.length && date <= horizonDate; date = getAdjacentJournalDate(date, 1, true)) {
+          const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+          if (day !== 0 && day !== 6 && !blockedDates.has(date)) targetDates.push(date);
+        }
+        if (targetDates.length < sources.length) throw new Error("수업일지를 당길 수 있는 날짜가 부족합니다.");
+        const idsToClear = [
+          ...currentJournals.filter(row => row.classGroupId === classGroupId).map(row => row.id),
+          ...sources.map(row => row.id),
+        ];
+        if (idsToClear.length)
+          await tx.update(lessonJournals).set({ content: "", homework: "", notes: "", isDraft: false, updatedByUserId: input.userId }).where(inArray(lessonJournals.id, idsToClear));
+        for (let index = 0; index < sources.length; index += 1) {
+          const source = sources[index]!;
+          const targetDate = targetDates[index]!;
+          await tx.insert(lessonJournals).values({
+            studentId: input.studentId, classGroupId, journalDate: targetDate,
+            content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft,
+            createdByUserId: source.createdByUserId, updatedByUserId: input.userId,
+          }).onDuplicateKeyUpdate({ set: {
+            content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft, updatedByUserId: input.userId,
+          }});
+          pulledFrom.push(source.journalDate);
         }
       }
     }
@@ -2304,74 +2342,37 @@ export async function deleteAndPullLessonJournal(input: {
         )
       )
       .orderBy(asc(lessonJournals.journalDate));
-    const lastSourceDate = sourceRows.at(-1)?.journalDate ?? input.journalDate;
-    const calendarDates: string[] = [];
-    for (
-      let date = input.journalDate;
-      date <= lastSourceDate;
-      date = getAdjacentJournalDate(date, 1, true)
-    )
-      calendarDates.push(date);
-    const calendarEvents = await getCalendarEventsForDates(calendarDates);
-    const targetDates = getJournalDeletionTargetDates(
-      input.journalDate,
-      sourceRows.map(row => row.journalDate),
-      input.includeWeekend,
-      new Set(calendarEvents.keys())
-    );
-    const sourceByDate = new Map(sourceRows.map(row => [row.journalDate, row]));
-    const movedFrom: string[] = [];
-    for (let index = 0; index < sourceRows.length; index += 1) {
-      const source = sourceRows[index];
-      const targetDate = targetDates[index];
-      if (!source || !targetDate) continue;
-      const values = {
-        content: source.content,
-        homework: source.homework,
-        notes: source.notes,
-        isDraft: source.isDraft,
-        updatedByUserId: input.userId,
-      };
-      const targetRows = await tx
-        .select({ id: lessonJournals.id })
-        .from(lessonJournals)
-        .where(
-          and(
-            eq(lessonJournals.studentId, input.studentId),
-            eq(lessonJournals.classGroupId, input.classGroupId),
-            eq(lessonJournals.journalDate, targetDate)
-          )
-        )
-        .limit(1);
-      if (targetRows[0])
-        await tx
-          .update(lessonJournals)
-          .set(values)
-          .where(eq(lessonJournals.id, targetRows[0].id));
-      else
-        await tx
-          .insert(lessonJournals)
-          .values({
-            studentId: input.studentId,
-            classGroupId: input.classGroupId,
-            journalDate: targetDate,
-            ...values,
-            createdByUserId: source.createdByUserId,
-          });
-      movedFrom.push(source.journalDate);
+    const horizon = new Date(`${sourceRows.at(-1)?.journalDate ?? input.journalDate}T00:00:00Z`);
+    horizon.setUTCDate(horizon.getUTCDate() + Math.max(366, sourceRows.length * 3));
+    const horizonDate = horizon.toISOString().slice(0, 10);
+    const [blockedAttendances, calendarEvents] = await Promise.all([
+      tx.select({ journalDate: attendanceRecords.journalDate, status: attendanceRecords.status })
+        .from(attendanceRecords)
+        .where(and(eq(attendanceRecords.studentId, input.studentId), gte(attendanceRecords.journalDate, input.journalDate), lte(attendanceRecords.journalDate, horizonDate))),
+      getCalendarEventsForDates(Array.from({ length: 367 }, (_, offset) => {
+        const date = new Date(`${input.journalDate}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10);
+      })),
+    ]);
+    const blockedDates = new Set(calendarEvents.keys());
+    for (const attendance of blockedAttendances)
+      if (["absent", "not_registered", "holiday", "closed"].includes(attendance.status)) blockedDates.add(attendance.journalDate);
+    const targetDates: string[] = [];
+    for (let date = input.journalDate; targetDates.length < sourceRows.length && date <= horizonDate; date = getAdjacentJournalDate(date, 1, true)) {
+      const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+      if ((input.includeWeekend || (day !== 0 && day !== 6)) && !blockedDates.has(date)) targetDates.push(date);
     }
-    const currentRows = await tx
+    if (targetDates.length < sourceRows.length) throw new Error("수업일지를 당길 수 있는 날짜가 부족합니다.");
+    const rowsToClear = await tx
       .select({ id: lessonJournals.id })
       .from(lessonJournals)
       .where(
         and(
           eq(lessonJournals.studentId, input.studentId),
           eq(lessonJournals.classGroupId, input.classGroupId),
-          eq(lessonJournals.journalDate, input.journalDate)
+          inArray(lessonJournals.journalDate, [input.journalDate, ...sourceRows.map(row => row.journalDate)])
         )
-      )
-      .limit(1);
-    if (currentRows[0])
+      );
+    if (rowsToClear.length)
       await tx
         .update(lessonJournals)
         .set({
@@ -2381,8 +2382,19 @@ export async function deleteAndPullLessonJournal(input: {
           isDraft: false,
           updatedByUserId: input.userId,
         })
-        .where(eq(lessonJournals.id, currentRows[0].id));
-    return { movedCount: movedFrom.length, movedFrom, targetDates };
+        .where(inArray(lessonJournals.id, rowsToClear.map(row => row.id)));
+    for (let index = 0; index < sourceRows.length; index += 1) {
+      const source = sourceRows[index]!;
+      const targetDate = targetDates[index]!;
+      await tx.insert(lessonJournals).values({
+        studentId: input.studentId, classGroupId: input.classGroupId, journalDate: targetDate,
+        content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft,
+        createdByUserId: source.createdByUserId, updatedByUserId: input.userId,
+      }).onDuplicateKeyUpdate({ set: {
+        content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft, updatedByUserId: input.userId,
+      }});
+    }
+    return { movedCount: sourceRows.length, movedFrom: sourceRows.map(row => row.journalDate), targetDates };
   });
 }
 
@@ -2663,6 +2675,31 @@ export async function getPublicStudentWeek(
       attendanceMessage,
     },
   };
+}
+
+export async function recordParentPortalView(token: string) {
+  const db = await requireDb();
+  const studentRows = await db
+    .select({ id: students.id })
+    .from(students)
+    .where(
+      and(
+        eq(students.publicToken, token),
+        eq(students.portalEnabled, true),
+        eq(students.active, true)
+      )
+    )
+    .limit(1);
+  const student = studentRows[0];
+  if (!student) return { recorded: false as const };
+  const monthKey = todayInKorea().slice(0, 7);
+  await db
+    .insert(parentPortalMonthlyViews)
+    .values({ studentId: student.id, monthKey, viewCount: 1 })
+    .onDuplicateKeyUpdate({
+      set: { viewCount: sql`${parentPortalMonthlyViews.viewCount} + 1` },
+    });
+  return { recorded: true as const };
 }
 
 export async function getWeeklySubjectComments(

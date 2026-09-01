@@ -51,6 +51,7 @@ const studentInput = z.object({
   totalCount: z.number().finite().min(0),
   validUntil: z.string().trim().max(32).optional(),
   paymentMethod: z.string().trim().max(80).optional(),
+  attendanceCode: z.union([z.literal(""), z.string().regex(/^\d{4}$/, "출결번호는 숫자 4자리여야 합니다.")]).optional(),
   classGroupIds: z.array(z.number().int().positive()).max(20),
   portalEnabled: z.boolean(),
 });
@@ -970,4 +971,13 @@ export const academyRouter = router({
         input.includeWeekend
       )
     ),
+  portalView: router({
+    record: publicProcedure
+      .input(z.object({ token: z.string().min(8).max(64) }))
+      .mutation(({ input, ctx }) =>
+        ctx.user && isAdmin(ctx.user)
+          ? { recorded: false as const, excludedAdmin: true as const }
+          : academyDb.recordParentPortalView(input.token)
+      ),
+  }),
 });

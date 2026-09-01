@@ -78,6 +78,7 @@ type StudentDraft = {
   studentNumber: string;
   studentPhone: string;
   parentPhone: string;
+  attendanceCode: string;
   memo: string;
   tuition: number;
   tuitionMode?: "automatic" | "manual";
@@ -96,6 +97,7 @@ const emptyDraft: StudentDraft = {
   studentNumber: "",
   studentPhone: "",
   parentPhone: "",
+  attendanceCode: "",
   memo: "",
   tuition: 0,
   tuitionMode: "automatic",
@@ -1060,6 +1062,7 @@ function StudentDialog({
             studentNumber: student.studentNumber ?? "",
             studentPhone: student.studentPhone ?? "",
             parentPhone: student.parentPhone ?? "",
+            attendanceCode: student.attendanceCode,
             memo: student.memo ?? "",
             tuition: student.tuition,
             tuitionMode: student.tuitionMode,
@@ -1209,6 +1212,25 @@ function StudentDialog({
                 placeholder="선택 입력"
               />
             </Field>
+            {student && (
+              <Field label="출결번호">
+                <Input
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={draft.attendanceCode}
+                  onChange={event =>
+                    setDraft({
+                      ...draft,
+                      attendanceCode: event.target.value.replace(/\D/g, "").slice(0, 4),
+                    })
+                  }
+                  placeholder="숫자 4자리"
+                />
+                <p className="text-[11px] leading-4 text-[#71817D]">
+                  등하원 입력 페이지에서 사용하는 학생 고유번호입니다.
+                </p>
+              </Field>
+            )}
           </div>
           <div className="grid gap-4 rounded-xl border border-[#E5DFD3] bg-[#FBF9F3] p-4 sm:grid-cols-2">
             <div className="sm:col-span-2 rounded-xl border border-[#E6D6A9] bg-[#FFFDF6] p-3.5">
@@ -1387,6 +1409,7 @@ function StudentDialog({
               pending ||
               !draft.name.trim() ||
               !draft.grade.trim() ||
+              (Boolean(student) && !/^\d{4}$/.test(draft.attendanceCode)) ||
               automaticUnavailable
             }
             onClick={() =>

@@ -164,6 +164,26 @@ export const parentPushSubscriptions = mysqlTable(
   })
 );
 
+/** 보호자 공유 페이지의 학생별 월간 열람 횟수다. 월 키가 바뀌면 화면에는 새 달의 0회부터 표시된다. */
+export const parentPortalMonthlyViews = mysqlTable(
+  "parent_portal_monthly_views",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    studentId: int("studentId").notNull(),
+    monthKey: varchar("monthKey", { length: 7 }).notNull(),
+    viewCount: int("viewCount").default(0).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    studentMonthUnique: uniqueIndex("parent_portal_monthly_views_student_month_unique").on(
+      table.studentId,
+      table.monthKey
+    ),
+    monthIndex: index("parent_portal_monthly_views_month_index").on(table.monthKey),
+  })
+);
+
 export const registrationCountHistories = mysqlTable(
   "registration_count_histories",
   {

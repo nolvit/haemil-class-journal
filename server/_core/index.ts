@@ -9,6 +9,7 @@ import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { seedLocalUploads } from "../storage";
+import { settlePreviousWeekCounts } from "../db";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -31,6 +32,11 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 
 async function startServer() {
   await seedLocalUploads();
+  void settlePreviousWeekCounts().catch(error => console.error("주간 수업 횟수 자동 누적 확인 실패", error));
+  const weeklySettlementTimer = setInterval(() => {
+    void settlePreviousWeekCounts().catch(error => console.error("주간 수업 횟수 자동 누적 확인 실패", error));
+  }, 60 * 60 * 1000);
+  weeklySettlementTimer.unref();
   const app = express();
   const server = createServer(app);
   // Configure body parser with larger size limit for file uploads

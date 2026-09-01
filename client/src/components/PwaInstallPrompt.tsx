@@ -101,6 +101,10 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
 }
 
 export function ParentNotificationPrompt({ token }: { token: string }) {
+  const confirmationKey = `haemil.parentPush.tested:${token}`;
+  const [testConfirmed, setTestConfirmed] = useState(
+    () => window.localStorage.getItem(confirmationKey) === "1"
+  );
   const [state, setState] = useState<
     "idle" | "loading" | "enabled" | "blocked" | "unsupported"
   >("idle");
@@ -112,7 +116,11 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
   const unsubscribe = trpc.academy.parentPush.unsubscribe.useMutation();
   const testNotification = trpc.academy.parentPush.test.useMutation({
     onSuccess: result => {
-      if (result.sent > 0) toast.success("테스트 알림을 전송했습니다.");
+      if (result.sent > 0) {
+        window.localStorage.setItem(confirmationKey, "1");
+        setTestConfirmed(true);
+        toast.success("테스트 알림을 전송했습니다. 알림 안내창을 숨깁니다.");
+      }
       else toast.error("등록된 알림 기기를 찾지 못했습니다. 알림을 다시 설정해 주세요.");
     },
     onError: error => toast.error(error.message),
@@ -238,6 +246,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       toast.error("알림을 다시 연결하지 못했습니다. 브라우저의 사이트 알림 설정을 확인해 주세요.");
     }
   };
+  if (testConfirmed) return null;
   return (
     <div className="rounded-2xl border border-[#C9DDD4] bg-[#F1F8F4] p-4">
       <div className="flex items-start gap-3">

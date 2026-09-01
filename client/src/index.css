@@ -45,7 +45,7 @@
 
 /* 보호자 공유: 데스크톱은 기존 표를 유지하고, 모바일만 카드형 정보 밀도를 조정한다. */
 .portal-hero-content { position:static;z-index:1;max-width:min(68%,760px); }
-.portal-resource-actions { position:absolute;right:126px;bottom:29px;z-index:2;display:flex;max-width:42%;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding-right:0; }
+.portal-resource-actions { position:relative;z-index:2;display:flex;max-width:calc(100% - 90px);flex-wrap:wrap;justify-content:flex-start;gap:8px;margin-top:17px;padding-right:0; }
 .portal-attendance-weekdays { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px; }
 .portal-attendance-weekends { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px; }
 .portal-attendance-day { min-width:0;border:1px solid #EEE6D8;border-radius:12px;background:#FCFBF7;padding:9px 7px; }
@@ -120,6 +120,7 @@
 .portal-merged-calendar-overlay { z-index:2;min-width:0;min-height:148px;padding:0 !important;overflow:hidden;border:1px solid #E5DED1 !important;border-radius:0;box-shadow:0 8px 20px rgba(35,61,57,.11); }
 .portal-calendar-panel { position:relative;display:flex;min-height:148px;width:100%;height:100%;overflow:hidden;isolation:isolate; }
 .portal-calendar-panel.portal-calendar-image { align-items:flex-end;background:#294B47; }.portal-calendar-image-backdrop { position:absolute;inset:-20px;z-index:-2;width:calc(100% + 40px);height:calc(100% + 40px);object-fit:cover;filter:blur(17px) saturate(.84);opacity:.68;transform:scale(1.06); }.portal-calendar-image-original { position:absolute;inset:0;z-index:-1;width:100%;height:100%;object-fit:contain; }
+.portal-calendar-image-button { position:absolute;inset:0;z-index:0;cursor:zoom-in;border:0;background:transparent; }.portal-calendar-image-button .portal-calendar-image-original { z-index:0; }
 .portal-calendar-image:after { content:"";position:absolute;z-index:0;inset:0;background:linear-gradient(90deg,rgba(16,48,45,.75),rgba(16,48,45,.22) 62%,rgba(16,48,45,.04)); }
 .portal-calendar-image-caption { position:relative;z-index:1;display:grid;align-self:flex-end;gap:3px;margin:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(14,47,43,.38);backdrop-filter:blur(4px);color:#FFF9EE;text-shadow:0 1px 10px rgba(8,30,28,.46); }
 .portal-calendar-image-caption span,.portal-calendar-text span { font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase; }

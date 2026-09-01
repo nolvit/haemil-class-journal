@@ -1,3 +1,3 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-  <path fill="#fff" d="M20 14h16v25h24V14h16v68H60V55H36v27H20z"/>
+  <text x="48" y="76" fill="#fff" font-family="Malgun Gothic, sans-serif" font-size="76" font-weight="900" text-anchor="middle">해</text>
 </svg>
