@@ -120,9 +120,9 @@
 .portal-merged-calendar-overlay { z-index:2;min-width:0;min-height:148px;padding:0 !important;overflow:hidden;border:1px solid #E5DED1 !important;border-radius:0;box-shadow:0 8px 20px rgba(35,61,57,.11); }
 .portal-calendar-panel { position:relative;display:flex;min-height:148px;width:100%;height:100%;overflow:hidden;isolation:isolate; }
 .portal-calendar-panel.portal-calendar-image { align-items:flex-end;background:#294B47; }.portal-calendar-image-backdrop { position:absolute;inset:-20px;z-index:-2;width:calc(100% + 40px);height:calc(100% + 40px);object-fit:cover;filter:blur(17px) saturate(.84);opacity:.68;transform:scale(1.06); }.portal-calendar-image-original { position:absolute;inset:0;z-index:-1;width:100%;height:100%;object-fit:contain; }
-.portal-calendar-image-button { position:absolute;inset:0;z-index:0;cursor:zoom-in;border:0;background:transparent; }.portal-calendar-image-button .portal-calendar-image-original { z-index:0; }
-.portal-calendar-image:after { content:"";position:absolute;z-index:0;inset:0;background:linear-gradient(90deg,rgba(16,48,45,.75),rgba(16,48,45,.22) 62%,rgba(16,48,45,.04)); }
-.portal-calendar-image-caption { position:relative;z-index:1;display:grid;align-self:flex-end;gap:3px;margin:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(14,47,43,.38);backdrop-filter:blur(4px);color:#FFF9EE;text-shadow:0 1px 10px rgba(8,30,28,.46); }
+.portal-calendar-image-button { position:absolute;inset:0;z-index:3;cursor:zoom-in;border:0;background:transparent; }
+.portal-calendar-image:after { content:"";position:absolute;z-index:0;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(16,48,45,.75),rgba(16,48,45,.22) 62%,rgba(16,48,45,.04)); }
+.portal-calendar-image-caption { position:relative;z-index:1;display:grid;align-self:flex-end;gap:3px;margin:12px;padding:10px 12px;pointer-events:none;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(14,47,43,.38);backdrop-filter:blur(4px);color:#FFF9EE;text-shadow:0 1px 10px rgba(8,30,28,.46); }
 .portal-calendar-image-caption span,.portal-calendar-text span { font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase; }
 .portal-calendar-image-caption b,.portal-calendar-text b { font-family:var(--font-serif);font-size:21px;line-height:1.15;letter-spacing:-.03em; }
 .portal-calendar-image-caption small { font-size:10px;line-height:1.4; }

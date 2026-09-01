@@ -135,9 +135,19 @@ function CalendarEventPanel({
           alt=""
           aria-hidden="true"
         />
-        <button type="button" className="portal-calendar-image-button" onClick={() => onExpandImage?.(event.imageUrl!, `${event.name} 안내 이미지`)} aria-label={`${event.name} 안내 이미지 크게 보기`}>
-          <img className="portal-calendar-image-original" src={event.imageUrl} alt={`${event.name} 안내 이미지`} />
-        </button>
+        <img
+          className="portal-calendar-image-original"
+          src={event.imageUrl}
+          alt={`${event.name} 안내 이미지`}
+        />
+        <button
+          type="button"
+          className="portal-calendar-image-button"
+          onClick={() =>
+            onExpandImage?.(event.imageUrl!, `${event.name} 안내 이미지`)
+          }
+          aria-label={`${event.name} 안내 이미지 크게 보기`}
+        />
         <div className="portal-calendar-image-caption">
           <span>{eventLabel}</span>
           <b>{event.name}</b>
