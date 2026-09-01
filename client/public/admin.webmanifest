@@ -1,0 +1,14 @@
+{
+  "id": "/?app=admin",
+  "name": "해밀학원 관리자",
+  "short_name": "해밀 관리자",
+  "description": "해밀학원 출석과 수업일지 관리",
+  "start_url": "/?app=admin",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F8F5EE",
+  "theme_color": "#193D3C",
+  "icons": [
+    { "src": "/icons/admin.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

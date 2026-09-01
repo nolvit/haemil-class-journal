@@ -1,0 +1,180 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: "Noto Sans KR", sans-serif;
+  --font-serif: "DM Serif Display", "Noto Sans KR", serif;
+  --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background); --color-foreground: var(--foreground); --color-card: var(--card); --color-card-foreground: var(--card-foreground); --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground); --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground); --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground); --color-destructive: var(--destructive); --color-destructive-foreground: var(--destructive-foreground); --color-border: var(--border); --color-input: var(--input); --color-ring: var(--ring); --color-sidebar: var(--sidebar); --color-sidebar-foreground: var(--sidebar-foreground); --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground); --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground); --color-sidebar-border: var(--sidebar-border); --color-sidebar-ring: var(--sidebar-ring);
+}
+
+:root { --radius: 0.85rem; --background: oklch(0.976 0.008 90); --foreground: oklch(0.29 0.032 174); --card: oklch(0.998 0.004 90); --card-foreground: oklch(0.29 0.032 174); --popover: oklch(0.998 0.004 90); --popover-foreground: oklch(0.29 0.032 174); --primary: oklch(0.36 0.057 177); --primary-foreground: oklch(0.985 0.004 90); --secondary: oklch(0.94 0.02 89); --secondary-foreground: oklch(0.35 0.037 174); --muted: oklch(0.951 0.012 90); --muted-foreground: oklch(0.52 0.02 174); --accent: oklch(0.94 0.025 89); --accent-foreground: oklch(0.32 0.04 174); --destructive: oklch(0.57 0.16 28); --destructive-foreground: oklch(0.985 0 0); --border: oklch(0.89 0.015 90); --input: oklch(0.86 0.015 90); --ring: oklch(0.56 0.06 174); --sidebar: oklch(0.27 0.04 174); --sidebar-foreground: oklch(0.95 0.01 90); --sidebar-primary: oklch(0.78 0.065 85); --sidebar-primary-foreground: oklch(0.28 0.04 174); --sidebar-accent: oklch(0.34 0.04 174); --sidebar-accent-foreground: oklch(0.95 0.01 90); --sidebar-border: oklch(0.3 0.04 174); --sidebar-ring: oklch(0.76 0.06 85); }
+
+@layer base { * { @apply border-border outline-ring/50; } body { @apply bg-background text-foreground font-sans; } button:not(:disabled), [role="button"]:not([aria-disabled="true"]), [type="button"]:not(:disabled), [type="submit"]:not(:disabled), [type="reset"]:not(:disabled), a[href], select:not(:disabled), input[type="checkbox"]:not(:disabled), input[type="radio"]:not(:disabled) { @apply cursor-pointer; } button { transition: transform 160ms cubic-bezier(0.23,1,0.32,1), background-color 160ms cubic-bezier(0.23,1,0.32,1), border-color 160ms cubic-bezier(0.23,1,0.32,1); } button:active:not(:disabled) { transform: scale(.97); } }
+
+.journal-auth-shell { min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(circle at 75% 20%, #E9DFC7 0 8%, transparent 28%), radial-gradient(circle at 15% 85%, #D9E5DE 0 9%, transparent 28%), #F7F3E9; }
+.journal-auth-card { width:min(100%,480px); border:1px solid #E2DCCD; border-radius:28px; padding:48px; background:rgba(255,254,250,.88); box-shadow:0 24px 60px rgba(31,61,55,.12); text-align:center; }.brand-seal,.journal-avatar { display:grid; place-items:center; border-radius:50%; background:#234E52; color:#F7F0DF; font-family:var(--font-serif); }.brand-seal { width:38px;height:38px;margin:0 auto 20px;font-size:22px; }.journal-auth-card h1 { margin-top:12px; font-family:var(--font-serif); color:#173D3C; font-size:38px; line-height:1.15; letter-spacing:-.04em; }.journal-auth-card p:not(.eyebrow) { margin:16px auto 27px; max-width:330px; color:#667875; font-size:14px; line-height:1.8; }.eyebrow { font-size:10px; letter-spacing:.16em; font-weight:700; color:#8A7A58; }.journal-primary-button { background:#234E52 !important; color:#FBF9F2 !important; box-shadow:0 7px 15px rgba(35,78,82,.16); }.journal-primary-button:hover { background:#183E3D !important; }.journal-sidebar { background:linear-gradient(160deg,#173D3C 0%,#234E52 65%,#315A57 100%) !important; }.journal-sidebar-toggle { display:grid;place-items:center;width:32px;height:32px;border-radius:10px;color:#D9E4DF; }.journal-sidebar-toggle:hover { background:rgba(255,255,255,.11); }.journal-sidebar-item[data-active="true"] svg { color:#234E52; }.journal-inset { min-width:0; }.journal-mobile-header { position:sticky;top:0;z-index:30;display:flex;height:60px;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid #E7E1D4;background:rgba(248,245,238,.92);backdrop-filter:blur(10px); }.journal-page-shell { max-width:1240px;margin:0 auto; }.journal-page-heading { display:flex;align-items:flex-end;justify-content:space-between;gap:24px; }.journal-page-heading h1 { margin-top:8px;font-family:var(--font-serif);font-size:clamp(34px,4vw,48px);line-height:1;letter-spacing:-.05em;color:#173D3C; }.journal-page-heading p:not(.eyebrow) { margin-top:12px;color:#657673;font-size:14px;line-height:1.7; }.journal-date-control { width:180px;display:grid;gap:7px;font-size:11px;font-weight:700;letter-spacing:.08em;color:#71817D; }.journal-date-nav { display:flex;align-items:center;gap:7px; }.journal-date-nav input { width:145px; }.journal-action-rail { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:32px; }.journal-action-rail button { display:flex;align-items:center;gap:13px;min-height:90px;padding:17px;border:1px solid #E5DED0;border-radius:18px;background:#FFFEFA;text-align:left;box-shadow:0 4px 12px rgba(51,72,65,.03); }.journal-action-rail button:hover { border-color:#CBB98A;box-shadow:0 9px 20px rgba(51,72,65,.08); }.journal-step-index { font-family:var(--font-serif);font-size:22px;color:#C5AE79; }.journal-action-rail b { display:block;font-size:14px;color:#234E52; }.journal-action-rail small { display:block;margin-top:5px;font-size:11px;color:#71817D; }.journal-stat-grid { display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px; }.journal-stat-card { overflow:hidden;border:1px solid #E8E1D2;box-shadow:none; }.journal-stat-card .journal-stat-icon { display:grid;place-items:center;width:34px;height:34px;border-radius:11px;color:#315B57;background:#E8EFED; }.journal-stat-yellow .journal-stat-icon { color:#8B6718;background:#FFF1B7; }.journal-stat-ink .journal-stat-icon { color:#FFF7E9;background:#315B57; }.journal-stat-soft .journal-stat-icon { color:#63716F;background:#F0ECE4; }.journal-section-title { display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px; }.journal-section-title h2 { margin-top:5px;font-family:var(--font-serif);font-size:27px;letter-spacing:-.035em;color:#193D3C; }.journal-surface { border:1px solid #E6E0D4;box-shadow:0 8px 24px rgba(53,64,56,.045);background:#FFFEFA; }.journal-list-head,.journal-student-row { grid-template-columns:1.3fr .8fr .8fr .7fr .9fr auto;gap:16px;align-items:center; }.journal-list-head { padding:13px 20px;border-bottom:1px solid #E8E2D7;background:#FAF8F2;font-size:10px;font-weight:700;letter-spacing:.12em;color:#7A8985; }.journal-student-row { display:grid;padding:15px 20px;border-bottom:1px solid #EEE9E0; }.journal-student-row:last-child { border-bottom:0; }.journal-student-row b { color:#254946; }.journal-student-row small { display:block;margin-top:3px;color:#71817D;font-size:11px; }.journal-empty-state { display:flex;min-height:230px;flex-direction:column;align-items:center;justify-content:center;padding:32px;text-align:center;color:#71817D; }.journal-empty-state svg { color:#C1AE80; }.journal-empty-state h3 { margin-top:14px;font-family:var(--font-serif);font-size:23px;color:#234E52; }.journal-empty-state p { max-width:390px;margin-top:7px;font-size:13px;line-height:1.7; }.journal-empty-state button { margin-top:18px; }.journal-guidance { display:flex;align-items:center;gap:9px;margin-top:27px;padding:13px 16px;border:1px solid #E4DCCB;border-radius:13px;background:#FFFCF3;color:#697873;font-size:12px; }.journal-guidance svg { color:#B8891B; }.journal-attendance-card { border:1px solid #E8E1D2;background:#FFFEFA;box-shadow:0 5px 18px rgba(49,67,57,.035); }.journal-attendance-card.is-pending { border-left:4px solid #D9AD27;background:linear-gradient(90deg,#FFF8DB 0%,#FFFEFA 26%); }.journal-input-label { display:grid;gap:7px;font-size:11px;font-weight:700;letter-spacing:.05em;color:#677875; }.journal-select { height:36px;width:100%;border:1px solid #DED8CB;border-radius:8px;background:#fff;padding:0 10px;font-size:13px;font-weight:500;color:#294B48; }.journal-filter-bar { display:flex;align-items:flex-end;gap:14px;margin-top:29px;padding:15px 17px;border:1px solid #E7E1D5;border-radius:14px;background:#FFFEFA; }.journal-filter-bar .journal-input-label { width:210px; }.journal-attention-filter { display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 12px;border:1px solid #E4D3A3;border-radius:8px;background:#FFFBEA;color:#816319;font-size:12px;font-weight:600; }.journal-attention-filter.is-active { background:#FFEBA0;border-color:#CCA13B;color:#604A15; }.journal-group-header { display:flex;align-items:center;justify-content:space-between;border-left:5px solid #234E52;padding:18px 20px 15px;background:#FCFBF7; }.journal-group-header h2 { margin-top:4px;font-family:var(--font-serif);font-size:25px;color:#183E3D; }.journal-entry-row { display:grid;grid-template-columns:1.1fr .85fr 1.4fr 1.1fr 1.2fr auto;gap:16px;align-items:center;padding:18px 20px;border-top:1px solid #ECE7DD; }.journal-entry-row.is-attention { background:linear-gradient(90deg,#FFF7D8 0%,#FFFEFA 34%);border-left:4px solid #D8AA25;padding-left:16px; }.journal-entry-text p { display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:12px;line-height:1.6;color:#586964; }.journal-mobile-key { margin-right:6px;font-size:10px;font-weight:700;letter-spacing:.08em;color:#899590; }.journal-dialog { border-color:#E5DED0;background:#FFFEFA; }.journal-checkbox-list { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px; }.journal-checkbox-list label { display:flex;align-items:center;gap:9px;min-height:56px;padding:10px;border:1px solid #E7E1D5;border-radius:10px;background:#FCFBF7; }.journal-checkbox-list b { display:block;font-size:12px;color:#315B57; }.journal-checkbox-list small { display:block;margin-top:2px;font-size:10px;color:#82908C; }.journal-checkbox-list p { color:#8A7A58;font-size:12px; }.journal-student-grid,.journal-class-grid { display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px; }.journal-student-card,.journal-class-card { border:1px solid #E7E1D5;background:#FFFEFA;box-shadow:0 5px 18px rgba(49,67,57,.035); }.journal-student-card:hover,.journal-class-card:hover { border-color:#D2C298; }.journal-avatar { width:42px;height:42px;font-size:20px; }.journal-class-card { min-height:220px; }.portal-shell { min-height:100vh;padding:24px;background:radial-gradient(circle at 90% 10%,#E5DEC6 0,transparent 25%),#F6F3EA; }.portal-container { width:min(1120px,100%);margin:0 auto; }.portal-header { display:flex;align-items:center;justify-content:space-between;padding:9px 2px 22px; }.portal-brand { display:flex;align-items:center;gap:9px; }.portal-brand .brand-seal { width:32px;height:32px;margin:0;font-size:18px; }.portal-hero { position:relative;overflow:hidden;display:flex;align-items:center;justify-content:space-between;min-height:190px;padding:35px 42px;border-radius:25px;background:linear-gradient(125deg,#173D3C,#315A57);color:#FCF9F0; }.portal-hero:after { content:"";position:absolute;right:-30px;bottom:-75px;width:210px;height:210px;border:1px solid rgba(246,235,195,.32);border-radius:50%; }.portal-hero h1 { margin-top:9px;font-family:var(--font-serif);font-size:clamp(30px,4vw,43px);letter-spacing:-.04em; }.portal-hero p:not(.eyebrow) { margin-top:11px;color:#D8E1DB;font-size:14px; }.portal-hero .eyebrow { color:#D8C798; }.portal-hero-icon { position:relative;z-index:1;width:70px;height:70px;color:#D8C798;opacity:.85; }.portal-week-nav { display:flex;justify-content:flex-end;gap:7px;margin-top:18px; }.portal-week-nav input { width:150px; }.portal-card { border:1px solid #E5DED1;background:#FFFEFA;box-shadow:0 9px 24px rgba(47,61,54,.05); }.portal-grid { display:grid;grid-template-columns:180px repeat(5,minmax(0,1fr)); }.portal-grid>div { min-width:0;padding:14px 13px;border-right:1px solid #ECE6DB;border-bottom:1px solid #ECE6DB; }.portal-grid>div:last-child { border-right:0; }.portal-grid-head { background:#2B5552;color:#F8F4E8;font-size:12px;font-weight:700; }.portal-grid-head small,.portal-attendance small { display:block;margin-top:3px;font-size:10px;font-weight:400;opacity:.75; }.portal-attendance { background:#FBF9F3;font-size:12px;color:#315B57; }.portal-subject-row>div:first-child { background:#FCFBF7;color:#315B57; }.portal-subject-row b { display:block;font-size:13px; }.portal-subject-row small { display:block;margin-top:4px;font-size:10px;color:#86938E; }.portal-subject-row p { font-size:12px;line-height:1.6;color:#53645F;white-space:pre-line; }.portal-homework,.portal-note { display:block;margin-top:7px;font-size:10px;line-height:1.5;color:#84713E; }.portal-note { color:#7C6A5C; }.portal-footer { display:flex;align-items:center;justify-content:center;gap:7px;padding:28px 0 9px;color:#768681;font-size:11px; }
+
+@media (max-width: 1024px) { .journal-action-rail { grid-template-columns:1fr; }.journal-action-rail button { min-height:72px; }.journal-student-grid,.journal-class-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }.journal-entry-row { grid-template-columns:1.1fr .8fr 1fr 1fr auto; }.journal-entry-row>div:nth-child(5) { display:none; } }
+@media (max-width: 720px) { .journal-page-heading { align-items:flex-start;flex-direction:column;gap:18px; }.journal-date-control { width:100%; }.journal-date-control input { width:100%; }.journal-stat-grid { grid-template-columns:repeat(2,1fr); }.journal-stat-card { min-height:130px; }.journal-section-title { align-items:flex-start;gap:16px; }.journal-list-head { display:none; }.journal-student-row { grid-template-columns:1fr auto;gap:10px;padding:15px; }.journal-student-row>span:nth-child(3) { grid-column:1/2; }.journal-student-row>span:nth-child(4) { grid-column:2/3;grid-row:2;justify-self:end; }.journal-student-row>span:nth-child(5) { grid-column:1/2; }.journal-student-row>button { grid-column:2/3;grid-row:3;justify-self:end; }.journal-guidance { align-items:flex-start;flex-wrap:wrap;line-height:1.6; }.journal-guidance .badge { margin-left:25px; }.journal-filter-bar { align-items:stretch;flex-direction:column; }.journal-filter-bar .journal-input-label { width:100%; }.journal-filter-bar>span { margin-left:0; }.journal-entry-row { grid-template-columns:1fr auto;gap:13px;padding:16px; }.journal-entry-row.is-attention { padding-left:12px; }.journal-entry-row>div:nth-child(1) { grid-column:1/2; }.journal-entry-row>div:nth-child(2) { grid-column:2/3;justify-self:end; }.journal-entry-row>div:nth-child(3),.journal-entry-row>div:nth-child(4),.journal-entry-row>div:nth-child(5) { display:block;grid-column:1/-1; }.journal-entry-row>div:nth-child(6) { grid-column:1/-1; }.journal-entry-row>div:nth-child(6) .badge { display:inline-flex; }.journal-entry-row>div:nth-child(5) { display:block; }.journal-mobile-key { display:inline; }.journal-checkbox-list { grid-template-columns:1fr; }.journal-student-grid,.journal-class-grid { grid-template-columns:1fr; }.portal-shell { padding:14px; }.portal-hero { min-height:180px;padding:28px 25px; }.portal-hero-icon { display:none; }.portal-grid { grid-template-columns:118px repeat(5,minmax(130px,1fr));min-width:770px; }.portal-card { overflow-x:auto; }.portal-grid>div { padding:12px 10px; }.portal-week-nav { justify-content:flex-start; }.journal-auth-card { padding:35px 24px; }.journal-date-nav { width:100%; }.journal-date-nav input { flex:1; }.journal-date-nav button { flex:0 0 auto; } }
+
+/* 보호자 공유 화면: 데스크톱은 한 화면 폭으로, 모바일은 카드형 기록으로 제공한다. */
+.portal-container { width:min(1440px,100%); }
+.portal-desktop-table { overflow-x:auto;overflow-y:hidden; }
+.portal-footer { align-items:flex-start;line-height:1.65;text-align:center; }
+.portal-footer b,.portal-footer span { display:block; }
+.portal-footer span { margin-top:2px; }
+@media (max-width: 720px) {
+  .portal-week-nav { align-items:center;flex-wrap:wrap;justify-content:flex-start; }
+  .portal-week-nav input { width:144px; }
+  .portal-week-nav > div { margin-left:0; }
+  .portal-mobile-records { display:block; }
+  .portal-footer { justify-content:flex-start;text-align:left; }
+}
+
+/* 관리자 탐색과 날짜 조작의 정보 계층을 명확하게 정리한다. */
+.journal-menu-group { margin-top:10px; }
+.journal-menu-group:first-child { margin-top:0; }
+.journal-menu-group-label { margin:0 0 5px;padding:0 12px;color:#9DABA9;font-size:10px;font-weight:700;letter-spacing:.16em; }
+.dashboard-date-control { width:326px;grid-template-columns:1fr auto;align-items:end;padding:13px 14px;border:1px solid #E5DED1;border-radius:16px;background:#FFFEFA;box-shadow:0 5px 16px rgba(47,61,54,.04); }
+.dashboard-date-label { grid-column:1/-1;display:flex;align-items:center;gap:6px;color:#657673; }
+.dashboard-today-button { height:36px;padding:0 10px;color:#315B57; }
+
+/* 보호자 공유: 데스크톱은 기존 표를 유지하고, 모바일만 카드형 정보 밀도를 조정한다. */
+.portal-hero-content { position:static;z-index:1;max-width:min(68%,760px); }
+.portal-resource-actions { position:absolute;right:126px;bottom:29px;z-index:2;display:flex;max-width:42%;flex-wrap:wrap;justify-content:flex-end;gap:8px;padding-right:0; }
+.portal-attendance-weekdays { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px; }
+.portal-attendance-weekends { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px; }
+.portal-attendance-day { min-width:0;border:1px solid #EEE6D8;border-radius:12px;background:#FCFBF7;padding:9px 7px; }
+.portal-attendance-day b { display:block;font-size:11px;color:#47615D;white-space:nowrap; }
+.portal-attendance-day .inline-flex { max-width:100%;padding-left:6px;padding-right:6px;font-size:10px;white-space:nowrap; }
+.portal-attendance-message { max-width:min(100%, 520px);white-space:normal;line-height:1.45;text-align:center; }
+.portal-mobile-attendance-message { display:none; }
+.portal-mobile-comment { margin-top:12px;border-left:3px solid #D8C59A;padding:8px 10px;background:#FBF7EC; }
+.portal-mobile-comment span { display:block;font-size:10px;font-weight:700;letter-spacing:.08em;color:#8A7A58; }
+.portal-mobile-comment p { margin-top:3px;font-size:12px;line-height:1.55;color:#6C6050;white-space:pre-line; }
+.attendance-status-badge.attendance-status-not_entered { background-color:#FFF1B7 !important;color:#765E10 !important; }
+.attendance-status-badge.attendance-status-present { background-color:#E5F0E9 !important;color:#2F7154 !important; }
+.attendance-status-badge.attendance-status-absent { background-color:#F6E5E1 !important;color:#9A4234 !important; }
+.attendance-status-badge.attendance-status-not_registered { background-color:#F7E9D8 !important;color:#9C6632 !important; }
+.attendance-status-badge.attendance-status-holiday { background-color:#F0EEE8 !important;color:#69746F !important; }
+.attendance-status-badge.attendance-status-makeup,
+.attendance-status-badge.attendance-status-makeup_double { background-color:#E3EFF7 !important;color:#346E90 !important; }
+
+@media (max-width: 720px) {
+  .dashboard-date-control { width:100%;grid-template-columns:1fr auto; }
+  .dashboard-date-control .journal-date-nav { min-width:0; }
+  .dashboard-date-control .journal-date-nav input { min-width:0;width:auto;flex:1; }
+  .portal-hero { display:block;min-height:auto;padding:26px 24px; }
+  .portal-hero-content { max-width:none; }
+  .portal-resource-actions { position:static;justify-content:flex-start;margin-top:17px;padding-right:0; }
+  .portal-resource-actions a { flex:1;text-align:center; }
+  .portal-hero .portal-attendance-message { display:none; }
+  .portal-mobile-attendance-message { display:block;margin:0 0 14px;border-radius:999px;background:#D8C59A;padding:9px 14px;color:#193D3C;font-size:12px;font-weight:700;line-height:1.5;text-align:center;box-shadow:0 3px 10px rgba(137,110,50,.08); }
+  .portal-attendance-weekdays { gap:5px; }
+  .portal-attendance-weekends { grid-template-columns:repeat(2,minmax(0,1fr));max-width:none;width:100%; }
+  .portal-attendance-day { min-height:72px;padding:9px 6px; }
+  .portal-attendance-day b { font-size:10px; }
+  .portal-attendance-day small { font-size:10px;white-space:nowrap; }
+}
+
+/* 업무 현황 학생 표: 헤더와 내용 행이 같은 일곱 열 정의를 사용한다. */
+.dashboard-student-status-grid { grid-template-columns:1.2fr 1fr .65fr .75fr .65fr .9fr auto; }
+.dashboard-student-attendance,.dashboard-student-journal-state { display:grid;justify-items:start;gap:4px;min-width:0; }.dashboard-student-attendance .attendance-status-badge { grid-column:1;grid-row:1; }.dashboard-student-attendance small { grid-column:1 / -1;grid-row:2; }.dashboard-quick-arrival-button { grid-column:2;grid-row:1;width:24px;height:24px;padding:0;border-color:#D8C38D;background:#FFFBEA;color:#9A7316; }.dashboard-quick-arrival-button:hover { border-color:#B8891B;background:#FFF1C7;color:#765E10; }
+.dashboard-student-attendance small,.dashboard-student-journal-state small { display:block;max-width:100%;overflow:hidden;color:#71817D;font-size:10px;line-height:1.25;text-overflow:ellipsis;white-space:nowrap; }
+.dashboard-workboard { display:grid;grid-template-columns:minmax(0,1fr);gap:16px;margin-top:28px; }.dashboard-workboard.has-pending { grid-template-columns:minmax(0,1.35fr) minmax(320px,.85fr);align-items:start; }.dashboard-workboard-main { display:grid;gap:14px; }.dashboard-action-grid,.dashboard-summary-grid { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px; }.dashboard-action-card { display:flex;align-items:center;gap:13px;min-height:92px;padding:17px;border:1px solid #E5DED0;border-radius:18px;background:#FFFEFA;text-align:left;box-shadow:0 4px 12px rgba(51,72,65,.03);transition:border-color .16s ease,box-shadow .16s ease,transform .16s ease; }.dashboard-action-card:hover { border-color:#CBB98A;box-shadow:0 9px 20px rgba(51,72,65,.08);transform:translateY(-1px); }.dashboard-action-card:active { transform:scale(.98); }.dashboard-action-card b { display:block;font-size:14px;color:#234E52; }.dashboard-action-card small { display:block;margin-top:5px;font-size:11px;color:#71817D; }.dashboard-summary-grid .journal-stat-card { min-height:142px; }.dashboard-pending-stack { display:grid; }.dashboard-pending-card { min-height:142px; }.dashboard-pending-card .rounded-lg { min-height:32px; }.dashboard-pending-section { margin-top:14px; }.dashboard-pending-section>p { color:#6E7E79;font-size:10px;font-weight:700;letter-spacing:.1em; }.dashboard-pending-divider { height:1px;margin-top:14px;background:#ECE5D8; }
+@media (max-width: 720px) {
+  .journal-student-row>span:nth-child(4) { display:block;grid-column:1/2;grid-row:2; }
+  .journal-student-row>span:nth-child(5) { display:block;grid-column:2/3;grid-row:2;justify-self:end; }
+  .journal-student-row>span:nth-child(6) { display:block;grid-column:1/2;grid-row:3; }
+  .journal-student-row>button { grid-column:2/3;grid-row:3;justify-self:end; }
+  .dashboard-workboard.has-pending { grid-template-columns:1fr; }.dashboard-action-grid,.dashboard-summary-grid { grid-template-columns:1fr; }.dashboard-action-card { min-height:78px; }.dashboard-summary-grid .journal-stat-card { min-height:116px; }.dashboard-pending-card { min-height:auto; }
+}
+
+.journal-list-head-mobile { display:none; }
+@media (max-width: 720px) {
+  .journal-list-head-mobile { display:grid;grid-template-columns:1.35fr .75fr .55fr .75fr 1.1fr;gap:6px;align-items:center;padding:10px 15px;border-bottom:1px solid #E8E2D7;background:#FAF8F2;color:#7A8985;font-size:9px;font-weight:700;letter-spacing:.03em; }
+  .journal-list-head-mobile span:not(:first-child) { text-align:right; }
+  @media (prefers-reduced-motion: no-preference) {
+    .mobile-page-transition { animation:mobile-page-enter-next 220ms cubic-bezier(.23,1,.32,1); }
+    .mobile-page-transition-previous { animation-name:mobile-page-enter-previous; }
+    @keyframes mobile-page-enter-next { from { opacity:0;transform:translateX(18px); } to { opacity:1;transform:translateX(0); } }
+    @keyframes mobile-page-enter-previous { from { opacity:0;transform:translateX(-18px); } to { opacity:1;transform:translateX(0); } }
+  }
+}
+
+/* 관리자 휴강 카드와 보호자용 공휴일·휴강 패널 */
+.closure-preview-fallback { display:flex;min-height:150px;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:20px;background:linear-gradient(145deg,#F6F0E3,#E7EDE5);color:#527069;text-align:center; }
+.closure-preview-fallback span { font-size:12px;font-weight:700; }.closure-preview-fallback small { max-width:145px;font-size:10px;line-height:1.5;color:#72847F; }
+.attendance-status-badge.attendance-status-closed { background-color:#F3E7D9 !important;color:#895A30 !important; }
+.portal-merged-grid { position:relative;display:grid; }
+.portal-merged-grid>div { min-width:0;padding:14px 13px;border-right:1px solid #ECE6DB;border-bottom:1px solid #ECE6DB; }
+.portal-merged-head { background:#2B5552;color:#F8F4E8;font-size:12px;font-weight:700; }
+.portal-merged-attendance { background:#FBF9F3;color:#315B57;font-size:12px; }.portal-attendance-inline { display:flex;align-items:center;gap:6px;min-width:0;white-space:nowrap; }.portal-merged-attendance small { margin:0;font-size:10px;font-weight:400;opacity:.75; }
+.portal-merged-subject-label { background:#FCFBF7;color:#315B57; }.portal-merged-subject-label b { display:block;font-size:13px; }
+.portal-merged-subject-cell p,.portal-merged-note-cell { font-size:12px;line-height:1.6;color:#53645F;white-space:pre-line; }.portal-merged-note-cell { color:#7C6A5C; }
+.portal-scheduled-badge { display:inline-flex;align-items:center;border-radius:999px;background:#E8EEF0;color:#486B74;font-size:10px;font-weight:700;line-height:1;padding:4px 7px; }
+.portal-merged-calendar-overlay { z-index:2;min-width:0;min-height:148px;padding:0 !important;overflow:hidden;border:1px solid #E5DED1 !important;border-radius:0;box-shadow:0 8px 20px rgba(35,61,57,.11); }
+.portal-calendar-panel { position:relative;display:flex;min-height:148px;width:100%;height:100%;overflow:hidden;isolation:isolate; }
+.portal-calendar-panel.portal-calendar-image { align-items:flex-end;background:#294B47; }.portal-calendar-image-backdrop { position:absolute;inset:-20px;z-index:-2;width:calc(100% + 40px);height:calc(100% + 40px);object-fit:cover;filter:blur(17px) saturate(.84);opacity:.68;transform:scale(1.06); }.portal-calendar-image-original { position:absolute;inset:0;z-index:-1;width:100%;height:100%;object-fit:contain; }
+.portal-calendar-image:after { content:"";position:absolute;z-index:0;inset:0;background:linear-gradient(90deg,rgba(16,48,45,.75),rgba(16,48,45,.22) 62%,rgba(16,48,45,.04)); }
+.portal-calendar-image-caption { position:relative;z-index:1;display:grid;align-self:flex-end;gap:3px;margin:12px;padding:10px 12px;border:1px solid rgba(255,255,255,.18);border-radius:10px;background:rgba(14,47,43,.38);backdrop-filter:blur(4px);color:#FFF9EE;text-shadow:0 1px 10px rgba(8,30,28,.46); }
+.portal-calendar-image-caption span,.portal-calendar-text span { font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase; }
+.portal-calendar-image-caption b,.portal-calendar-text b { font-family:var(--font-serif);font-size:21px;line-height:1.15;letter-spacing:-.03em; }
+.portal-calendar-image-caption small { font-size:10px;line-height:1.4; }
+.portal-calendar-text { align-items:center;gap:12px;padding:17px;background:linear-gradient(135deg,#F5EBD8,#EDF1E9);color:#315B57; }.portal-calendar-text>svg { flex:0 0 auto;color:#B8891B; }
+.portal-calendar-text>div { display:grid;gap:3px;min-width:0; }.portal-calendar-text span { color:#927542; }.portal-calendar-text small { color:#6B7B76;font-size:10px;line-height:1.5; }
+.portal-calendar-panel.is-mobile { min-height:154px; }.portal-calendar-panel.is-mobile.portal-calendar-text { padding:19px; }.portal-calendar-panel.is-mobile .portal-calendar-image-caption { margin:16px;padding:12px 14px; }.portal-calendar-panel.is-mobile .portal-calendar-image-caption b,.portal-calendar-panel.is-mobile .portal-calendar-text b { font-size:24px; }
+@media (max-width:720px) { .portal-calendar-panel.is-mobile { min-height:148px; }.portal-calendar-text small { font-size:11px; }.portal-calendar-image-caption { padding:16px; } }
+
+/* 업무 현황의 등록 학생·일지 작성 카드는 내용 밀도에 맞춰 세로 여백을 줄인다. */
+.dashboard-summary-grid .journal-stat-card.is-compact { min-height:0; }
+
+/* 모바일 업무 현황: 일지·바로가기 열은 숨기고 핵심 상태만 한눈에 표시한다. */
+@media (max-width: 720px) {
+  .journal-list-head-mobile { grid-template-columns:minmax(0,1fr) auto auto;gap:8px;padding:10px 15px;font-size:9px; }
+  .dashboard-student-status-grid { grid-template-columns:minmax(0,1fr) auto;gap:8px 10px; }
+  .dashboard-student-status-grid > div:first-child { grid-column:1;grid-row:1;min-width:0; }
+  .dashboard-student-status-grid > span:nth-child(2),
+  .dashboard-student-status-grid > span:nth-child(3),
+  .dashboard-student-status-grid > span:nth-child(5),
+  .dashboard-student-status-grid > div:last-child { display:none; }
+  .dashboard-student-status-grid > span:nth-child(4) { display:grid;grid-column:2;grid-row:1;justify-self:end; }
+  .dashboard-student-status-grid > span:nth-child(6) { display:grid;grid-column:1/-1;grid-row:2;justify-self:start; }
+  .dashboard-student-status-grid > div:first-child b { display:block;font-size:14px;line-height:1.3;word-break:keep-all; }
+  .dashboard-student-status-grid > div:first-child small { font-size:10px;line-height:1.35;word-break:keep-all; }
+  .dashboard-student-status-grid > span:nth-child(4) { font-size:11px; }
+  .dashboard-student-status-grid .dashboard-student-journal-state { font-size:11px; }
+  .dashboard-student-status-grid .dashboard-student-journal-state small { font-size:9px; }
+}
+@media (max-width: 420px) {
+  .journal-list-head-mobile { gap:6px;padding-left:12px;padding-right:12px;font-size:8px; }
+  .dashboard-student-status-grid { gap:6px 8px;padding:13px 12px; }
+  .dashboard-student-status-grid > div:first-child b { font-size:13px; }
+  .dashboard-student-status-grid > div:first-child small { font-size:9px; }
+  .dashboard-student-status-grid > span:nth-child(4),
+  .dashboard-student-status-grid .dashboard-student-journal-state { font-size:10px; }
+  .dashboard-student-status-grid .dashboard-student-journal-state small { font-size:8px; }
+  .dashboard-student-status-grid .badge { padding-left:7px;padding-right:7px;font-size:10px; }
+}
+
+
+/* 업무 현황 빠른 출석 상태와 횟수·원비 확인 명단 */
+.dashboard-quick-status-button { grid-row:1; height:24px; min-width:40px; padding:0 6px; border-radius:7px; font-size:10px; font-weight:700; }
+.dashboard-quick-status-absent { grid-column:3; border-color:#E5B9B0; background:#FFF5F2; color:#9A4234; }
+.dashboard-quick-status-absent:hover { border-color:#C98376; background:#FCE8E3; }
+.dashboard-quick-status-unregistered { grid-column:4; border-color:#E6C89D; background:#FFF8ED; color:#9C6632; }
+.dashboard-quick-status-unregistered:hover { border-color:#C99A5B; background:#FBEBD4; }
+.dashboard-count-alert-list { display:flex; min-height:34px; flex-wrap:wrap; align-items:center; gap:6px; padding:8px 10px; border:1px solid #E9DEC2; border-radius:10px; background:#FFFDF5; }
+.dashboard-count-alert-item { display:inline-flex; align-items:center; gap:5px; border-radius:7px; background:#FFF1B7; padding:4px 7px; color:#6E5818; font-size:11px; font-weight:700; }
+.dashboard-count-alert-item small { color:#9A7316; font-size:9px; font-weight:500; white-space:nowrap; }
+.dashboard-count-alert-empty { color:#8A9189; font-size:11px; }
+.journal-lesson-content-input { min-height:10.5rem; }
+@media (max-width:720px) {
+  .dashboard-count-alert-list { gap:4px; padding:7px 8px; }
+  .dashboard-count-alert-item { font-size:10px; }
+  .dashboard-quick-status-button { min-width:38px; padding:0 4px; font-size:9px; }
+}

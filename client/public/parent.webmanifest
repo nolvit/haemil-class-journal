@@ -1,0 +1,14 @@
+{
+  "id": "/p/",
+  "name": "해밀학원 보호자 알림",
+  "short_name": "해밀 보호자",
+  "description": "자녀의 수업일지와 등하원 알림",
+  "start_url": "/p/",
+  "scope": "/p/",
+  "display": "standalone",
+  "background_color": "#FCFBF7",
+  "theme_color": "#315B57",
+  "icons": [
+    { "src": "/icons/parent.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

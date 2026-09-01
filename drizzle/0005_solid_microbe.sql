@@ -1,0 +1,1 @@
+ALTER TABLE `class_groups` ADD `meetingDays` varchar(32) DEFAULT '1,2,3,4,5' NOT NULL;

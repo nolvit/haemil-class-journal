@@ -1,0 +1,1 @@
+ALTER TABLE `students` ADD `mathUnitEvaluationUrl` varchar(2048);

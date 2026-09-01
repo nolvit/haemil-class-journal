@@ -1,0 +1,1 @@
+ALTER TABLE `attendance_records` MODIFY COLUMN `status` enum('not_entered','present','absent','not_registered','holiday','makeup','makeup_double') NOT NULL DEFAULT 'not_entered';

@@ -1,0 +1,1 @@
+ALTER TABLE `registration_count_histories` ADD `changeType` varchar(32) DEFAULT 'registration_add' NOT NULL;

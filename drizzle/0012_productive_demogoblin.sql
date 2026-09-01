@@ -1,0 +1,1 @@
+ALTER TABLE `lesson_journals` ADD `isDraft` boolean DEFAULT false NOT NULL;
