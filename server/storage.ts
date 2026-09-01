@@ -26,6 +26,26 @@ function appendHashSuffix(relKey: string): string {
   return `${relKey.slice(0, lastDot)}_${hash}${relKey.slice(lastDot)}`;
 }
 
+export async function seedLocalUploads() {
+  if (getForgeConfig()) return;
+  const source = path.resolve(process.cwd(), "seed-assets");
+  const uploadRoot = path.resolve(
+    ENV.uploadDir || path.join(process.cwd(), "data", "uploads")
+  );
+  try {
+    await fs.access(source);
+    await fs.mkdir(uploadRoot, { recursive: true });
+    await fs.cp(source, uploadRoot, {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
+  } catch (error: any) {
+    if (error?.code !== "ENOENT")
+      console.error("[Storage] failed to seed restored assets", error);
+  }
+}
+
 export async function storagePut(
   relKey: string,
   data: Buffer | Uint8Array | string,
