@@ -885,6 +885,23 @@ export const academyRouter = router({
         });
         return { success: true };
       }),
+    test: publicProcedure
+      .input(z.object({ token: z.string().min(8).max(64) }))
+      .mutation(async ({ input, ctx }) => {
+        enforceAttendanceAttemptLimit(ctx.req);
+        const student = await academyDb.getPushStudentByToken(input.token);
+        if (!student)
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "사용할 수 없는 보호자 링크입니다.",
+          });
+        return sendStudentPush(student.id, {
+          title: "해밀학원 알림 테스트",
+          body: `${student.name} 학생의 등하원 알림이 정상적으로 연결되었습니다.`,
+          url: `/p/${input.token}`,
+          tag: `push-test-${student.id}-${Date.now()}`,
+        });
+      }),
     unsubscribe: publicProcedure
       .input(
         z.object({

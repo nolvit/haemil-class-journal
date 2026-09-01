@@ -2,6 +2,7 @@ import { Button } from "@/components/ui/button";
 import { Bell, Download, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
+import { toast } from "sonner";
 
 type InstallEvent = Event & {
   prompt: () => Promise<void>;
@@ -101,16 +102,27 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
 
 export function ParentNotificationPrompt({ token }: { token: string }) {
   const [state, setState] = useState<
-    "idle" | "loading" | "enabled" | "unsupported"
+    "idle" | "loading" | "enabled" | "blocked" | "unsupported"
   >("idle");
   const config = trpc.academy.parentPush.config.useQuery(
     { token },
     { enabled: Boolean(token), retry: false }
   );
   const subscribe = trpc.academy.parentPush.subscribe.useMutation();
+  const testNotification = trpc.academy.parentPush.test.useMutation({
+    onSuccess: result => {
+      if (result.sent > 0) toast.success("테스트 알림을 전송했습니다.");
+      else toast.error("등록된 알림 기기를 찾지 못했습니다. 알림을 다시 설정해 주세요.");
+    },
+    onError: error => toast.error(error.message),
+  });
   useEffect(() => {
     let cancelled = false;
     const restoreExistingSubscription = async () => {
+      if ("Notification" in window && Notification.permission === "denied") {
+        if (!cancelled) setState("blocked");
+        return;
+      }
       if (
         !config.data?.available ||
         !("serviceWorker" in navigator) ||
@@ -156,7 +168,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       }
       const permission = await Notification.requestPermission();
       if (permission !== "granted") {
-        setState("idle");
+        setState(permission === "denied" ? "blocked" : "idle");
         return;
       }
       const registration = await navigator.serviceWorker.ready;
@@ -194,10 +206,21 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
             등하원 알림과 등록 횟수 변경 안내를 이 기기로 받을 수 있습니다.
           </p>
           {state === "enabled" ? (
-            <p className="mt-2 text-xs font-semibold text-[#2F7154]">
-              알림이 설정되었습니다.
-            </p>
-          ) : (
+            <div className="mt-2">
+              <p className="text-xs font-semibold text-[#2F7154]">
+                알림이 설정되었습니다.
+              </p>
+              <Button
+                size="sm"
+                variant="outline"
+                className="mt-2 bg-white"
+                disabled={testNotification.isPending}
+                onClick={() => testNotification.mutate({ token })}
+              >
+                {testNotification.isPending ? "전송 중…" : "테스트 알림 보내기"}
+              </Button>
+            </div>
+          ) : state !== "blocked" ? (
             <Button
               size="sm"
               className="journal-primary-button mt-2"
@@ -206,11 +229,17 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
             >
               {state === "loading" ? "설정 중…" : "알림 허용"}
             </Button>
-          )}
+          ) : null}
           {state === "unsupported" && (
             <p className="mt-2 text-xs text-[#A05242]">
               이 브라우저에서는 알림을 사용할 수 없거나 서버 설정이 아직
               완료되지 않았습니다.
+            </p>
+          )}
+          {state === "blocked" && (
+            <p className="mt-2 text-xs leading-5 text-[#A05242]">
+              휴대폰에서 알림이 차단되어 있습니다. 휴대폰 설정의 앱 또는
+              사이트 알림에서 해밀학원 알림을 허용한 뒤 앱을 다시 열어 주세요.
             </p>
           )}
         </div>
