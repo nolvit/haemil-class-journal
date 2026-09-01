@@ -162,13 +162,13 @@ function JournalEditor({ editing, includeWeekend, onClose }: { editing: { row: E
       } as T;
     };
     utils.academy.workspace.setData(workspaceInput, current => current?.map(raw => patchRow(raw)));
-    utils.academy.weeklyWorkspace.setData({ weekAnchor: getMonday(values.journalDate), includeWeekend, ...(values.classGroupId ? { classGroupId: values.classGroupId } : {}) }, current => {
+    utils.academy.weeklyWorkspace.setData({ weekAnchor: getMonday(values.journalDate), includeWeekend }, current => {
       if (!current) return current;
       return { ...current, days: current.days.map(day => day.journalDate === values.journalDate ? { ...day, rows: day.rows.map(raw => patchRow(raw)) } : day) };
     });
     void utils.academy.dashboard.invalidate();
   };
-  const save = trpc.academy.journals.save.useMutation({ onSuccess: (_result, values) => { patchJournalCaches(values); toast.success(values.isDraft ? "임시 저장했습니다. 최종 저장 전까지 등원 전으로 표시됩니다." : "수업일지를 저장했습니다."); if (closeAfterSaveRef.current) onClose(); }, onError: error => toast.error(error.message) });
+  const save = trpc.academy.journals.save.useMutation({ onSuccess: (_result, values) => { patchJournalCaches(values); void utils.academy.weeklyWorkspace.invalidate(); toast.success(values.isDraft ? "임시 저장했습니다. 최종 저장 전까지 등원 전으로 표시됩니다." : "수업일지를 저장했습니다."); if (closeAfterSaveRef.current) onClose(); }, onError: error => toast.error(error.message) });
   const insert = trpc.academy.journals.insert.useMutation({ onSuccess: result => { void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.workspace.invalidate(); void utils.academy.dashboard.invalidate(); setContent(""); setHomework(""); setNotes(""); toast.success(result.movedCount ? `새 수업일지 자리를 추가했습니다. 저장된 일지 ${result.movedCount}건을 다음 날짜로 이동했습니다.` : "현재 날짜에 새 수업일지 입력 자리를 준비했습니다."); }, onError: error => toast.error(error.message) });
   const deleteAndPull = trpc.academy.journals.deleteAndPull.useMutation({ onSuccess: result => { void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.workspace.invalidate(); void utils.academy.dashboard.invalidate(); setContent(""); setHomework(""); setNotes(""); toast.success(result.movedCount ? `현재 일지를 삭제하고 미래 수업일지 ${result.movedCount}건을 앞당겼습니다.` : "현재 일지를 삭제했습니다."); onClose(); }, onError: error => toast.error(error.message) });
   const canWrite = activeRow?.attendance?.status !== "absent" && activeRow?.attendance?.status !== "not_registered" && activeRow?.attendance?.status !== "holiday" && activeRow?.attendance?.status !== "closed";
