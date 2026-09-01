@@ -26,6 +26,7 @@ export default function CheckIn() {
     studentName: string;
     eventType: "check_in" | "check_out";
     occurredAt: Date | string;
+    notificationSent: boolean;
   } | null>(null);
   const preview = trpc.academy.attendanceCode.preview.useQuery(
     { code: submittedCode || "0000", eventDate: todayInKorea() },
@@ -33,9 +34,16 @@ export default function CheckIn() {
   );
   const confirm = trpc.academy.attendanceCode.confirm.useMutation({
     onSuccess: result => {
-      setSuccess(result);
+      setSuccess({
+        ...result,
+        notificationSent: result.notification.sent > 0,
+      });
       setSubmittedCode("");
       setCode("");
+      void utils.academy.weeklyWorkspace.invalidate();
+      void utils.academy.workspace.invalidate();
+      void utils.academy.dashboard.invalidate();
+      void utils.academy.publicStudent.invalidate();
     },
   });
   const reset = () => {
@@ -193,6 +201,12 @@ export default function CheckIn() {
                   minute: "2-digit",
                 })}
             </DialogDescription>
+            {success && !success.notificationSent && (
+              <p className="mt-2 rounded-xl bg-[#FFF4D6] p-3 text-sm text-[#765E10]">
+                출결 기록은 저장됐지만 보호자 알림 기기가 등록되지 않아 알림은
+                전송되지 않았습니다. 보호자 페이지에서 ‘알림 허용’을 눌러 주세요.
+              </p>
+            )}
           </DialogHeader>
           <DialogFooter>
             <Button className="journal-primary-button w-full" onClick={reset}>

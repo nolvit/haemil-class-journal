@@ -528,6 +528,20 @@ export const academyRouter = router({
         });
         return { success: true, ...result };
       }),
+    resetCodeEvents: adminProcedure
+      .input(
+        z.object({
+          studentId: z.number().int().positive(),
+          eventDate: isoDate,
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        await assertAttendanceEditable(ctx.user, input.studentId, input.eventDate);
+        return academyDb.resetAttendanceCodeEvents(
+          input.studentId,
+          input.eventDate
+        );
+      }),
   }),
   closures: router({
     list: adminProcedure
@@ -910,8 +924,9 @@ export const academyRouter = router({
         const student = await academyDb.getStudentNotificationIdentity(
           result.studentId
         );
+        let notification = { sent: 0, unavailable: false };
         if (student?.portalEnabled)
-          await sendStudentPush(
+          notification = await sendStudentPush(
             student.id,
             attendancePushPayload(
               student.publicToken,
@@ -920,7 +935,7 @@ export const academyRouter = router({
               result.occurredAt
             )
           );
-        return result;
+        return { ...result, notification };
       }),
   }),
   publicStudent: publicProcedure

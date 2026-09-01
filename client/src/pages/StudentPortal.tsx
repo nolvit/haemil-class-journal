@@ -184,7 +184,7 @@ export default function StudentPortal() {
   );
   const { data, isLoading, error } = trpc.academy.publicStudent.useQuery(
     input,
-    { enabled: Boolean(token) }
+    { enabled: Boolean(token), refetchInterval: 15_000 }
   );
   if (isLoading)
     return (

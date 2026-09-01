@@ -121,7 +121,19 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       try {
         const registration = await navigator.serviceWorker.ready;
         const existing = await registration.pushManager.getSubscription();
-        if (existing && !cancelled) setState("enabled");
+        if (existing) {
+          const payload = existing.toJSON();
+          if (payload.endpoint && payload.keys?.p256dh && payload.keys.auth) {
+            await subscribe.mutateAsync({
+              token,
+              subscription: {
+                endpoint: payload.endpoint,
+                keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
+              },
+            });
+            if (!cancelled) setState("enabled");
+          }
+        }
       } catch {
         // The regular setup button remains available when the browser lookup fails.
       }

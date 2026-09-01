@@ -1616,9 +1616,21 @@ export async function recordAttendanceCodeEvent(
         });
     } else {
       await tx
-        .update(attendanceRecords)
-        .set({ departureTime: eventTime })
-        .where(and(eq(attendanceRecords.studentId, student.id), eq(attendanceRecords.journalDate, eventDate)));
+        .insert(attendanceRecords)
+        .values({
+          studentId: student.id,
+          journalDate: eventDate,
+          status: "present",
+          departureTime: eventTime,
+          recordedByUserId: student.createdByUserId,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            status: "present",
+            departureTime: eventTime,
+            recordedByUserId: student.createdByUserId,
+          },
+        });
     }
     return {
       studentId: student.id,
@@ -1627,6 +1639,43 @@ export async function recordAttendanceCodeEvent(
       eventType,
       occurredAt,
     };
+  });
+}
+
+export async function resetAttendanceCodeEvents(
+  studentId: number,
+  eventDate: string
+) {
+  const db = await requireDb();
+  return db.transaction(async tx => {
+    const events = await tx
+      .select({ id: attendanceEntryEvents.id })
+      .from(attendanceEntryEvents)
+      .where(
+        and(
+          eq(attendanceEntryEvents.studentId, studentId),
+          eq(attendanceEntryEvents.eventDate, eventDate)
+        )
+      );
+    if (!events.length) return { reset: false, deletedEvents: 0 };
+    await tx
+      .delete(attendanceEntryEvents)
+      .where(
+        and(
+          eq(attendanceEntryEvents.studentId, studentId),
+          eq(attendanceEntryEvents.eventDate, eventDate)
+        )
+      );
+    await tx
+      .update(attendanceRecords)
+      .set({ arrivalTime: null, departureTime: null })
+      .where(
+        and(
+          eq(attendanceRecords.studentId, studentId),
+          eq(attendanceRecords.journalDate, eventDate)
+        )
+      );
+    return { reset: true, deletedEvents: events.length };
   });
 }
 
