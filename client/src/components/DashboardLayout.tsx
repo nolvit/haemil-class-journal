@@ -42,7 +42,6 @@ import {
 import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
-import { PwaInstallPrompt } from "./PwaInstallPrompt";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -423,9 +422,6 @@ function DashboardLayoutContent({
             ))}
           </SidebarContent>
           <SidebarFooter className="p-3">
-            <div className="mb-3 group-data-[collapsible=icon]:hidden">
-              <PwaInstallPrompt compact />
-            </div>
             <div className="mb-3 rounded-xl border border-white/10 bg-white/5 px-3 py-2.5 group-data-[collapsible=icon]:hidden">
               <div className="flex items-center gap-2 text-[#F5F1E8]">
                 <ClipboardCheck className="h-4 w-4 text-[#D8C59A]" />

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { appRouter } from "./routers";
 import { COOKIE_NAME } from "../shared/const";
 import type { TrpcContext } from "./_core/context";
+import { sdk } from "./_core/sdk";
+import { ENV } from "./_core/env";
 
 type CookieCall = {
   name: string;
@@ -58,5 +60,28 @@ describe("auth.logout", () => {
       httpOnly: true,
       path: "/",
     });
+  });
+});
+
+describe("portable local session", () => {
+  it("creates a verifiable session without a Manus app id", async () => {
+    const previousAppId = ENV.appId;
+    const previousSecret = ENV.cookieSecret;
+    ENV.appId = "";
+    ENV.cookieSecret = "test-only-session-secret";
+    try {
+      const token = await sdk.createSessionToken("local:haemil-admin", {
+        name: "해밀학원 관리자",
+      });
+
+      await expect(sdk.verifySession(token)).resolves.toMatchObject({
+        openId: "local:haemil-admin",
+        appId: "haemil-class-journal",
+        name: "해밀학원 관리자",
+      });
+    } finally {
+      ENV.appId = previousAppId;
+      ENV.cookieSecret = previousSecret;
+    }
   });
 });
