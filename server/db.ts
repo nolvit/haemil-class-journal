@@ -790,6 +790,7 @@ export async function getJournalWorkspace(
       attendanceId: attendanceRecords.id,
       attendanceStatus: attendanceRecords.status,
       attendanceArrivalTime: attendanceRecords.arrivalTime,
+      attendanceDepartureTime: attendanceRecords.departureTime,
       attendanceRecordedBy: attendanceRecords.recordedByUserId,
       journalId: lessonJournals.id,
       content: lessonJournals.content,
@@ -846,6 +847,7 @@ export async function getJournalWorkspace(
         ? {
             status: effectiveStatus,
             arrivalTime: hasManualAttendance ? row.attendanceArrivalTime : null,
+            departureTime: hasManualAttendance ? row.attendanceDepartureTime : null,
             recordedByUserId: row.attendanceRecordedBy,
           }
         : null,
@@ -928,6 +930,7 @@ async function getDashboardWorkspace(journalDate: string) {
       attendanceId: attendanceRecords.id,
       attendanceStatus: attendanceRecords.status,
       attendanceArrivalTime: attendanceRecords.arrivalTime,
+      attendanceDepartureTime: attendanceRecords.departureTime,
       attendanceRecordedBy: attendanceRecords.recordedByUserId,
       journalId: lessonJournals.id,
       content: lessonJournals.content,
@@ -984,6 +987,7 @@ async function getDashboardWorkspace(journalDate: string) {
         ? {
             status: effectiveStatus,
             arrivalTime: hasManualAttendance ? row.attendanceArrivalTime : null,
+            departureTime: hasManualAttendance ? row.attendanceDepartureTime : null,
             recordedByUserId: row.attendanceRecordedBy,
           }
         : null,
@@ -1014,6 +1018,7 @@ export async function getDashboard(journalDate: string) {
       grade: string;
       attendanceStatus: AttendanceStatus | null;
       arrivalTime: string | null;
+      departureTime: string | null;
       total: number;
       complete: number;
       attention: number;
@@ -1034,6 +1039,7 @@ export async function getDashboard(journalDate: string) {
       grade: row.student.grade,
       attendanceStatus: row.attendance?.status ?? null,
       arrivalTime: row.attendance?.arrivalTime ?? null,
+      departureTime: row.attendance?.departureTime ?? null,
       total: 0,
       complete: 0,
       attention: 0,
@@ -1042,6 +1048,7 @@ export async function getDashboard(journalDate: string) {
     existing.attendanceStatus =
       row.attendance?.status ?? existing.attendanceStatus;
     existing.arrivalTime = row.attendance?.arrivalTime ?? existing.arrivalTime;
+    existing.departureTime = row.attendance?.departureTime ?? existing.departureTime;
     existing.classGroups.set(row.classGroup.id, {
       id: row.classGroup.id,
       subject: row.classGroup.subject,
@@ -1584,29 +1591,34 @@ export async function recordAttendanceCodeEvent(
     await tx
       .insert(attendanceEntryEvents)
       .values({ studentId: student.id, eventDate, eventType, occurredAt });
+    const eventTime = new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Seoul",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(occurredAt);
     if (eventType === "check_in") {
-      const arrivalTime = new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Asia/Seoul",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(occurredAt);
       await tx
         .insert(attendanceRecords)
         .values({
           studentId: student.id,
           journalDate: eventDate,
           status: "present",
-          arrivalTime,
+          arrivalTime: eventTime,
           recordedByUserId: student.createdByUserId,
         })
         .onDuplicateKeyUpdate({
           set: {
             status: "present",
-            arrivalTime,
+            arrivalTime: eventTime,
             recordedByUserId: student.createdByUserId,
           },
         });
+    } else {
+      await tx
+        .update(attendanceRecords)
+        .set({ departureTime: eventTime })
+        .where(and(eq(attendanceRecords.studentId, student.id), eq(attendanceRecords.journalDate, eventDate)));
     }
     return {
       studentId: student.id,
@@ -1733,6 +1745,7 @@ export async function saveAttendance(input: {
   journalDate: string;
   status: AttendanceStatus;
   arrivalTime?: string;
+  departureTime?: string;
   overwriteCurrentJournal?: boolean;
   userId: number;
 }) {
@@ -1744,6 +1757,13 @@ export async function saveAttendance(input: {
     input.status === "closed"
       ? null
       : input.arrivalTime?.trim() || null;
+  const departureTime =
+    input.status === "absent" ||
+    input.status === "not_registered" ||
+    input.status === "holiday" ||
+    input.status === "closed"
+      ? null
+      : input.departureTime?.trim() || null;
   const requiresTransfer =
     input.status === "absent" ||
     input.status === "not_registered" ||
@@ -1946,12 +1966,14 @@ export async function saveAttendance(input: {
         journalDate: input.journalDate,
         status: input.status,
         arrivalTime,
+        departureTime,
         recordedByUserId: input.userId,
       })
       .onDuplicateKeyUpdate({
         set: {
           status: input.status,
           arrivalTime,
+          departureTime,
           recordedByUserId: input.userId,
         },
       });
@@ -2373,6 +2395,7 @@ export async function getPublicStudentWeek(
         journalDate: attendanceRecords.journalDate,
         status: attendanceRecords.status,
         arrivalTime: attendanceRecords.arrivalTime,
+        departureTime: attendanceRecords.departureTime,
       })
       .from(attendanceRecords)
       .where(
@@ -2415,6 +2438,7 @@ export async function getPublicStudentWeek(
     journalDate: string;
     status: AttendanceStatus;
     arrivalTime: string | null;
+    departureTime: string | null;
     calendarEvent: CalendarEvent | null;
   }> = allWeekDates.flatMap(journalDate => {
     const stored = storedAttendanceByDate.get(journalDate);
@@ -2425,6 +2449,7 @@ export async function getPublicStudentWeek(
           journalDate,
           status: stored.status as AttendanceStatus,
           arrivalTime: stored.arrivalTime,
+          departureTime: stored.departureTime,
           calendarEvent,
         },
       ];
@@ -2434,6 +2459,7 @@ export async function getPublicStudentWeek(
           journalDate,
           status: calendarEvent.status,
           arrivalTime: null,
+          departureTime: null,
           calendarEvent,
         },
       ];
@@ -2443,6 +2469,7 @@ export async function getPublicStudentWeek(
           journalDate,
           status: stored.status as AttendanceStatus,
           arrivalTime: stored.arrivalTime,
+          departureTime: stored.departureTime,
           calendarEvent: null,
         },
       ];
@@ -2513,7 +2540,7 @@ export async function getPublicStudentWeek(
     journalDate =>
       effectiveAttendances.find(
         attendance => attendance.journalDate === journalDate
-      ) ?? { journalDate, status: null, arrivalTime: null, calendarEvent: null }
+      ) ?? { journalDate, status: null, arrivalTime: null, departureTime: null, calendarEvent: null }
   );
   const weekSessions = businessAttendances.reduce(
     (total, attendance) => total + getAttendanceSessionUnits(attendance.status),

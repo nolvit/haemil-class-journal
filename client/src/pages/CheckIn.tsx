@@ -19,6 +19,7 @@ const todayInKorea = () =>
   );
 
 export default function CheckIn() {
+  const utils = trpc.useUtils();
   const [code, setCode] = useState("");
   const [submittedCode, setSubmittedCode] = useState("");
   const [success, setSuccess] = useState<{
@@ -62,9 +63,12 @@ export default function CheckIn() {
         <Card className="journal-surface">
           <CardContent className="p-6">
             <form
-              onSubmit={event => {
+              onSubmit={async event => {
                 event.preventDefault();
-                if (/^\d{4}$/.test(code)) setSubmittedCode(code);
+                if (/^\d{4}$/.test(code)) {
+                  await utils.academy.attendanceCode.preview.reset({ code, eventDate: todayInKorea() });
+                  setSubmittedCode(code);
+                }
               }}
             >
               <Input
@@ -114,7 +118,7 @@ export default function CheckIn() {
           </CardContent>
         </Card>
       </div>
-      <Dialog
+      {!success && <Dialog
         open={Boolean(preview.data?.nextEventType) && !success}
         onOpenChange={open => {
           if (!open) setSubmittedCode("");
@@ -164,8 +168,8 @@ export default function CheckIn() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
-      <Dialog
+      </Dialog>}
+      {success && <Dialog
         open={Boolean(success)}
         onOpenChange={open => {
           if (!open) reset();
@@ -196,7 +200,7 @@ export default function CheckIn() {
             </Button>
           </DialogFooter>
         </DialogContent>
-      </Dialog>
+      </Dialog>}
     </main>
   );
 }

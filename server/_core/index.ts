@@ -54,6 +54,18 @@ async function startServer() {
       theme_color: "#315B57",
       icons: [
         {
+          src: "/icons/parent-192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any maskable",
+        },
+        {
+          src: "/icons/parent-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any maskable",
+        },
+        {
           src: "/icons/parent.svg",
           sizes: "any",
           type: "image/svg+xml",

@@ -108,6 +108,29 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
     { enabled: Boolean(token), retry: false }
   );
   const subscribe = trpc.academy.parentPush.subscribe.useMutation();
+  useEffect(() => {
+    let cancelled = false;
+    const restoreExistingSubscription = async () => {
+      if (
+        !config.data?.available ||
+        !("serviceWorker" in navigator) ||
+        !("PushManager" in window) ||
+        Notification.permission !== "granted"
+      )
+        return;
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const existing = await registration.pushManager.getSubscription();
+        if (existing && !cancelled) setState("enabled");
+      } catch {
+        // The regular setup button remains available when the browser lookup fails.
+      }
+    };
+    void restoreExistingSubscription();
+    return () => {
+      cancelled = true;
+    };
+  }, [config.data?.available]);
   const enable = async () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setState("unsupported");

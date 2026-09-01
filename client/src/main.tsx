@@ -17,6 +17,10 @@ manifest.href = parentToken
   ? `/pwa/parent.webmanifest?token=${encodeURIComponent(parentToken)}`
   : "/admin.webmanifest";
 document.head.appendChild(manifest);
+const appIcon = document.createElement("link");
+appIcon.rel = "apple-touch-icon";
+appIcon.href = parentToken ? "/icons/parent-180.png" : "/icons/admin.svg";
+document.head.appendChild(appIcon);
 const themeColor = document.createElement("meta");
 themeColor.name = "theme-color";
 themeColor.content = parentToken ? "#315B57" : "#193D3C";

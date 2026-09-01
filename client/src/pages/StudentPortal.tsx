@@ -79,6 +79,7 @@ type PortalAttendance = {
   journalDate: string;
   status: keyof typeof attendanceStatusLabels;
   arrivalTime: string | null;
+  departureTime: string | null;
   calendarEvent?: CalendarEvent | null;
 };
 type CalendarSegment = { key: string; event: CalendarEvent; dates: string[] };
@@ -310,6 +311,11 @@ export default function StudentPortal() {
             등원 {formatArrivalTimeForDisplay(attendance.arrivalTime)}
           </small>
         )}
+        {!futureDate && attendance?.departureTime && (
+          <small className="mt-1 block text-xs text-[#71817D]">
+            하원 {formatArrivalTimeForDisplay(attendance.departureTime)}
+          </small>
+        )}
       </div>
     );
   };
@@ -510,6 +516,14 @@ export default function StudentPortal() {
                             등원{" "}
                             {formatArrivalTimeForDisplay(
                               attendance.arrivalTime
+                            )}
+                          </small>
+                        )}
+                        {attendance?.departureTime && (
+                          <small>
+                            하원{" "}
+                            {formatArrivalTimeForDisplay(
+                              attendance.departureTime
                             )}
                           </small>
                         )}

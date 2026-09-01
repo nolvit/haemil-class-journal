@@ -20,7 +20,7 @@ function dayLabel(value: string) { const date = new Date(`${value}T00:00:00Z`); 
 function weekdayLabel(value: string) { return `${["일", "월", "화", "수", "목", "금", "토"][new Date(`${value}T00:00:00Z`).getUTCDay()]}요일`; }
 const journalSubjectFilterKey = "haemil.journal.subject-filter";
 
-type EditorRow = { classGroup: { id: number; name: string; subject: string; accentColor: string }; student: { id: number; name: string; grade: string }; attendance: { status: AttendanceStatus; arrivalTime: string | null } | null; journal: { content: string; homework: string; notes: string; isDraft?: boolean } | null; completeness: { state: "complete" | "attention" | "not_required"; missingFields: Array<"attendance" | "content" | "homework">; isDraft?: boolean } };
+type EditorRow = { classGroup: { id: number; name: string; subject: string; accentColor: string }; student: { id: number; name: string; grade: string }; attendance: { status: AttendanceStatus; arrivalTime: string | null; departureTime: string | null } | null; journal: { content: string; homework: string; notes: string; isDraft?: boolean } | null; completeness: { state: "complete" | "attention" | "not_required"; missingFields: Array<"attendance" | "content" | "homework">; isDraft?: boolean } };
 type WeekStudent = { student: EditorRow["student"]; cells: Map<string, EditorRow> };
 type WeekGroup = { classGroup: EditorRow["classGroup"]; students: Map<number, WeekStudent> };
 
@@ -82,7 +82,8 @@ export default function Journal() {
     onError: error => toast.error(error.message),
   });
   const handleAttendanceChange = (row: EditorRow, journalDate: string, status: AttendanceStatus) => {
-    saveAttendance.mutate({ studentId: row.student.id, journalDate: journalDate, status, arrivalTime: status === "present" || status === "makeup" || status === "makeup_double" ? row.attendance?.arrivalTime ?? "" : "" });
+    const attends = status === "present" || status === "makeup" || status === "makeup_double";
+    saveAttendance.mutate({ studentId: row.student.id, journalDate: journalDate, status, arrivalTime: attends ? row.attendance?.arrivalTime ?? "" : "", departureTime: attends ? row.attendance?.departureTime ?? "" : "" });
   };
   const visibleRecords = groups.reduce((count, group) => count + group.students.length, 0);
   const hasOpenedRequestedJournal = useRef(false);

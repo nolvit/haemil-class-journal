@@ -478,6 +478,7 @@ export const academyRouter = router({
           journalDate: isoDate,
           status: z.enum(attendanceSaveStatusValues),
           arrivalTime: z.string().trim().max(32).optional(),
+          departureTime: z.string().trim().max(32).optional(),
           overwriteCurrentJournal: z.boolean().optional().default(false),
         })
       )

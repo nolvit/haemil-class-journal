@@ -238,6 +238,7 @@ export const attendanceRecords = mysqlTable(
       .default("not_entered")
       .notNull(),
     arrivalTime: varchar("arrivalTime", { length: 32 }),
+    departureTime: varchar("departureTime", { length: 32 }),
     recordedByUserId: int("recordedByUserId").notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
