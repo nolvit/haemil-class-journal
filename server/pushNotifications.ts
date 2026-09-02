@@ -95,3 +95,17 @@ export function attendancePushPayload(
     tag: `${eventType}-${studentName}-${occurredAt.toISOString().slice(0, 10)}`,
   };
 }
+
+export function remainingTwoCountPushPayload(
+  token: string,
+  studentName: string,
+  message: string,
+  totalCount: number
+): ParentPushPayload {
+  return {
+    title: `${studentName} 학생 수업 횟수 안내`,
+    body: message,
+    url: `/p/${token}`,
+    tag: `remaining-two-${studentName}-${totalCount}`,
+  };
+}

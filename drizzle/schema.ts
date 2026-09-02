@@ -167,6 +167,19 @@ export const parentPushSubscriptions = mysqlTable(
   })
 );
 
+/** 잔여 수업 2회 시 보호자에게 보낼 학생별 문구와 발송 이력이다. */
+export const studentRemainingCountNotifications = mysqlTable(
+  "student_remaining_count_notifications",
+  {
+    studentId: int("studentId").primaryKey(),
+    message: text("message").notNull(),
+    sentTotalCount: double("sentTotalCount"),
+    lastAttemptedAt: timestamp("lastAttemptedAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  }
+);
+
 /** 보호자 공유 페이지의 학생별 월간 열람 횟수다. 월 키가 바뀌면 화면에는 새 달의 0회부터 표시된다. */
 export const parentPortalMonthlyViews = mysqlTable(
   "parent_portal_monthly_views",

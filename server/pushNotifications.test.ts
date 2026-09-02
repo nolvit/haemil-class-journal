@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { attendancePushPayload, totalCountPushPayload } from "./pushNotifications";
+import {
+  attendancePushPayload,
+  remainingTwoCountPushPayload,
+  totalCountPushPayload,
+} from "./pushNotifications";
 
 describe("parent push notification copy", () => {
   it("uses the payment confirmation message when total count increases", () => {
@@ -20,5 +24,17 @@ describe("parent push notification copy", () => {
     const time = new Date("2026-09-01T09:00:00.000Z");
     expect(attendancePushPayload("token12345", "김해밀", "check_in", time).title).toContain("등원");
     expect(attendancePushPayload("token12345", "김해밀", "check_out", time).title).toContain("하원");
+  });
+
+  it("uses the student's custom two-session message", () => {
+    const payload = remainingTwoCountPushPayload(
+      "token12345",
+      "김해밀",
+      "해밀이의 남은 수업은 2회입니다.",
+      120
+    );
+    expect(payload.title).toContain("김해밀");
+    expect(payload.body).toBe("해밀이의 남은 수업은 2회입니다.");
+    expect(payload.url).toBe("/p/token12345");
   });
 });

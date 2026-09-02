@@ -26,6 +26,7 @@ import {
   parentPortalMonthlyViews,
   parentPushSubscriptions,
   registrationCountHistories,
+  studentRemainingCountNotifications,
   studentEnrollments,
   students,
   tuitionStandards,
@@ -65,6 +66,7 @@ import {
 } from "../shared/journalRules";
 import { getValidUntilAfterTotalCountChange } from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
+import { shouldSendRemainingTwoNotification } from "../shared/remainingCountNotificationRules";
 import {
   getKoreanHolidayDates,
   shouldAutomaticallyApplyLegalHoliday,
@@ -100,6 +102,21 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new Error("데이터베이스에 연결할 수 없습니다.");
   return db;
+}
+
+export async function ensureRemainingCountNotificationSchema() {
+  const db = await requireDb();
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS student_remaining_count_notifications (
+      studentId int NOT NULL,
+      message text NOT NULL,
+      sentTotalCount double,
+      lastAttemptedAt timestamp NULL,
+      createdAt timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updatedAt timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+      PRIMARY KEY (studentId)
+    )
+  `);
 }
 
 export type CalendarEvent = {
@@ -540,6 +557,7 @@ export type StudentInput = {
   totalCount: number;
   validUntil?: string;
   paymentMethod?: string;
+  remainingTwoAlertMessage?: string;
   attendanceCode?: string;
   classGroupIds: number[];
   portalEnabled: boolean;
@@ -723,6 +741,20 @@ export async function listStudents(
     }
   }
   const records = Array.from(result.values());
+  const notificationSettings = records.length
+    ? await db
+        .select()
+        .from(studentRemainingCountNotifications)
+        .where(
+          inArray(
+            studentRemainingCountNotifications.studentId,
+            records.map(student => student.id)
+          )
+        )
+    : [];
+  const notificationSettingsByStudent = new Map(
+    notificationSettings.map(setting => [setting.studentId, setting])
+  );
   const currentMonth = todayInKorea().slice(0, 7);
   const monthlyViews = records.length
     ? await db
@@ -779,6 +811,12 @@ export async function listStudents(
           : "";
     return {
       ...student,
+      remainingTwoAlertMessage:
+        notificationSettingsByStudent.get(student.id)?.message ?? "",
+      remainingTwoAlertSentTotalCount:
+        notificationSettingsByStudent.get(student.id)?.sentTotalCount ?? null,
+      remainingTwoAlertLastAttemptedAt:
+        notificationSettingsByStudent.get(student.id)?.lastAttemptedAt ?? null,
       monthlyViewCount: monthlyViewsByStudent.get(student.id) ?? 0,
       countInfo: {
         afterCount,
@@ -1216,6 +1254,10 @@ export async function createStudent(
     .$returningId();
   const studentId = inserted[0]?.id;
   if (!studentId) throw new Error("학생을 생성하지 못했습니다.");
+  await db.insert(studentRemainingCountNotifications).values({
+    studentId,
+    message: input.remainingTwoAlertMessage || "",
+  });
   if (input.classGroupIds.length) {
     await db
       .insert(studentEnrollments)
@@ -1287,6 +1329,15 @@ export async function updateStudent(
         ...(input.attendanceCode ? { attendanceCode: input.attendanceCode } : {}),
       })
       .where(eq(students.id, id));
+    await tx
+      .insert(studentRemainingCountNotifications)
+      .values({
+        studentId: id,
+        message: input.remainingTwoAlertMessage || "",
+      })
+      .onDuplicateKeyUpdate({
+        set: { message: input.remainingTwoAlertMessage || "" },
+      });
     if (totalCountChanged) {
       await tx
         .insert(registrationCountHistories)
@@ -1372,6 +1423,9 @@ export async function purgeStudent(id: number) {
     await tx
       .delete(parentPushSubscriptions)
       .where(eq(parentPushSubscriptions.studentId, id));
+    await tx
+      .delete(studentRemainingCountNotifications)
+      .where(eq(studentRemainingCountNotifications.studentId, id));
     await tx
       .delete(weeklyCountAccruals)
       .where(eq(weeklyCountAccruals.studentId, id));
@@ -1735,6 +1789,41 @@ export async function getStudentNotificationIdentity(studentId: number) {
     .where(and(eq(students.id, studentId), eq(students.active, true)))
     .limit(1);
   return result[0] ?? null;
+}
+
+export async function listRemainingTwoNotificationCandidates(
+  today = todayInKorea()
+) {
+  const studentRows = await listStudents(today, true);
+  return studentRows
+    .filter(student =>
+      shouldSendRemainingTwoNotification({
+        portalEnabled: student.portalEnabled,
+        message: student.remainingTwoAlertMessage,
+        remainingCount: student.countInfo.remainingCount,
+        totalCount: student.totalCount,
+        sentTotalCount: student.remainingTwoAlertSentTotalCount,
+      })
+    )
+    .map(student => ({
+      id: student.id,
+      name: student.name,
+      publicToken: student.publicToken,
+      totalCount: student.totalCount,
+      message: student.remainingTwoAlertMessage.trim(),
+    }));
+}
+
+export async function markRemainingTwoNotificationAttempt(
+  studentId: number,
+  totalCount: number,
+  attemptedAt: Date
+) {
+  const db = await requireDb();
+  await db
+    .update(studentRemainingCountNotifications)
+    .set({ sentTotalCount: totalCount, lastAttemptedAt: attemptedAt })
+    .where(eq(studentRemainingCountNotifications.studentId, studentId));
 }
 
 export async function upsertParentPushSubscription(input: {

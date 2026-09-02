@@ -65,6 +65,7 @@ type Student = {
   totalCount: number;
   validUntil: string | null;
   paymentMethod: string | null;
+  remainingTwoAlertMessage: string;
   publicToken: string;
   portalEnabled: boolean;
   active: boolean;
@@ -87,6 +88,7 @@ type StudentDraft = {
   totalCount: number;
   validUntil: string;
   paymentMethod: string;
+  remainingTwoAlertMessage: string;
   classGroupIds: number[];
   portalEnabled: boolean;
 };
@@ -106,6 +108,7 @@ const emptyDraft: StudentDraft = {
   totalCount: 0,
   validUntil: "",
   paymentMethod: "",
+  remainingTwoAlertMessage: "",
   classGroupIds: [],
   portalEnabled: false,
 };
@@ -1071,6 +1074,7 @@ function StudentDialog({
             totalCount: student.totalCount,
             validUntil: student.validUntil?.slice(0, 10) ?? "",
             paymentMethod: student.paymentMethod ?? "",
+            remainingTwoAlertMessage: student.remainingTwoAlertMessage ?? "",
             classGroupIds: student.classGroups.map(group => group.id),
             portalEnabled: student.portalEnabled,
           }
@@ -1350,6 +1354,25 @@ function StudentDialog({
                 placeholder="예: 카드, 이체"
               />
             </Field>
+            <div className="sm:col-span-2">
+              <Field label="잔여 2회 보호자 알림 문구">
+                <Textarea
+                  value={draft.remainingTwoAlertMessage}
+                  maxLength={1000}
+                  onChange={event =>
+                    setDraft({
+                      ...draft,
+                      remainingTwoAlertMessage: event.target.value,
+                    })
+                  }
+                  placeholder="예: 남은 수업이 2회입니다. 다음 수업 등록을 부탁드립니다."
+                />
+                <p className="text-[11px] leading-4 text-[#71817D]">
+                  문구가 있으면 잔여 횟수가 정확히 2회가 된 날 오후 7시에 한 번
+                  알립니다. 1회·0회에는 발송하지 않습니다.
+                </p>
+              </Field>
+            </div>
           </div>
           <Field label="수강 과목">
             <div className="journal-checkbox-list">
