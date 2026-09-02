@@ -102,6 +102,8 @@ export const students = mysqlTable(
     vocabularyResultUrl: varchar("vocabularyResultUrl", { length: 2048 }),
     englishSpeakingUrl: varchar("englishSpeakingUrl", { length: 2048 }),
     mathUnitEvaluationUrl: varchar("mathUnitEvaluationUrl", { length: 2048 }),
+    /** 같은 보호자가 하나의 PWA에서 함께 열람할 형제·자매 묶음이다. */
+    familyKey: varchar("familyKey", { length: 64 }),
     publicToken: varchar("publicToken", { length: 64 }).notNull(),
     attendanceCode: varchar("attendanceCode", { length: 4 }).notNull(),
     portalEnabled: boolean("portalEnabled").default(false).notNull(),
@@ -117,6 +119,7 @@ export const students = mysqlTable(
     attendanceCodeUnique: uniqueIndex("students_attendance_code_unique").on(
       table.attendanceCode
     ),
+    familyKeyIndex: index("students_family_key_index").on(table.familyKey),
     activeIndex: index("students_active_index").on(table.active),
   })
 );

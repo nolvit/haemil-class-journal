@@ -851,12 +851,12 @@ export const academyRouter = router({
     config: publicProcedure
       .input(z.object({ token: z.string().min(8).max(64) }))
       .query(async ({ input }) => {
-        const student = await academyDb.getPushStudentByToken(input.token);
-        if (!student) return null;
+        const family = await academyDb.getPortalFamilyByToken(input.token);
+        if (!family.length) return null;
         return {
           available: Boolean(getVapidPublicKey()),
           publicKey: getVapidPublicKey(),
-          studentName: student.name,
+          studentName: family.map(student => student.name).join(" · "),
         };
       }),
     subscribe: publicProcedure
@@ -867,8 +867,8 @@ export const academyRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        const student = await academyDb.getPushStudentByToken(input.token);
-        if (!student)
+        const family = await academyDb.getPortalFamilyByToken(input.token);
+        if (!family.length)
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "사용할 수 없는 보호자 링크입니다.",
@@ -876,15 +876,19 @@ export const academyRouter = router({
         const endpointHash = createHash("sha256")
           .update(input.subscription.endpoint)
           .digest("hex");
-        await academyDb.upsertParentPushSubscription({
-          studentId: student.id,
-          endpointHash,
-          endpoint: input.subscription.endpoint,
-          p256dh: input.subscription.keys.p256dh,
-          auth: input.subscription.keys.auth,
-          userAgent: ctx.req.headers["user-agent"],
-        });
-        return { success: true };
+        await Promise.all(
+          family.map(student =>
+            academyDb.upsertParentPushSubscription({
+              studentId: student.id,
+              endpointHash,
+              endpoint: input.subscription.endpoint,
+              p256dh: input.subscription.keys.p256dh,
+              auth: input.subscription.keys.auth,
+              userAgent: ctx.req.headers["user-agent"],
+            })
+          )
+        );
+        return { success: true, studentCount: family.length };
       }),
     test: publicProcedure
       .input(z.object({ token: z.string().min(8).max(64) }))
@@ -911,12 +915,16 @@ export const academyRouter = router({
         })
       )
       .mutation(async ({ input }) => {
-        const student = await academyDb.getPushStudentByToken(input.token);
-        if (!student) return { success: true };
+        const family = await academyDb.getPortalFamilyByToken(input.token);
+        if (!family.length) return { success: true };
         const endpointHash = createHash("sha256")
           .update(input.endpoint)
           .digest("hex");
-        await academyDb.removeParentPushSubscription(student.id, endpointHash);
+        await Promise.all(
+          family.map(student =>
+            academyDb.removeParentPushSubscription(student.id, endpointHash)
+          )
+        );
         return { success: true };
       }),
   }),
@@ -962,13 +970,15 @@ export const academyRouter = router({
         token: z.string().min(8).max(64),
         journalDate: isoDate,
         includeWeekend: z.boolean().optional(),
+        studentId: z.number().int().positive().optional(),
       })
     )
     .query(({ input }) =>
       academyDb.getPublicStudentWeek(
         input.token,
         input.journalDate,
-        input.includeWeekend
+        input.includeWeekend,
+        input.studentId
       )
     ),
   portalView: router({

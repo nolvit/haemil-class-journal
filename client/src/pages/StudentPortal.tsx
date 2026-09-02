@@ -188,12 +188,13 @@ export default function StudentPortal() {
   const token = params?.token ?? "";
   const [journalDate, setJournalDate] = useState(initialPortalDate);
   const [includeWeekend, setIncludeWeekend] = useState(false);
+  const [selectedStudentId, setSelectedStudentId] = useState<number>();
   const [expandedImage, setExpandedImage] = useState<{ url: string; alt: string } | null>(null);
   const viewRecordedRef = useRef(false);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const input = useMemo(
-    () => ({ token, journalDate, includeWeekend }),
-    [token, journalDate, includeWeekend]
+    () => ({ token, journalDate, includeWeekend, studentId: selectedStudentId }),
+    [token, journalDate, includeWeekend, selectedStudentId]
   );
   const { data, isLoading, error } = trpc.academy.publicStudent.useQuery(
     input,
@@ -372,6 +373,30 @@ export default function StudentPortal() {
             </span>
           </div>
         </header>
+        {data.familyMembers.length > 1 && (
+          <section className="portal-family-switcher" aria-label="자녀 선택">
+            <div>
+              <b>자녀 선택</b>
+              <small>한 앱에서 형제·자매의 수업일지와 알림을 함께 확인합니다.</small>
+            </div>
+            <div className="portal-family-buttons">
+              {data.familyMembers.map(member => (
+                <Button
+                  key={member.id}
+                  type="button"
+                  size="sm"
+                  variant={data.student.id === member.id ? "default" : "outline"}
+                  className={data.student.id === member.id ? "journal-primary-button" : "bg-white"}
+                  onClick={() => setSelectedStudentId(member.id)}
+                  aria-pressed={data.student.id === member.id}
+                >
+                  {member.name}
+                  <span>{member.grade}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        )}
         <section className="mb-4 grid gap-3 md:grid-cols-2">
           <PwaInstallPrompt />
           <ParentNotificationPrompt token={token} />

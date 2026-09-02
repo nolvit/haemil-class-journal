@@ -628,6 +628,7 @@ export async function listStudents(
       vocabularyResultUrl: students.vocabularyResultUrl,
       englishSpeakingUrl: students.englishSpeakingUrl,
       mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
+      familyKey: students.familyKey,
       publicToken: students.publicToken,
       attendanceCode: students.attendanceCode,
       portalEnabled: students.portalEnabled,
@@ -674,6 +675,7 @@ export async function listStudents(
       vocabularyResultUrl: string | null;
       englishSpeakingUrl: string | null;
       mathUnitEvaluationUrl: string | null;
+      familyKey: string | null;
       publicToken: string;
       attendanceCode: string;
       portalEnabled: boolean;
@@ -702,6 +704,7 @@ export async function listStudents(
         vocabularyResultUrl: row.vocabularyResultUrl,
         englishSpeakingUrl: row.englishSpeakingUrl,
         mathUnitEvaluationUrl: row.mathUnitEvaluationUrl,
+        familyKey: row.familyKey,
         publicToken: row.publicToken,
         attendanceCode: row.attendanceCode,
         portalEnabled: row.portalEnabled,
@@ -1715,19 +1718,8 @@ export async function resetAttendanceCodeEvents(
 }
 
 export async function getPushStudentByToken(token: string) {
-  const db = await requireDb();
-  const result = await db
-    .select({ id: students.id, name: students.name })
-    .from(students)
-    .where(
-      and(
-        eq(students.publicToken, token),
-        eq(students.portalEnabled, true),
-        eq(students.active, true)
-      )
-    )
-    .limit(1);
-  return result[0] ?? null;
+  const family = await getPortalFamilyByToken(token);
+  return family.find(student => student.publicToken === token) ?? null;
 }
 
 export async function getStudentNotificationIdentity(studentId: number) {
@@ -2398,12 +2390,59 @@ export async function deleteAndPullLessonJournal(input: {
   });
 }
 
+export async function getPortalFamilyByToken(token: string) {
+  const db = await requireDb();
+  const anchorRows = await db
+    .select({
+      id: students.id,
+      name: students.name,
+      grade: students.grade,
+      publicToken: students.publicToken,
+      familyKey: students.familyKey,
+    })
+    .from(students)
+    .where(
+      and(
+        eq(students.publicToken, token),
+        eq(students.portalEnabled, true),
+        eq(students.active, true)
+      )
+    )
+    .limit(1);
+  const anchor = anchorRows[0];
+  if (!anchor) return [];
+  if (!anchor.familyKey) return [anchor];
+  return db
+    .select({
+      id: students.id,
+      name: students.name,
+      grade: students.grade,
+      publicToken: students.publicToken,
+      familyKey: students.familyKey,
+    })
+    .from(students)
+    .where(
+      and(
+        eq(students.familyKey, anchor.familyKey),
+        eq(students.portalEnabled, true),
+        eq(students.active, true)
+      )
+    )
+    .orderBy(asc(students.name), asc(students.id));
+}
+
 export async function getPublicStudentWeek(
   token: string,
   requestedDate: string,
-  includeWeekend = false
+  includeWeekend = false,
+  requestedStudentId?: number
 ) {
   const db = await requireDb();
+  const familyMembers = await getPortalFamilyByToken(token);
+  const selectedMember = requestedStudentId
+    ? familyMembers.find(member => member.id === requestedStudentId)
+    : familyMembers.find(member => member.publicToken === token);
+  if (!selectedMember) return null;
   const studentRows = await db
     .select({
       id: students.id,
@@ -2417,13 +2456,7 @@ export async function getPublicStudentWeek(
       mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
     })
     .from(students)
-    .where(
-      and(
-        eq(students.publicToken, token),
-        eq(students.portalEnabled, true),
-        eq(students.active, true)
-      )
-    )
+    .where(eq(students.id, selectedMember.id))
     .limit(1);
   const student = studentRows[0];
   if (!student) return null;
@@ -2644,6 +2677,11 @@ export async function getPublicStudentWeek(
   const registered = Number(student.totalCount ?? 0);
   return {
     student: { id: student.id, name: student.name, grade: student.grade },
+    familyMembers: familyMembers.map(member => ({
+      id: member.id,
+      name: member.name,
+      grade: member.grade,
+    })),
     resources: {
       vocabularyResultUrl: student.vocabularyResultUrl,
       englishSpeakingUrl: student.englishSpeakingUrl,
@@ -2679,18 +2717,9 @@ export async function getPublicStudentWeek(
 
 export async function recordParentPortalView(token: string) {
   const db = await requireDb();
-  const studentRows = await db
-    .select({ id: students.id })
-    .from(students)
-    .where(
-      and(
-        eq(students.publicToken, token),
-        eq(students.portalEnabled, true),
-        eq(students.active, true)
-      )
-    )
-    .limit(1);
-  const student = studentRows[0];
+  const student = (await getPortalFamilyByToken(token)).find(
+    member => member.publicToken === token
+  );
   if (!student) return { recorded: false as const };
   const monthKey = todayInKorea().slice(0, 7);
   await db
