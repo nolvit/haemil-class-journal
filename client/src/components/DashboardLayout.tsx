@@ -214,6 +214,18 @@ export default function DashboardLayout({
                 관리자 로그인 설정이 필요합니다.
               </p>
             )}
+          <Button
+            asChild
+            size="lg"
+            variant="outline"
+            className="mt-3 w-full border-[#D9C792] bg-[#FFFDF7] text-[#315B57] hover:bg-[#F5ECD0] hover:text-[#234E52]"
+          >
+            <a href="/check-in">
+              <ClipboardCheck className="h-4 w-4" />
+              학생 등·하원 입력
+              <ChevronRight className="ml-1 h-4 w-4" />
+            </a>
+          </Button>
         </div>
       </div>
     );
