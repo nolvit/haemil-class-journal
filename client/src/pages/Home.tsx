@@ -89,6 +89,16 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const refreshElapsedTime = () => setRefreshedAt(new Date());
+    const timer = window.setInterval(refreshElapsedTime, 30_000);
+    document.addEventListener("visibilitychange", refreshElapsedTime);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", refreshElapsedTime);
+    };
+  }, []);
+
+  useEffect(() => {
     if (!shouldRestoreScroll.current || isLoading) return;
     const savedPosition = Number(sessionStorage.getItem(dashboardScrollKey));
     if (Number.isFinite(savedPosition) && savedPosition > 0) {
