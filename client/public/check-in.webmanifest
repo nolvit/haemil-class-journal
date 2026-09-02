@@ -1,0 +1,15 @@
+{
+  "id": "/check-in",
+  "name": "해밀학원 출석 체크인",
+  "short_name": "해밀 출석",
+  "description": "학생 등·하원 전용 입력 화면",
+  "start_url": "/check-in",
+  "scope": "/",
+  "display": "fullscreen",
+  "background_color": "#F3F0E8",
+  "theme_color": "#193D3C",
+  "icons": [
+    { "src": "/icons/haemil-logo-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/haemil-logo-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

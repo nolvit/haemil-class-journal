@@ -11,11 +11,14 @@ import "./index.css";
 const parentToken = window.location.pathname.match(
   /^\/p\/([A-Za-z0-9_-]{8,64})/
 )?.[1];
+const isCheckIn = window.location.pathname === "/check-in";
 const manifest = document.createElement("link");
 manifest.rel = "manifest";
 manifest.href = parentToken
   ? `/pwa/parent.webmanifest?token=${encodeURIComponent(parentToken)}`
-  : "/admin.webmanifest";
+  : isCheckIn
+    ? "/check-in.webmanifest"
+    : "/admin.webmanifest";
 document.head.appendChild(manifest);
 const appIcon = document.createElement("link");
 appIcon.rel = "apple-touch-icon";

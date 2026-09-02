@@ -1,5 +1,5 @@
-const CACHE_NAME = "haemil-shell-v4";
-const APP_SHELL = ["/", "/admin.webmanifest", "/parent.webmanifest", "/icons/haemil-logo-192.png", "/icons/haemil-logo-512.png", "/icons/notification-badge.png"];
+const CACHE_NAME = "haemil-shell-v5";
+const APP_SHELL = ["/", "/check-in", "/admin.webmanifest", "/check-in.webmanifest", "/parent.webmanifest", "/icons/haemil-logo-192.png", "/icons/haemil-logo-512.png", "/icons/notification-badge.png"];
 
 self.addEventListener("install", event => {
   event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting()));

@@ -11,7 +11,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
 import { CheckCircle2, Clock3, LogIn, LogOut } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 const todayInKorea = () =>
   new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(
@@ -20,6 +20,7 @@ const todayInKorea = () =>
 
 export default function CheckIn() {
   const utils = trpc.useUtils();
+  const adminTapTimesRef = useRef<number[]>([]);
   const [code, setCode] = useState("");
   const [submittedCode, setSubmittedCode] = useState("");
   const [success, setSuccess] = useState<{
@@ -53,8 +54,25 @@ export default function CheckIn() {
   };
   const eventLabel =
     preview.data?.nextEventType === "check_in" ? "등원" : "하원";
+  const openAdminLoginAfterFiveTaps = () => {
+    const now = Date.now();
+    const recentTaps = [
+      ...adminTapTimesRef.current.filter(tappedAt => now - tappedAt <= 3_000),
+      now,
+    ];
+    if (recentTaps.length >= 5) {
+      window.location.assign("/");
+      return;
+    }
+    adminTapTimesRef.current = recentTaps;
+  };
   return (
     <main className="min-h-screen bg-[#F3F0E8] px-4 py-8 sm:py-16">
+      <div
+        aria-hidden="true"
+        className="fixed right-0 top-0 z-50 h-16 w-16 touch-manipulation"
+        onClick={openAdminLoginAfterFiveTaps}
+      />
       <div className="mx-auto max-w-md">
         <header className="mb-6 text-center">
           <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-[#193D3C] font-serif text-3xl text-[#D8C59A]">
