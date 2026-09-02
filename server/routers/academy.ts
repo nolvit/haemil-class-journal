@@ -233,7 +233,8 @@ async function notifyTotalCount(
   if (!student?.portalEnabled) return;
   await sendStudentPush(
     student.id,
-    totalCountPushPayload(student.publicToken, student.name, before, after)
+    totalCountPushPayload(student.publicToken, student.name, before, after),
+    { type: "total_count" }
   );
 }
 
@@ -471,6 +472,11 @@ export const academyRouter = router({
           randomBytes(24).toString("base64url")
         )
       ),
+  }),
+  notificationLogs: router({
+    list: adminProcedure.query(() =>
+      academyDb.listNotificationDeliveryLogs(500)
+    ),
   }),
   attendance: router({
     save: adminProcedure
@@ -901,12 +907,16 @@ export const academyRouter = router({
             code: "NOT_FOUND",
             message: "사용할 수 없는 보호자 링크입니다.",
           });
-        return sendStudentPush(student.id, {
-          title: "해밀학원 알림 테스트",
-          body: `${student.name} 학생의 등하원 알림이 정상적으로 연결되었습니다.`,
-          url: `/p/${input.token}`,
-          tag: `push-test-${student.id}-${Date.now()}`,
-        });
+        return sendStudentPush(
+          student.id,
+          {
+            title: "해밀학원 알림 테스트",
+            body: `${student.name} 학생의 등하원 알림이 정상적으로 연결되었습니다.`,
+            url: `/p/${input.token}`,
+            tag: `push-test-${student.id}-${Date.now()}`,
+          },
+          { type: "test" }
+        );
       }),
     unsubscribe: publicProcedure
       .input(
@@ -960,7 +970,14 @@ export const academyRouter = router({
               student.name,
               result.eventType,
               result.occurredAt
-            )
+            ),
+            {
+              type:
+                result.eventType === "check_in"
+                  ? "attendance_check_in"
+                  : "attendance_check_out",
+              eventDate: input.eventDate,
+            }
           );
         return { ...result, notification };
       }),

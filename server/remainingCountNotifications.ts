@@ -50,7 +50,8 @@ export async function dispatchRemainingTwoNotifications(now = new Date()) {
           student.name,
           student.message,
           student.totalCount
-        )
+        ),
+        { type: "remaining_two", eventDate: korea.date }
       );
       sent += result.sent;
     }

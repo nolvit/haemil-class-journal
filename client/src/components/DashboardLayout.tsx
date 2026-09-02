@@ -26,6 +26,7 @@ import { useIsMobile } from "@/hooks/useMobile";
 import { getMobileSwipeDestination } from "@shared/mobileSwipeNavigation";
 import {
   Banknote,
+  BellRing,
   BookMarked,
   BookOpenCheck,
   CalendarDays,
@@ -100,6 +101,12 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
         icon: Link2,
         label: "보호자 링크",
         path: "/parent-links",
+        adminOnly: true,
+      },
+      {
+        icon: BellRing,
+        label: "알림 로그",
+        path: "/notification-logs",
         adminOnly: true,
       },
     ],

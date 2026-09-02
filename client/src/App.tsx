@@ -14,6 +14,7 @@ const Classes = lazy(() => import("@/pages/Classes"));
 const Journal = lazy(() => import("@/pages/Journal"));
 const LearningLinks = lazy(() => import("@/pages/LearningLinks"));
 const ParentLinks = lazy(() => import("@/pages/ParentLinks"));
+const NotificationLogs = lazy(() => import("@/pages/NotificationLogs"));
 const StudentPortal = lazy(() => import("@/pages/StudentPortal"));
 const Students = lazy(() => import("@/pages/Students"));
 const TuitionStandards = lazy(() => import("@/pages/TuitionStandards"));
@@ -94,6 +95,14 @@ function Router() {
           component={() => (
             <StaffPage>
               <ParentLinks />
+            </StaffPage>
+          )}
+        />
+        <Route
+          path="/notification-logs"
+          component={() => (
+            <StaffPage>
+              <NotificationLogs />
             </StaffPage>
           )}
         />

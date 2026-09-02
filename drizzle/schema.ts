@@ -180,6 +180,35 @@ export const studentRemainingCountNotifications = mysqlTable(
   }
 );
 
+/** 보호자 기기로 시도한 알림의 전송 결과를 관리자에게 보여 주는 이력이다. */
+export const notificationDeliveryLogs = mysqlTable(
+  "notification_delivery_logs",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    studentId: int("studentId").notNull(),
+    notificationType: varchar("notificationType", { length: 40 }).notNull(),
+    title: varchar("title", { length: 200 }).notNull(),
+    body: text("body").notNull(),
+    eventDate: date("eventDate", { mode: "string" }),
+    targetCount: int("targetCount").default(0).notNull(),
+    sentCount: int("sentCount").default(0).notNull(),
+    failedCount: int("failedCount").default(0).notNull(),
+    unavailable: boolean("unavailable").default(false).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    createdIndex: index("notification_delivery_logs_created_index").on(
+      table.createdAt
+    ),
+    studentCreatedIndex: index(
+      "notification_delivery_logs_student_created_index"
+    ).on(table.studentId, table.createdAt),
+    eventDateIndex: index("notification_delivery_logs_event_date_index").on(
+      table.eventDate
+    ),
+  })
+);
+
 /** 보호자 공유 페이지의 학생별 월간 열람 횟수다. 월 키가 바뀌면 화면에는 새 달의 0회부터 표시된다. */
 export const parentPortalMonthlyViews = mysqlTable(
   "parent_portal_monthly_views",

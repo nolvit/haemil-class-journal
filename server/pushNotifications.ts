@@ -29,11 +29,45 @@ export function getVapidPublicKey() {
 
 export async function sendStudentPush(
   studentId: number,
-  payload: ParentPushPayload
+  payload: ParentPushPayload,
+  context: {
+    type: academyDb.NotificationDeliveryType;
+    eventDate?: string;
+  }
 ) {
-  if (!ensureConfigured()) return { sent: 0, unavailable: true };
+  const recordResult = async (result: {
+    targetCount: number;
+    sent: number;
+    failed: number;
+    unavailable: boolean;
+  }) => {
+    try {
+      await academyDb.createNotificationDeliveryLog({
+        studentId,
+        notificationType: context.type,
+        title: payload.title,
+        body: payload.body,
+        eventDate: context.eventDate,
+        targetCount: result.targetCount,
+        sentCount: result.sent,
+        failedCount: result.failed,
+        unavailable: result.unavailable,
+      });
+    } catch (error) {
+      console.error("[Push] failed to save delivery log", error);
+    }
+    return result;
+  };
+  if (!ensureConfigured())
+    return recordResult({
+      targetCount: 0,
+      sent: 0,
+      failed: 0,
+      unavailable: true,
+    });
   const subscriptions = await academyDb.listParentPushSubscriptions(studentId);
   let sent = 0;
+  let failed = 0;
   await Promise.all(
     subscriptions.map(async subscription => {
       try {
@@ -47,6 +81,7 @@ export async function sendStudentPush(
         );
         sent += 1;
       } catch (error: any) {
+        failed += 1;
         if (error?.statusCode === 404 || error?.statusCode === 410) {
           await academyDb.deleteParentPushSubscription(subscription.id);
           return;
@@ -55,7 +90,12 @@ export async function sendStudentPush(
       }
     })
   );
-  return { sent, unavailable: false };
+  return recordResult({
+    targetCount: subscriptions.length,
+    sent,
+    failed,
+    unavailable: false,
+  });
 }
 
 export function totalCountPushPayload(

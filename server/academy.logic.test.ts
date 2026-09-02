@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { attendanceStatusLabels, chooseJournalClassId, chooseRememberedGrade, findJournalTransferConflict, formatArrivalElapsed, getHistoricalLessonCount, formatArrivalTimeForDisplay, formatAttendanceProgressLabel, getAdjacentJournalDate, getBusinessWeekDates, getJournalCompleteness, getJournalDeletionTargetDates, getJournalFocusDates, getJournalInsertionMoves, getMonday, getNextBusinessDate, getPreviousWeekStart, getNextScheduledClassDate, getUnenteredAttendanceDates, getWeeklyDates, isCalendarScheduleVisibleToParent, isDateVisibleToParent, isFinalJournalVisibleToParent, isJournalAttentionDue, isJournalWriteBlocked, normalizeAfternoonArrivalTime, selectableAttendanceStatusValues, shouldPullJournalForAttendance, shouldTransferJournalForAttendance } from "../shared/journalRules";
+import { attendanceStatusLabels, chooseJournalClassId, chooseRememberedGrade, findJournalTransferConflict, formatArrivalElapsed, getHistoricalLessonCount, formatArrivalTimeForDisplay, formatAttendanceProgressLabel, formatLessonDuration, getAdjacentJournalDate, getBusinessWeekDates, getJournalCompleteness, getJournalDeletionTargetDates, getJournalFocusDates, getJournalInsertionMoves, getMonday, getNextBusinessDate, getPreviousWeekStart, getNextScheduledClassDate, getUnenteredAttendanceDates, getWeeklyDates, isCalendarScheduleVisibleToParent, isDateVisibleToParent, isFinalJournalVisibleToParent, isJournalAttentionDue, isJournalWriteBlocked, normalizeAfternoonArrivalTime, selectableAttendanceStatusValues, shouldPullJournalForAttendance, shouldTransferJournalForAttendance } from "../shared/journalRules";
 import { getClosureDatesInRange, getClosureForDate, hasOverlappingClosureRange, matchesAutomaticCalendarStatus } from "../shared/closureRules";
 import { dashboardAttendanceHref, dashboardJournalHref, dashboardStudentJournalHref, shouldShowDashboardPendingList } from "../shared/dashboardNavigation";
 import { getRegistrationCountPreview } from "../shared/studentCountRules";
@@ -233,6 +233,21 @@ describe("수업일지 완성 상태", () => {
     expect(formatAttendanceProgressLabel("absent", null, "2026-08-26", now, "2026-08-26")).toBe("결석");
     expect(formatAttendanceProgressLabel("not_registered", null, "2026-08-26", now, "2026-08-26")).toBe("미등록");
     expect(formatAttendanceProgressLabel("not_entered", null, "2026-08-26", now, "2026-08-26")).toBe("—");
+  });
+
+  it("하원 후에는 등원 경과 대신 실제 수업 시간을 표시한다", () => {
+    expect(formatLessonDuration("15:10", "17:05")).toBe("수업 1시간 55분");
+    expect(formatLessonDuration("3:10", "5:05")).toBe("수업 1시간 55분");
+    expect(
+      formatAttendanceProgressLabel(
+        "present",
+        "15:10",
+        "2026-08-26",
+        new Date("2026-08-26T08:00:00.000Z"),
+        "2026-08-26",
+        "17:05"
+      )
+    ).toBe("수업 1시간 55분");
   });
 
   it("등원 미완료는 출석 행이 없는 학생과 명시적 미입력을 모두 포함한다", () => {

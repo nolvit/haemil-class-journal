@@ -265,10 +265,33 @@ export function formatAttendanceProgressLabel(
   journalDate: string,
   now: Date,
   today: string,
+  departureTime?: string | null,
 ): string {
   if (status === "absent") return "결석";
   if (status === "not_registered") return "미등록";
+  const lessonDuration = formatLessonDuration(arrivalTime, departureTime);
+  if (lessonDuration) return lessonDuration;
   return formatArrivalElapsed(arrivalTime, journalDate, now, today) ?? "—";
+}
+
+export function formatLessonDuration(
+  arrivalTime: string | null | undefined,
+  departureTime: string | null | undefined,
+): string | null {
+  if (!arrivalTime || !departureTime) return null;
+  const toMinutes = (value: string) => {
+    const match = normalizeAfternoonArrivalTime(value).match(/^(\d{2}):(\d{2})$/);
+    if (!match) return null;
+    return Number(match[1]) * 60 + Number(match[2]);
+  };
+  const arrivalMinutes = toMinutes(arrivalTime);
+  const departureMinutes = toMinutes(departureTime);
+  if (arrivalMinutes === null || departureMinutes === null) return null;
+  const durationMinutes = departureMinutes - arrivalMinutes;
+  if (durationMinutes < 0) return null;
+  const hours = Math.floor(durationMinutes / 60);
+  const minutes = durationMinutes % 60;
+  return `수업 ${hours}시간 ${minutes}분`;
 }
 
 export function formatArrivalElapsed(

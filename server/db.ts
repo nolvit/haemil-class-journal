@@ -23,6 +23,7 @@ import {
   InsertUser,
   legalHolidayNotices,
   lessonJournals,
+  notificationDeliveryLogs,
   parentPortalMonthlyViews,
   parentPushSubscriptions,
   registrationCountHistories,
@@ -67,6 +68,7 @@ import {
 import { getValidUntilAfterTotalCountChange } from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
 import { shouldSendRemainingTwoNotification } from "../shared/remainingCountNotificationRules";
+import { getPushDeviceLabel } from "../shared/pushDeviceLabels";
 import {
   getKoreanHolidayDates,
   shouldAutomaticallyApplyLegalHoliday,
@@ -115,6 +117,25 @@ export async function ensureRemainingCountNotificationSchema() {
       createdAt timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
       updatedAt timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
       PRIMARY KEY (studentId)
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS notification_delivery_logs (
+      id int AUTO_INCREMENT NOT NULL,
+      studentId int NOT NULL,
+      notificationType varchar(40) NOT NULL,
+      title varchar(200) NOT NULL,
+      body text NOT NULL,
+      eventDate date NULL,
+      targetCount int DEFAULT 0 NOT NULL,
+      sentCount int DEFAULT 0 NOT NULL,
+      failedCount int DEFAULT 0 NOT NULL,
+      unavailable boolean DEFAULT false NOT NULL,
+      createdAt timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      PRIMARY KEY (id),
+      INDEX notification_delivery_logs_created_index (createdAt),
+      INDEX notification_delivery_logs_student_created_index (studentId, createdAt),
+      INDEX notification_delivery_logs_event_date_index (eventDate)
     )
   `);
 }
@@ -755,6 +776,36 @@ export async function listStudents(
   const notificationSettingsByStudent = new Map(
     notificationSettings.map(setting => [setting.studentId, setting])
   );
+  const pushSubscriptionRows = records.length
+    ? await db
+        .select({
+          id: parentPushSubscriptions.id,
+          studentId: parentPushSubscriptions.studentId,
+          userAgent: parentPushSubscriptions.userAgent,
+          updatedAt: parentPushSubscriptions.updatedAt,
+        })
+        .from(parentPushSubscriptions)
+        .where(
+          inArray(
+            parentPushSubscriptions.studentId,
+            records.map(student => student.id)
+          )
+        )
+        .orderBy(asc(parentPushSubscriptions.createdAt))
+    : [];
+  const pushDevicesByStudent = new Map<
+    number,
+    Array<{ id: number; label: string; updatedAt: Date }>
+  >();
+  for (const subscription of pushSubscriptionRows) {
+    const devices = pushDevicesByStudent.get(subscription.studentId) ?? [];
+    devices.push({
+      id: subscription.id,
+      label: getPushDeviceLabel(subscription.userAgent),
+      updatedAt: subscription.updatedAt,
+    });
+    pushDevicesByStudent.set(subscription.studentId, devices);
+  }
   const currentMonth = todayInKorea().slice(0, 7);
   const monthlyViews = records.length
     ? await db
@@ -817,6 +868,7 @@ export async function listStudents(
         notificationSettingsByStudent.get(student.id)?.sentTotalCount ?? null,
       remainingTwoAlertLastAttemptedAt:
         notificationSettingsByStudent.get(student.id)?.lastAttemptedAt ?? null,
+      pushDevices: pushDevicesByStudent.get(student.id) ?? [],
       monthlyViewCount: monthlyViewsByStudent.get(student.id) ?? 0,
       countInfo: {
         afterCount,
@@ -1427,6 +1479,9 @@ export async function purgeStudent(id: number) {
       .delete(studentRemainingCountNotifications)
       .where(eq(studentRemainingCountNotifications.studentId, id));
     await tx
+      .delete(notificationDeliveryLogs)
+      .where(eq(notificationDeliveryLogs.studentId, id));
+    await tx
       .delete(weeklyCountAccruals)
       .where(eq(weeklyCountAccruals.studentId, id));
     await tx
@@ -1824,6 +1879,54 @@ export async function markRemainingTwoNotificationAttempt(
     .update(studentRemainingCountNotifications)
     .set({ sentTotalCount: totalCount, lastAttemptedAt: attemptedAt })
     .where(eq(studentRemainingCountNotifications.studentId, studentId));
+}
+
+export type NotificationDeliveryType =
+  | "attendance_check_in"
+  | "attendance_check_out"
+  | "remaining_two"
+  | "total_count"
+  | "test";
+
+export async function createNotificationDeliveryLog(input: {
+  studentId: number;
+  notificationType: NotificationDeliveryType;
+  title: string;
+  body: string;
+  eventDate?: string;
+  targetCount: number;
+  sentCount: number;
+  failedCount: number;
+  unavailable: boolean;
+}) {
+  const db = await requireDb();
+  await db.insert(notificationDeliveryLogs).values({
+    ...input,
+    eventDate: input.eventDate || null,
+  });
+}
+
+export async function listNotificationDeliveryLogs(limit = 500) {
+  const db = await requireDb();
+  return db
+    .select({
+      id: notificationDeliveryLogs.id,
+      studentId: notificationDeliveryLogs.studentId,
+      studentName: students.name,
+      notificationType: notificationDeliveryLogs.notificationType,
+      title: notificationDeliveryLogs.title,
+      body: notificationDeliveryLogs.body,
+      eventDate: notificationDeliveryLogs.eventDate,
+      targetCount: notificationDeliveryLogs.targetCount,
+      sentCount: notificationDeliveryLogs.sentCount,
+      failedCount: notificationDeliveryLogs.failedCount,
+      unavailable: notificationDeliveryLogs.unavailable,
+      createdAt: notificationDeliveryLogs.createdAt,
+    })
+    .from(notificationDeliveryLogs)
+    .innerJoin(students, eq(students.id, notificationDeliveryLogs.studentId))
+    .orderBy(desc(notificationDeliveryLogs.createdAt))
+    .limit(Math.min(Math.max(limit, 1), 1000));
 }
 
 export async function upsertParentPushSubscription(input: {
