@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/_core/hooks/useAuth";
 import { Bell, Download, Smartphone } from "lucide-react";
 import { useEffect, useState } from "react";
 import { trpc } from "@/lib/trpc";
@@ -101,6 +102,7 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
 }
 
 export function ParentNotificationPrompt({ token }: { token: string }) {
+  const { user } = useAuth();
   const confirmationKey = `haemil.parentPush.tested:${token}`;
   const [testConfirmed, setTestConfirmed] = useState(
     () => window.localStorage.getItem(confirmationKey) === "1"
@@ -128,6 +130,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
   useEffect(() => {
     let cancelled = false;
     const restoreExistingSubscription = async () => {
+      if (user?.role === "admin") return;
       if ("Notification" in window && Notification.permission === "denied") {
         if (!cancelled) setState("blocked");
         return;
@@ -163,7 +166,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
     return () => {
       cancelled = true;
     };
-  }, [config.data?.available]);
+  }, [config.data?.available, user?.role]);
   const enable = async () => {
     if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
       setState("unsupported");
@@ -246,7 +249,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       toast.error("알림을 다시 연결하지 못했습니다. 브라우저의 사이트 알림 설정을 확인해 주세요.");
     }
   };
-  if (testConfirmed) return null;
+  if (user?.role === "admin" || testConfirmed) return null;
   return (
     <div className="rounded-2xl border border-[#C9DDD4] bg-[#F1F8F4] p-4">
       <div className="flex items-start gap-3">

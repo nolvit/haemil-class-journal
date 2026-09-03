@@ -1966,6 +1966,16 @@ export async function removeParentPushSubscription(
     );
 }
 
+export async function removeParentPushSubscriptionsByEndpointHash(
+  endpointHash: string
+) {
+  const db = await requireDb();
+  const result = await db
+    .delete(parentPushSubscriptions)
+    .where(eq(parentPushSubscriptions.endpointHash, endpointHash));
+  return { removed: Number(result[0]?.affectedRows ?? 0) };
+}
+
 export async function listParentPushSubscriptions(studentId: number) {
   const db = await requireDb();
   return db

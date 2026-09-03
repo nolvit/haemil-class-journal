@@ -477,6 +477,13 @@ export const academyRouter = router({
     list: adminProcedure.query(() =>
       academyDb.listNotificationDeliveryLogs(500)
     ),
+    removeCurrentAdminDevice: adminProcedure
+      .input(z.object({ endpoint: z.string().url().max(4096) }))
+      .mutation(({ input }) =>
+        academyDb.removeParentPushSubscriptionsByEndpointHash(
+          createHash("sha256").update(input.endpoint).digest("hex")
+        )
+      ),
   }),
   attendance: router({
     save: adminProcedure
@@ -874,15 +881,21 @@ export const academyRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
+        const endpointHash = createHash("sha256")
+          .update(input.subscription.endpoint)
+          .digest("hex");
+        if (ctx.user && isAdmin(ctx.user)) {
+          await academyDb.removeParentPushSubscriptionsByEndpointHash(
+            endpointHash
+          );
+          return { success: true, studentCount: 0, adminIgnored: true };
+        }
         const family = await academyDb.getPortalFamilyByToken(input.token);
         if (!family.length)
           throw new TRPCError({
             code: "NOT_FOUND",
             message: "사용할 수 없는 보호자 링크입니다.",
           });
-        const endpointHash = createHash("sha256")
-          .update(input.subscription.endpoint)
-          .digest("hex");
         await Promise.all(
           family.map(student =>
             academyDb.upsertParentPushSubscription({

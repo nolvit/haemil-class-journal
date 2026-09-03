@@ -128,6 +128,9 @@ export default function DashboardLayout({
     return saved ? Number.parseInt(saved, 10) : DEFAULT_WIDTH;
   });
   const { loading, user, logout } = useAuth();
+  const adminNotificationCleanupRef = useRef(false);
+  const removeCurrentAdminDevice =
+    trpc.academy.notificationLogs.removeCurrentAdminDevice.useMutation();
   const authConfig = trpc.auth.config.useQuery();
   const authUtils = trpc.useUtils();
   const [email, setEmail] = useState("");
@@ -143,6 +146,29 @@ export default function DashboardLayout({
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
   }, [sidebarWidth]);
+
+  useEffect(() => {
+    if (
+      user?.role !== "admin" ||
+      adminNotificationCleanupRef.current ||
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window)
+    )
+      return;
+    adminNotificationCleanupRef.current = true;
+    void navigator.serviceWorker.ready
+      .then(registration => registration.pushManager.getSubscription())
+      .then(subscription =>
+        subscription
+          ? removeCurrentAdminDevice.mutateAsync({
+              endpoint: subscription.endpoint,
+            })
+          : undefined
+      )
+      .catch(() => {
+        adminNotificationCleanupRef.current = false;
+      });
+  }, [user?.role]);
 
   if (loading) {
     return (
