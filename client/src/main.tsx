@@ -7,6 +7,9 @@ import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
 import "./index.css";
+import { initializePwaInstallCapture } from "./lib/pwaInstall";
+
+initializePwaInstallCapture();
 
 const parentToken = window.location.pathname.match(
   /^\/p\/([A-Za-z0-9_-]{8,64})/
@@ -28,9 +31,25 @@ const themeColor = document.createElement("meta");
 themeColor.name = "theme-color";
 themeColor.content = parentToken ? "#315B57" : "#193D3C";
 document.head.appendChild(themeColor);
+if (parentToken) {
+  const appleCapable = document.createElement("meta");
+  appleCapable.name = "apple-mobile-web-app-capable";
+  appleCapable.content = "yes";
+  document.head.appendChild(appleCapable);
+  const appleTitle = document.createElement("meta");
+  appleTitle.name = "apple-mobile-web-app-title";
+  appleTitle.content = "해밀 보호자";
+  document.head.appendChild(appleTitle);
+  const appleStatusBar = document.createElement("meta");
+  appleStatusBar.name = "apple-mobile-web-app-status-bar-style";
+  appleStatusBar.content = "default";
+  document.head.appendChild(appleStatusBar);
+}
 if ("serviceWorker" in navigator)
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js");
+    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
+      // The page remains usable and the manual install guide stays available.
+    });
   });
 
 const queryClient = new QueryClient({

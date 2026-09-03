@@ -62,6 +62,7 @@ async function startServer() {
       /^[A-Za-z0-9_-]{8,64}$/.test(req.query.token)
         ? req.query.token
         : "";
+    res.set("Cache-Control", "no-store");
     res.type("application/manifest+json").send({
       id: "/p/",
       name: "해밀학원 보호자 알림",
@@ -70,6 +71,8 @@ async function startServer() {
       start_url: token ? `/p/${token}` : "/p/",
       scope: "/p/",
       display: "standalone",
+      display_override: ["standalone"],
+      prefer_related_applications: false,
       background_color: "#FCFBF7",
       theme_color: "#315B57",
       icons: [
