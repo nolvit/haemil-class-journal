@@ -14,6 +14,7 @@ import {
   attendanceStatusBadgeClass,
   attendanceStatusLabels,
   formatArrivalTimeForDisplay,
+  isJournalScheduledForParent,
   mobileAttendanceStatusLabel,
 } from "@shared/journalRules";
 import {
@@ -602,7 +603,12 @@ export default function StudentPortal() {
                   ...data.dates.map((date, index) => {
                     const journal = journals.get(`${group.id}-${date}`);
                     const attendance = attendanceMap.get(date);
-                    const futureDate = date > todayInKorea();
+                    const scheduled = isJournalScheduledForParent(
+                      date,
+                      todayInKorea(),
+                      attendance?.status,
+                      attendance?.arrivalTime,
+                    );
                     const status = attendance?.status ?? "";
                     const statusMessage = [
                       "absent",
@@ -618,8 +624,8 @@ export default function StudentPortal() {
                         style={{ gridColumn: index + 2, gridRow: row }}
                         key={`${group.id}-${date}`}
                       >
-                        {journal && futureDate && (
-                          <span className="portal-scheduled-badge">예정</span>
+                        {journal && scheduled && (
+                          <span className="portal-scheduled-badge">수업 예정</span>
                         )}
                         <p className="whitespace-pre-line">
                           {journal?.content || statusMessage}
@@ -724,7 +730,12 @@ export default function StudentPortal() {
                   {data.dates.map(date => {
                     const journal = journals.get(`${group.id}-${date}`);
                     const attendance = attendanceMap.get(date);
-                    const futureDate = date > todayInKorea();
+                    const scheduled = isJournalScheduledForParent(
+                      date,
+                      todayInKorea(),
+                      attendance?.status,
+                      attendance?.arrivalTime,
+                    );
                     const status = attendance?.status ?? "";
                     const statusMessage = [
                       "absent",
@@ -742,9 +753,9 @@ export default function StudentPortal() {
                         <b className="text-xs text-[#46625E]">
                           {dayLabel(date)}
                         </b>
-                        {journal && futureDate && (
+                        {journal && scheduled && (
                           <span className="portal-scheduled-badge ml-2 align-middle">
-                            예정
+                            수업 예정
                           </span>
                         )}
                         <p className="mt-1 whitespace-pre-line text-sm leading-6 text-[#53645F]">

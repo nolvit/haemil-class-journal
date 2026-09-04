@@ -234,6 +234,18 @@ export function isFinalJournalVisibleToParent(isDraft: boolean | null | undefine
   return !isDraft;
 }
 
+/** 미래 수업과 당일 등원 전 수업은 보호자 화면에서 예정으로 표시한다. */
+export function isJournalScheduledForParent(
+  journalDate: string,
+  today: string,
+  attendanceStatus: AttendanceStatus | null | undefined,
+  arrivalTime: string | null | undefined,
+): boolean {
+  const attendanceUnconfirmed =
+    !arrivalTime && (!attendanceStatus || attendanceStatus === "not_entered");
+  return journalDate >= today && attendanceUnconfirmed;
+}
+
 /** 미래 날짜라도 공식 공휴일·등록 휴강 같은 일정 안내는 보호자에게 미리 공개한다. */
 export function isCalendarScheduleVisibleToParent(journalDate: string, today: string, hasCalendarEvent: boolean): boolean {
   return isDateVisibleToParent(journalDate, today) || hasCalendarEvent;
