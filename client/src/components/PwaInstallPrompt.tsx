@@ -259,17 +259,34 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
   );
   const subscribe = trpc.academy.parentPush.subscribe.useMutation();
   const unsubscribe = trpc.academy.parentPush.unsubscribe.useMutation();
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const testNotification = trpc.academy.parentPush.test.useMutation({
     onSuccess: result => {
       if (result.sent > 0) {
-        window.localStorage.setItem(confirmationKey, "1");
-        setTestConfirmed(true);
-        toast.success("테스트 알림을 전송했습니다. 알림 안내창을 숨깁니다.");
+        // 서버가 발송에 "성공"한 것과, 이 휴대폰이 실제로 알림을 화면에
+        // 띄운 것은 다르다. Android는 이 앱만 따로 알림을 끌 수 있는
+        // 스위치를 갖고 있고(설정 > 앱 > 해밀 보호자 > 알림), 그게 꺼져
+        // 있으면 서버 발송은 성공해도 보호자는 아무것도 못 본다. 이
+        // 차이는 웹 표준 API로 알아낼 방법이 없으므로, 보호자에게 직접
+        // "받았는지" 물어보고 그 대답으로만 안내 카드를 숨긴다.
+        setAwaitingConfirmation(true);
       }
       else toast.error("등록된 알림 기기를 찾지 못했습니다. 알림을 다시 설정해 주세요.");
     },
     onError: error => toast.error(error.message),
   });
+  const confirmNotificationReceived = () => {
+    window.localStorage.setItem(confirmationKey, "1");
+    setTestConfirmed(true);
+    setAwaitingConfirmation(false);
+    toast.success("알림 설정이 확인되었습니다. 안내창을 숨깁니다.");
+  };
+  const denyNotificationReceived = () => {
+    setAwaitingConfirmation(false);
+    toast.error(
+      "휴대폰 설정 > 앱 > 해밀 보호자 > 알림에서 알림이 허용되어 있는지 확인한 뒤 다시 시도해 주세요."
+    );
+  };
   useEffect(() => {
     let cancelled = false;
     const restoreExistingSubscription = async () => {
@@ -355,6 +372,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
     }
   };
   const reconnect = async () => {
+    setAwaitingConfirmation(false);
     if (
       !("serviceWorker" in navigator) ||
       !("PushManager" in window) ||
@@ -422,24 +440,51 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
               <p className="text-xs font-semibold text-[#2F7154]">
                 알림이 설정되었습니다.
               </p>
-              <Button
-                size="sm"
-                variant="outline"
-                className="mt-2 bg-white"
-                disabled={testNotification.isPending}
-                onClick={() => testNotification.mutate({ token })}
-              >
-                {testNotification.isPending ? "전송 중…" : "테스트 알림 보내기"}
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                className="mt-2 text-[#765E10]"
-                disabled={testNotification.isPending}
-                onClick={reconnect}
-              >
-                모바일 알림 다시 연결
-              </Button>
+              {awaitingConfirmation ? (
+                <div className="mt-2 rounded-lg border border-[#D9C792] bg-[#FFFBEF] p-2.5">
+                  <p className="text-xs leading-5 text-[#6E5B2B]">
+                    방금 보낸 테스트 알림을 이 휴대폰에서 받으셨나요?
+                  </p>
+                  <div className="mt-2 flex gap-2">
+                    <Button
+                      size="sm"
+                      className="journal-primary-button"
+                      onClick={confirmNotificationReceived}
+                    >
+                      네, 받았어요
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="bg-white"
+                      onClick={denyNotificationReceived}
+                    >
+                      못 받았어요
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 bg-white"
+                    disabled={testNotification.isPending}
+                    onClick={() => testNotification.mutate({ token })}
+                  >
+                    {testNotification.isPending ? "전송 중…" : "테스트 알림 보내기"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="mt-2 text-[#765E10]"
+                    disabled={testNotification.isPending}
+                    onClick={reconnect}
+                  >
+                    모바일 알림 다시 연결
+                  </Button>
+                </>
+              )}
             </div>
           ) : state !== "blocked" ? (
             <Button
