@@ -47,9 +47,31 @@ if (parentToken) {
 }
 if ("serviceWorker" in navigator)
   window.addEventListener("load", () => {
-    void navigator.serviceWorker.register("/sw.js", { scope: "/" }).catch(() => {
-      // The page remains usable and the manual install guide stays available.
-    });
+    void navigator.serviceWorker
+      .register("/sw.js", { scope: "/" })
+      .then(registration => {
+        // 보호자 대부분은 이미 앱을 설치해 둔 상태라, 배포할 때마다 앱을
+        // 지우고 재설치해 달라고 할 수 없다. 새 서비스워커가 화면을
+        // 장악(activate)하면 그 즉시 페이지를 한 번 새로고침해서, 열려
+        // 있던 앱이 자동으로 최신 코드를 받도록 한다.
+        let reloaded = false;
+        navigator.serviceWorker.addEventListener("controllerchange", () => {
+          if (reloaded) return;
+          reloaded = true;
+          window.location.reload();
+        });
+        // 브라우저는 새 배포가 있는지 자주 확인하지 않는다(대개 하루에
+        // 한 번 정도). 앱이 다시 화면에 보일 때마다 직접 확인을
+        // 요청해서, 백그라운드에 오래 떠 있던 앱도 곧바로 최신 버전을
+        // 받아오게 한다.
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "visible")
+            void registration.update();
+        });
+      })
+      .catch(() => {
+        // The page remains usable and the manual install guide stays available.
+      });
   });
 
 const queryClient = new QueryClient({
