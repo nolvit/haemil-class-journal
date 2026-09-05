@@ -282,6 +282,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
         !config.data?.available ||
         !("serviceWorker" in navigator) ||
         !("PushManager" in window) ||
+        !("Notification" in window) ||
         Notification.permission !== "granted"
       )
         return;
@@ -311,7 +312,11 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
     };
   }, [config.data?.available, user?.role]);
   const enable = async () => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    if (
+      !("serviceWorker" in navigator) ||
+      !("PushManager" in window) ||
+      !("Notification" in window)
+    ) {
       setState("unsupported");
       return;
     }
@@ -392,7 +397,15 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       toast.error("알림을 다시 연결하지 못했습니다. 브라우저의 사이트 알림 설정을 확인해 주세요.");
     }
   };
-  if (user?.role === "admin" || testConfirmed) return null;
+  // Once a guardian has completed setup and confirmed a test notification we
+  // hide this card. However that "confirmed" flag lives in localStorage and
+  // never expires, so if notifications later stop working (permission
+  // revoked in phone settings, app reinstalled without clearing site data,
+  // etc.) the card must come back so the guardian can see what happened and
+  // re-enable it. Only suppress the card while everything still looks fine.
+  if (user?.role === "admin") return null;
+  if (testConfirmed && state !== "blocked" && state !== "unsupported")
+    return null;
   return (
     <div className="rounded-2xl border border-[#C9DDD4] bg-[#F1F8F4] p-4">
       <div className="flex items-start gap-3">

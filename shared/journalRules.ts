@@ -37,6 +37,26 @@ export function mobileAttendanceStatusLabel(status: AttendanceStatus | null | un
   return attendanceStatusLabels[status ?? "not_entered"];
 }
 
+/**
+ * 과제 칸은 자유 서술 대신 정해진 수행도 중 하나를 선택하도록 한다.
+ * 빈 문자열("")은 "선택 안 함"을 의미하며 그대로 저장·표시된다.
+ */
+export const HOMEWORK_STATUS_OPTIONS = [
+  "양호",
+  "보완 필요",
+  "정확도 미흡",
+  "미수행",
+] as const;
+
+export type HomeworkStatusOption = (typeof HOMEWORK_STATUS_OPTIONS)[number];
+
+export const homeworkStatusDescriptions: Record<HomeworkStatusOption, string> = {
+  "양호": "대부분 정확함, 오답 소수",
+  "보완 필요": "일부 오답 있음",
+  "정확도 미흡": "오답이 많음",
+  "미수행": "과제를 하지 않음",
+};
+
 export type JournalCompleteness = {
   state: "complete" | "attention" | "not_required";
   missingFields: Array<"attendance" | "content">;

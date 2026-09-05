@@ -472,6 +472,21 @@ export const academyRouter = router({
           randomBytes(24).toString("base64url")
         )
       ),
+    setFamily: adminProcedure
+      .input(
+        z.object({
+          id: z.number().int().positive(),
+          siblingIds: z
+            .array(z.number().int().positive())
+            .min(1, "함께 묶을 형제·자매 학생을 한 명 이상 선택해 주세요."),
+        })
+      )
+      .mutation(({ input }) =>
+        academyDb.setStudentFamily(input.id, input.siblingIds)
+      ),
+    removeFromFamily: adminProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input }) => academyDb.removeStudentFromFamily(input.id)),
   }),
   notificationLogs: router({
     list: adminProcedure.query(() =>

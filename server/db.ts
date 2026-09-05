@@ -14,7 +14,7 @@ import {
   sql,
 } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { randomInt } from "node:crypto";
+import { randomBytes, randomInt } from "node:crypto";
 import {
   attendanceEntryEvents,
   attendanceRecords,
@@ -1643,6 +1643,61 @@ export async function rotateStudentPublicToken(
     .set({ publicToken, portalEnabled: true })
     .where(eq(students.id, id));
   return { publicToken };
+}
+
+/**
+ * 보호자 공유 링크 화면에서 관리자가 형제·자매를 직접 묶어 하나의
+ * familyKey를 공유하게 한다. 이미 형제·자매 그룹이 있는 학생을 선택하면
+ * 그 그룹을 그대로 재사용(병합)하고, 아무도 그룹이 없으면 새 키를 만든다.
+ */
+export async function setStudentFamily(studentId: number, siblingIds: number[]) {
+  const db = await requireDb();
+  const memberIds = Array.from(new Set([studentId, ...siblingIds]));
+  if (memberIds.length < 2)
+    throw new Error("함께 묶을 형제·자매 학생을 한 명 이상 선택해 주세요.");
+  const members = await db
+    .select({ id: students.id, familyKey: students.familyKey })
+    .from(students)
+    .where(and(inArray(students.id, memberIds), eq(students.active, true)));
+  if (members.length !== memberIds.length)
+    throw new Error("선택한 학생 중 일부를 찾을 수 없습니다.");
+  const existingKey = members.find(member => member.familyKey)?.familyKey;
+  const familyKey = existingKey ?? `family-${randomBytes(6).toString("hex")}`;
+  await db
+    .update(students)
+    .set({ familyKey })
+    .where(inArray(students.id, memberIds));
+  return { familyKey, memberIds };
+}
+
+/**
+ * 학생 한 명을 형제·자매 공동 PWA 그룹에서 제외한다. 제외 후 그룹에
+ * 한 명만 남으면 의미가 없으므로 그 학생의 familyKey도 함께 지운다.
+ */
+export async function removeStudentFromFamily(studentId: number) {
+  const db = await requireDb();
+  const found = await db
+    .select({ id: students.id, familyKey: students.familyKey })
+    .from(students)
+    .where(and(eq(students.id, studentId), eq(students.active, true)))
+    .limit(1);
+  if (!found[0]) throw new Error("등록된 학생을 찾을 수 없습니다.");
+  const { familyKey } = found[0];
+  if (!familyKey) return { familyKey: null };
+  await db
+    .update(students)
+    .set({ familyKey: null })
+    .where(eq(students.id, studentId));
+  const remaining = await db
+    .select({ id: students.id })
+    .from(students)
+    .where(and(eq(students.familyKey, familyKey), eq(students.active, true)));
+  if (remaining.length === 1)
+    await db
+      .update(students)
+      .set({ familyKey: null })
+      .where(eq(students.id, remaining[0]!.id));
+  return { familyKey: null };
 }
 
 async function generateUniqueAttendanceCode() {

@@ -39,6 +39,16 @@ function shiftDate(value: string, days: number) {
   date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString().slice(0, 10);
 }
+// 가로로 돌린 휴대폰(너비는 넓지만 높이가 낮음)에서는 CSS가 데스크톱 표
+// 레이아웃을 보여주므로(client/src/index.css 참고), 좌우 스와이프로 주간
+// 이동하는 제스처도 세로 모바일 카드 목록이 실제로 보일 때만 동작해야 한다.
+function isPortalMobileListVisible() {
+  return (
+    window.matchMedia("(max-width: 767px)").matches &&
+    !window.matchMedia("(orientation: landscape) and (max-height: 520px)")
+      .matches
+  );
+}
 function isIsoDate(value: string | null) {
   return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
 }
@@ -272,7 +282,7 @@ export default function StudentPortal() {
     setJournalDate(current => shiftDate(current, days));
   const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
     if (
-      !window.matchMedia("(max-width: 720px)").matches ||
+      !isPortalMobileListVisible() ||
       event.touches.length !== 1 ||
       (event.target instanceof Element &&
         event.target.closest("button, input, label, a, [role=button]"))
@@ -284,7 +294,7 @@ export default function StudentPortal() {
     swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
   const handleTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
-    if (!window.matchMedia("(max-width: 720px)").matches) return;
+    if (!isPortalMobileListVisible()) return;
     const start = swipeStartRef.current;
     swipeStartRef.current = null;
     if (!start || event.changedTouches.length !== 1) return;
