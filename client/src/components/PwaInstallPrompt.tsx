@@ -246,7 +246,11 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
 
 export function ParentNotificationPrompt({ token }: { token: string }) {
   const { user } = useAuth();
-  const confirmationKey = `haemil.parentPush.tested:${token}`;
+  // v2: 예전 버전은 서버가 "발송 성공"이라고만 하면 곧바로 확인 완료로
+  // 저장했다. 이 값은 앱을 지워도 브라우저(크롬)에 그대로 남아있어서,
+  // 새로 설치해도 실제 수신 여부를 물어보는 새 절차를 건너뛰고 배너가
+  // 계속 숨어 있었다. 키에 버전을 붙여 예전 값을 전부 무효화한다.
+  const confirmationKey = `haemil.parentPush.tested.v2:${token}`;
   const [testConfirmed, setTestConfirmed] = useState(
     () => window.localStorage.getItem(confirmationKey) === "1"
   );
