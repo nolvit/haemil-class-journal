@@ -148,6 +148,13 @@
       "when": 1788316200000,
       "tag": "0020_notification_delivery_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "5",
+      "when": 1788778682108,
+      "tag": "0021_auto_unregistered_weekdays",
+      "breakpoints": true
     }
   ]
 }

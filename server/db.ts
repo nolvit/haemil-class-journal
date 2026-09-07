@@ -6,6 +6,7 @@ import {
   gt,
   gte,
   inArray,
+  isNotNull,
   isNull,
   lt,
   lte,
@@ -564,6 +565,85 @@ export async function settlePreviousWeekCounts(today = todayInKorea()) {
   weeklyCountSettlementCache = { weekStart, checkedAt: Date.now() };
 }
 
+/**
+ * 주 5회가 아닌 학생 중 "매주 정기적으로 등원하지 않는 요일"을 지정해
+ * 둔 경우, 그 요일이 포함된 주가 시작되면(월요일부터) 해당 날짜의
+ * 출석을 자동으로 "미등록"으로 채워 넣는다.
+ *
+ * 이미 출석 기록이 있는 날짜는 절대 건드리지 않는다 — 관리자가 자동
+ * 처리 이후 상태를 바꾸면 그 값이 항상 우선하며, 이 함수가 나중에
+ * 다시 실행돼도 되돌리지 않는다.
+ *
+ * 요청에 따라 2026-09-14 주(다음 주)부터 적용하고, 이미 진행 중이던
+ * 주는 소급 적용하지 않는다.
+ */
+const AUTO_UNREGISTERED_WEEKDAYS_EFFECTIVE_FROM = "2026-09-14";
+let autoUnregisteredWeekdaysCache: { weekStart: string; checkedAt: number } | null = null;
+const AUTO_UNREGISTERED_WEEKDAYS_CACHE_MS = 30 * 60 * 1000;
+
+export async function applyWeeklyAutoUnregisteredDays(
+  today = todayInKorea()
+) {
+  const weekStart = getMonday(today);
+  if (weekStart < AUTO_UNREGISTERED_WEEKDAYS_EFFECTIVE_FROM)
+    return { applied: 0 };
+  const now = Date.now();
+  if (
+    autoUnregisteredWeekdaysCache?.weekStart === weekStart &&
+    now - autoUnregisteredWeekdaysCache.checkedAt <
+      AUTO_UNREGISTERED_WEEKDAYS_CACHE_MS
+  )
+    return { applied: 0 };
+
+  const db = await requireDb();
+  const weekDates = getBusinessWeekDates(weekStart); // [월,화,수,목,금]
+  const targets = await db
+    .select({
+      id: students.id,
+      autoUnregisteredWeekdays: students.autoUnregisteredWeekdays,
+      createdByUserId: students.createdByUserId,
+    })
+    .from(students)
+    .where(
+      and(
+        eq(students.active, true),
+        isNotNull(students.autoUnregisteredWeekdays),
+        ne(students.autoUnregisteredWeekdays, "")
+      )
+    );
+  let applied = 0;
+  for (const student of targets) {
+    const weekdays = (student.autoUnregisteredWeekdays ?? "")
+      .split(",")
+      .map(value => Number(value.trim()))
+      .filter(value => Number.isInteger(value) && value >= 1 && value <= 5);
+    for (const weekday of weekdays) {
+      const journalDate = weekDates[weekday - 1];
+      if (!journalDate) continue;
+      const existing = await db
+        .select({ id: attendanceRecords.id })
+        .from(attendanceRecords)
+        .where(
+          and(
+            eq(attendanceRecords.studentId, student.id),
+            eq(attendanceRecords.journalDate, journalDate)
+          )
+        )
+        .limit(1);
+      if (existing.length) continue;
+      await db.insert(attendanceRecords).values({
+        studentId: student.id,
+        journalDate,
+        status: "not_registered",
+        recordedByUserId: student.createdByUserId,
+      });
+      applied++;
+    }
+  }
+  autoUnregisteredWeekdaysCache = { weekStart, checkedAt: Date.now() };
+  return { applied };
+}
+
 export type StudentInput = {
   name: string;
   grade: string;
@@ -574,6 +654,7 @@ export type StudentInput = {
   tuition: number;
   tuitionMode: "automatic" | "manual";
   registrationCount: number;
+  autoUnregisteredWeekdays?: string;
   lastWeekCount: number;
   totalCount: number;
   validUntil?: string;
@@ -659,6 +740,7 @@ export async function listStudents(
       tuition: students.tuition,
       tuitionMode: students.tuitionMode,
       registrationCount: students.registrationCount,
+      autoUnregisteredWeekdays: students.autoUnregisteredWeekdays,
       lastWeekCount: students.lastWeekCount,
       totalCount: students.totalCount,
       validUntil: students.validUntil,
@@ -706,6 +788,7 @@ export async function listStudents(
       tuition: number;
       tuitionMode: "automatic" | "manual";
       registrationCount: number;
+      autoUnregisteredWeekdays: string | null;
       lastWeekCount: number;
       totalCount: number;
       validUntil: string | null;
@@ -735,6 +818,7 @@ export async function listStudents(
         tuition: Number(row.tuition ?? 0),
         tuitionMode: row.tuitionMode,
         registrationCount: Number(row.registrationCount ?? 0),
+        autoUnregisteredWeekdays: row.autoUnregisteredWeekdays,
         lastWeekCount: Number(row.lastWeekCount ?? 0),
         totalCount: Number(row.totalCount ?? 0),
         validUntil: row.validUntil,
@@ -1294,6 +1378,7 @@ export async function createStudent(
       tuition,
       tuitionMode: input.tuitionMode,
       registrationCount: input.registrationCount,
+      autoUnregisteredWeekdays: input.autoUnregisteredWeekdays || null,
       lastWeekCount: input.lastWeekCount,
       totalCount: input.totalCount,
       validUntil: input.validUntil || null,
@@ -1371,6 +1456,7 @@ export async function updateStudent(
         tuition,
         tuitionMode: input.tuitionMode,
         registrationCount: input.registrationCount,
+        autoUnregisteredWeekdays: input.autoUnregisteredWeekdays || null,
         lastWeekCount: input.lastWeekCount,
         totalCount: input.totalCount,
         validUntil: totalCountChanged
@@ -3024,4 +3110,79 @@ export async function saveWeeklySubjectComment(input: {
     .onDuplicateKeyUpdate({
       set: { comment: input.comment, updatedByUserId: input.userId },
     });
+}
+
+/**
+ * "과목 공지사항"은 학생별이 아니라 반(과목) 전체에 공통으로 붙는
+ * 공지다. weeklySubjectComments 테이블 자체는 (학생, 반, 주차) 단위로
+ * 저장되므로, 이 반에 현재 등록된 모든 학생에게 같은 문구를
+ * 반복 저장해서 "반 전체 공지"처럼 동작하게 한다.
+ */
+export async function saveWeeklySubjectAnnouncement(input: {
+  classGroupId: number;
+  weekStart: string;
+  comment: string;
+  userId: number;
+}) {
+  const db = await requireDb();
+  const roster = await db
+    .select({ studentId: studentEnrollments.studentId })
+    .from(studentEnrollments)
+    .innerJoin(students, eq(students.id, studentEnrollments.studentId))
+    .where(
+      and(
+        eq(studentEnrollments.classGroupId, input.classGroupId),
+        eq(studentEnrollments.active, true),
+        eq(students.active, true)
+      )
+    );
+  if (!roster.length) return { updated: 0 };
+  await Promise.all(
+    roster.map(member =>
+      saveWeeklySubjectComment({
+        studentId: member.studentId,
+        classGroupId: input.classGroupId,
+        weekStart: input.weekStart,
+        comment: input.comment,
+        userId: input.userId,
+      })
+    )
+  );
+  return { updated: roster.length };
+}
+
+/**
+ * 방금 저장(또는 아직 하나도 없는) 반 전체 공지 문구를 편집창에 미리
+ * 채워 넣기 위한 대표값을 가져온다. 학생마다 다른 값이 남아있을 수도
+ * 있는 과거 데이터를 고려해, 그 반에서 가장 많이 등장하는 문구를
+ * 대표로 보여준다.
+ */
+export async function getWeeklySubjectAnnouncement(
+  classGroupId: number,
+  weekStart: string
+) {
+  const db = await requireDb();
+  const rows = await db
+    .select({ comment: weeklySubjectComments.comment })
+    .from(weeklySubjectComments)
+    .where(
+      and(
+        eq(weeklySubjectComments.classGroupId, classGroupId),
+        eq(weeklySubjectComments.weekStart, weekStart)
+      )
+    );
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const value = row.comment ?? "";
+    if (!value.trim()) continue;
+    counts.set(value, (counts.get(value) ?? 0) + 1);
+  }
+  let best = "";
+  let bestCount = 0;
+  for (const [value, count] of Array.from(counts.entries()))
+    if (count > bestCount) {
+      best = value;
+      bestCount = count;
+    }
+  return { comment: best };
 }

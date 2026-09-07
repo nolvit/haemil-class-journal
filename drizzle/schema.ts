@@ -94,6 +94,15 @@ export const students = mysqlTable(
       .default("manual")
       .notNull(),
     registrationCount: double("registrationCount").default(0).notNull(),
+    /**
+     * 주 5회가 아닌 학생이 매주 정기적으로 등원하지 않는 요일이다.
+     * JS Date.getUTCDay() 기준(일=0 ~ 토=6, 실제로는 월~금인 1~5만
+     * 사용)으로 콤마 구분 숫자를 저장한다. 예: "1,3" = 매주 월·수요일.
+     * null/빈 문자열이면 자동 미등록 처리를 적용하지 않는다.
+     */
+    autoUnregisteredWeekdays: varchar("autoUnregisteredWeekdays", {
+      length: 20,
+    }),
     lastWeekCount: double("lastWeekCount").default(0).notNull(),
     totalCount: double("totalCount").default(0).notNull(),
     validUntil: varchar("validUntil", { length: 32 }),

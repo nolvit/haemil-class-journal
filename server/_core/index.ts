@@ -12,6 +12,7 @@ import { seedLocalUploads } from "../storage";
 import {
   ensureRemainingCountNotificationSchema,
   settlePreviousWeekCounts,
+  applyWeeklyAutoUnregisteredDays,
 } from "../db";
 import { dispatchRemainingTwoNotifications } from "../remainingCountNotifications";
 
@@ -42,6 +43,18 @@ async function startServer() {
     void settlePreviousWeekCounts().catch(error => console.error("주간 수업 횟수 자동 누적 확인 실패", error));
   }, 60 * 60 * 1000);
   weeklySettlementTimer.unref();
+  // 매주 월요일이 되면(자정 이후 아무 때나) 미리 지정해둔 미등록
+  // 요일을 그 주에 한 번씩 자동으로 채워 넣는다. 이미 값이 있는
+  // 날짜는 건드리지 않으므로 관리자가 나중에 자유롭게 수정할 수 있다.
+  void applyWeeklyAutoUnregisteredDays().catch(error =>
+    console.error("주간 자동 미등록 처리 확인 실패", error)
+  );
+  const autoUnregisteredWeekdaysTimer = setInterval(() => {
+    void applyWeeklyAutoUnregisteredDays().catch(error =>
+      console.error("주간 자동 미등록 처리 확인 실패", error)
+    );
+  }, 60 * 60 * 1000);
+  autoUnregisteredWeekdaysTimer.unref();
   void dispatchRemainingTwoNotifications().catch(error =>
     console.error("잔여 2회 보호자 알림 확인 실패", error)
   );

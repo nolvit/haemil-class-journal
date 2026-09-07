@@ -61,6 +61,7 @@ type Student = {
   tuition: number;
   tuitionMode: "automatic" | "manual";
   registrationCount: number;
+  autoUnregisteredWeekdays: string | null;
   lastWeekCount: number;
   totalCount: number;
   validUntil: string | null;
@@ -84,6 +85,7 @@ type StudentDraft = {
   tuition: number;
   tuitionMode?: "automatic" | "manual";
   registrationCount: number;
+  autoUnregisteredWeekdays: number[];
   lastWeekCount: number;
   totalCount: number;
   validUntil: string;
@@ -93,6 +95,15 @@ type StudentDraft = {
   portalEnabled: boolean;
 };
 type SchoolLevel = "all" | "high" | "middle" | "elementary";
+// JS Date.getUTCDay() 기준(월=1 ~ 금=5)과 맞춘 요일 값이다. 수업은
+// 평일에만 열리므로 토·일은 선택지에 넣지 않는다.
+const WEEKDAY_OPTIONS = [
+  { value: 1, label: "월" },
+  { value: 2, label: "화" },
+  { value: 3, label: "수" },
+  { value: 4, label: "목" },
+  { value: 5, label: "금" },
+];
 const emptyDraft: StudentDraft = {
   name: "",
   grade: "",
@@ -104,6 +115,7 @@ const emptyDraft: StudentDraft = {
   tuition: 0,
   tuitionMode: "automatic",
   registrationCount: 0,
+  autoUnregisteredWeekdays: [],
   lastWeekCount: 0,
   totalCount: 0,
   validUntil: "",
@@ -552,11 +564,15 @@ export default function Students() {
         }
         onClose={() => setSelected(undefined)}
         pending={create.isPending || update.isPending}
-        onSave={values =>
+        onSave={values => {
+          const payload = {
+            ...values,
+            autoUnregisteredWeekdays: values.autoUnregisteredWeekdays.join(","),
+          };
           selected
-            ? update.mutate({ id: selected.id, values })
-            : create.mutate(values)
-        }
+            ? update.mutate({ id: selected.id, values: payload })
+            : create.mutate(payload);
+        }}
       />
       <RegistrationCountDialog
         student={registrationTarget}
@@ -1070,6 +1086,10 @@ function StudentDialog({
             tuition: student.tuition,
             tuitionMode: student.tuitionMode,
             registrationCount: student.registrationCount,
+            autoUnregisteredWeekdays: (student.autoUnregisteredWeekdays ?? "")
+              .split(",")
+              .map(value => Number(value.trim()))
+              .filter(value => Number.isInteger(value) && value >= 1 && value <= 5),
             lastWeekCount: student.lastWeekCount,
             totalCount: student.totalCount,
             validUntil: student.validUntil?.slice(0, 10) ?? "",
@@ -1116,6 +1136,13 @@ function StudentDialog({
       classGroupIds: checked
         ? [...current.classGroupIds, id]
         : current.classGroupIds.filter(value => value !== id),
+    }));
+  const toggleUnregisteredWeekday = (weekday: number, checked: boolean) =>
+    setDraft(current => ({
+      ...current,
+      autoUnregisteredWeekdays: checked
+        ? [...current.autoUnregisteredWeekdays, weekday].sort((a, b) => a - b)
+        : current.autoUnregisteredWeekdays.filter(value => value !== weekday),
     }));
   const updateNumber = (
     key: "registrationCount" | "lastWeekCount" | "totalCount",
@@ -1305,6 +1332,40 @@ function StudentDialog({
                 주당 횟수 × 4주로 월 수업 횟수를 계산합니다.
               </p>
             </Field>
+            {draft.registrationCount !== 5 && (
+              <Field label="정기 미등록 요일">
+                <div className="flex flex-wrap gap-1.5">
+                  {WEEKDAY_OPTIONS.map(option => {
+                    const checked = draft.autoUnregisteredWeekdays.includes(
+                      option.value
+                    );
+                    return (
+                      <button
+                        type="button"
+                        key={option.value}
+                        aria-pressed={checked}
+                        onClick={() =>
+                          toggleUnregisteredWeekday(option.value, !checked)
+                        }
+                        className={`h-9 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                          checked
+                            ? "border-[#234E52] bg-[#234E52] text-[#FBF9F2]"
+                            : "border-[#DED8CB] bg-white text-[#556C68] hover:border-[#B8891B]"
+                        }`}
+                      >
+                        {option.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                <p className="text-[11px] leading-4 text-[#71817D]">
+                  선택한 요일은 다음 주(9월 14일)부터 매주 월요일마다 그 주의
+                  출석이 자동으로 "미등록"으로 채워집니다. 이미 입력된
+                  출석·수업일지가 있는 날짜는 바꾸지 않으며, 자동 처리 후에도
+                  언제든 직접 수정할 수 있습니다.
+                </p>
+              </Field>
+            )}
             {automaticUnavailable && (
               <p className="sm:col-span-2 rounded-lg bg-[#FFF1B7] px-3 py-2 text-xs leading-5 text-[#765E10]">
                 원비 기준이 없는 조합입니다. 월 원비를 직접 입력하면 개별 원비로

@@ -544,7 +544,7 @@ export default function StudentPortal() {
                   className="portal-merged-head"
                   style={{ gridColumn: data.dates.length + 2, gridRow: 1 }}
                 >
-                  비고
+                  과목 공지사항
                 </div>
               )}
               <div

@@ -47,6 +47,12 @@ const studentInput = z.object({
   tuition: z.number().finite().min(0),
   tuitionMode: z.enum(["automatic", "manual"]).default("manual"),
   registrationCount: z.number().finite().min(0),
+  autoUnregisteredWeekdays: z
+    .string()
+    .trim()
+    .regex(/^[1-5](,[1-5]){0,4}$/, "미등록 요일 형식이 올바르지 않습니다.")
+    .optional()
+    .or(z.literal("")),
   lastWeekCount: z.number().finite().min(0),
   totalCount: z.number().finite().min(0),
   validUntil: z.string().trim().max(32).optional(),
@@ -874,6 +880,34 @@ export const academyRouter = router({
           userId: ctx.user.id,
         });
         return { success: true };
+      }),
+    getAnnouncement: adminProcedure
+      .input(
+        z.object({
+          classGroupId: z.number().int().positive(),
+          weekStart: isoDate,
+        })
+      )
+      .query(({ input }) =>
+        academyDb.getWeeklySubjectAnnouncement(
+          input.classGroupId,
+          input.weekStart
+        )
+      ),
+    saveAnnouncement: adminProcedure
+      .input(
+        z.object({
+          classGroupId: z.number().int().positive(),
+          weekStart: isoDate,
+          comment: z.string().trim().max(4000),
+        })
+      )
+      .mutation(async ({ input, ctx }) => {
+        const result = await academyDb.saveWeeklySubjectAnnouncement({
+          ...input,
+          userId: ctx.user.id,
+        });
+        return { success: true, ...result };
       }),
   }),
   parentPush: router({
