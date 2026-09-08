@@ -9,10 +9,14 @@ export type PwaInstallEnvironment = {
 };
 
 export function detectPwaInstallEnvironment(
-  userAgent: string
+  userAgent: string,
+  platform = "",
+  maxTouchPoints = 0
 ): PwaInstallEnvironment {
   const isAndroid = /Android/i.test(userAgent);
-  const isIos = /iPhone|iPad|iPod/i.test(userAgent);
+  const isIos =
+    /iPhone|iPad|iPod/i.test(userAgent) ||
+    (/MacIntel/i.test(platform) && maxTouchPoints > 1);
   const isSamsungInternet = /SamsungBrowser/i.test(userAgent);
   const isChrome =
     /Chrome|CriOS/i.test(userAgent) && !isSamsungInternet && !/EdgA|EdgiOS/i.test(userAgent);

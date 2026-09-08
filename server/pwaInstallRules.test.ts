@@ -32,4 +32,13 @@ describe("parent PWA install environment", () => {
     expect(safari.isSafari).toBe(true);
     expect(getManualInstallInstruction(safari)).toContain("Safari 하단 공유 버튼");
   });
+
+  it("detects iPadOS when it presents a desktop user agent", () => {
+    const ipad = detectPwaInstallEnvironment(
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15) AppleWebKit/605.1.15 Version/18.0 Safari/605.1.15",
+      "MacIntel",
+      5
+    );
+    expect(ipad.isIos).toBe(true);
+  });
 });

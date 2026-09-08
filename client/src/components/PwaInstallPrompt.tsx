@@ -25,6 +25,28 @@ import { toast } from "sonner";
 
 const INSTALL_DISMISS_KEY = "haemil.parentPwa.installDismissedUntil";
 const INSTALL_DISMISS_DAYS = 7;
+const IOS_GUIDE_DISMISS_KEY = "haemil.parentPwa.iosUnifiedGuideDismissed";
+const IOS_GUIDE_EVENT = "haemil:open-ios-notification-guide";
+
+function getInstallEnvironment() {
+  return detectPwaInstallEnvironment(
+    window.navigator.userAgent,
+    window.navigator.platform,
+    window.navigator.maxTouchPoints
+  );
+}
+
+function isIosGuideDismissed() {
+  try {
+    return window.localStorage.getItem(IOS_GUIDE_DISMISS_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function openIosGuide() {
+  window.dispatchEvent(new Event(IOS_GUIDE_EVENT));
+}
 
 function isInstallSnoozed() {
   try {
@@ -44,12 +66,15 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
   );
   const [installed, setInstalled] = useState(initialSnapshot.installed);
   const [snoozed, setSnoozed] = useState(isInstallSnoozed);
-  const [guideOpen, setGuideOpen] = useState(false);
+  const [guideOpen, setGuideOpen] = useState(() => {
+    const environment = getInstallEnvironment();
+    return environment.isIos && !initialSnapshot.installed && !isIosGuideDismissed();
+  });
   const [installing, setInstalling] = useState(false);
   const [installMessage, setInstallMessage] = useState<string | null>(null);
   const [externalOpenFailed, setExternalOpenFailed] = useState(false);
   const environment = useMemo(
-    () => detectPwaInstallEnvironment(window.navigator.userAgent),
+    () => getInstallEnvironment(),
     []
   );
   const manualInstruction = getManualInstallInstruction(environment);
@@ -70,15 +95,22 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
       toast.success("해밀 보호자 앱 설치가 완료되었습니다.");
     };
     window.addEventListener("appinstalled", handleInstalled);
+    const handleIosGuideRequest = () => setGuideOpen(true);
+    window.addEventListener(IOS_GUIDE_EVENT, handleIosGuideRequest);
     return () => {
       unsubscribe();
       window.removeEventListener("appinstalled", handleInstalled);
+      window.removeEventListener(IOS_GUIDE_EVENT, handleIosGuideRequest);
     };
   }, []);
 
   const install = async () => {
     setInstallMessage(null);
     setExternalOpenFailed(false);
+    if (environment.isIos && !installed) {
+      setGuideOpen(true);
+      return;
+    }
     if (environment.isInAppBrowser || !promptAvailable) {
       setGuideOpen(true);
       return;
@@ -112,6 +144,14 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
     setGuideOpen(false);
     setSnoozed(true);
   };
+  const closeIosGuide = () => {
+    try {
+      window.localStorage.setItem(IOS_GUIDE_DISMISS_KEY, "true");
+    } catch {
+      // The dialog still closes for this page when storage is unavailable.
+    }
+    setGuideOpen(false);
+  };
   const openAndroidBrowser = (packageName: string) => {
     setExternalOpenFailed(false);
     try {
@@ -127,6 +167,42 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
   };
 
   if (installed) return null;
+  if (environment.isIos) {
+    return (
+      <>
+        <Button size="sm" variant="outline" onClick={() => setGuideOpen(true)}>
+          <Bell className="mr-1.5 h-3.5 w-3.5" />
+          아이폰 알림 설정 안내
+        </Button>
+        <Dialog
+          open={guideOpen}
+          onOpenChange={open => {
+            if (open) setGuideOpen(true);
+            else closeIosGuide();
+          }}
+        >
+          <DialogContent className="max-h-[calc(100dvh-1rem)] w-[calc(100vw-1rem)] max-w-3xl overflow-y-auto border-0 bg-white p-2 shadow-2xl sm:p-3">
+            <DialogHeader className="sr-only">
+              <DialogTitle>아이폰 알림 설정 안내</DialogTitle>
+              <DialogDescription>
+                해밀학원 수업일지를 홈 화면에 추가하고 알림을 허용하는 방법입니다.
+              </DialogDescription>
+            </DialogHeader>
+            <img
+              src="/ios-notification-guide.png"
+              alt="아이폰에서 해밀학원 수업일지를 Safari로 열고 홈 화면에 추가한 뒤 앱에서 알림을 허용하는 6단계 안내"
+              className="h-auto w-full rounded-lg"
+            />
+            <DialogFooter className="sticky bottom-0 bg-white/95 pt-2 backdrop-blur-sm">
+              <Button className="journal-primary-button w-full" onClick={closeIosGuide}>
+                확인
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
   if (snoozed) return <Button size="sm" variant="outline" onClick={() => setSnoozed(false)}>앱 설치 안내 · 설치한 앱은 홈 화면에서 열어 주세요</Button>;
 
   return (
@@ -355,6 +431,11 @@ function ParentNotificationSettings({ token }: { token: string }) {
   }, [token, config.data?.available, authLoading, user?.role]);
   const enable = async () => {
     if (changingSubscription.current || authLoading) return;
+    const environment = getInstallEnvironment();
+    if (environment.isIos && !getPwaInstallSnapshot().installed) {
+      openIosGuide();
+      return;
+    }
     if (
       !("serviceWorker" in navigator) ||
       !("PushManager" in window) ||
