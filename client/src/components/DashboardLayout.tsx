@@ -1,4 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
+import { appVersion } from "@/lib/appVersion";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -488,7 +489,10 @@ function DashboardLayoutContent({
                     <p className="truncate text-sm font-medium text-[#F8F5EE]">
                       {user?.name || "관리자"}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-[#AAB9B6]">관리자</p>
+                    <div className="mt-0.5 flex flex-wrap items-center justify-between gap-1 text-[#AAB9B6]">
+                      <span className="text-[11px]">관리자</span>
+                      <small className="text-[9px]" title="앱 버전 · 빌드 시각(UTC)">{appVersion}</small>
+                    </div>
                   </div>
                 </button>
               </DropdownMenuTrigger>

@@ -152,6 +152,9 @@ function vitePluginManusDebugCollector(): Plugin {
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusDebugCollector()];
 
 export default defineConfig({
+  define: {
+    __APP_VERSION__: JSON.stringify(`v${JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8")).version} · ${new Date().toISOString().replace(/[-:]/g, "").replace("T", ".").slice(0, 15)}Z`),
+  },
   plugins,
   resolve: {
     alias: {

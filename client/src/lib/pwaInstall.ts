@@ -26,7 +26,7 @@ function standaloneMode() {
 function snapshot(): PwaInstallSnapshot {
   return {
     promptAvailable: Boolean(deferredPrompt),
-    installed: installed || standaloneMode(),
+    installed: standaloneMode(),
   };
 }
 
@@ -50,6 +50,8 @@ export function initializePwaInstallCapture() {
     notify();
   });
   const displayMode = window.matchMedia("(display-mode: standalone)");
+  window.addEventListener("focus", notify);
+  document.addEventListener("visibilitychange", notify);
   displayMode.addEventListener?.("change", () => {
     installed = standaloneMode();
     notify();

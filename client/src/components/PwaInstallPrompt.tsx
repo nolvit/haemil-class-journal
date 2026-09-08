@@ -18,7 +18,8 @@ import {
   getManualInstallInstruction,
 } from "@shared/pwaInstallRules";
 import { Bell, Chrome, Download, Smartphone } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { readyPushRegistration, registeredForGuardian } from "@/lib/parentPushState";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 
@@ -64,7 +65,7 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
       } catch {
         // Installation still completes when storage cleanup is unavailable.
       }
-      setInstalled(true);
+      setInstalled(getPwaInstallSnapshot().installed);
       setGuideOpen(false);
       toast.success("해밀 보호자 앱 설치가 완료되었습니다.");
     };
@@ -86,7 +87,7 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
     const outcome = await requestPwaInstall();
     setInstalling(false);
     if (outcome === "accepted") {
-      setInstallMessage("설치를 진행했습니다. 완료되면 이 안내가 자동으로 사라집니다.");
+      setInstallMessage("설치 후 홈 화면의 해밀 보호자 앱을 열어 주세요.");
       toast.success("앱 설치를 진행합니다.");
       return;
     }
@@ -125,7 +126,8 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
     }
   };
 
-  if (installed || snoozed) return null;
+  if (installed) return null;
+  if (snoozed) return <Button size="sm" variant="outline" onClick={() => setSnoozed(false)}>앱 설치 안내 · 설치한 앱은 홈 화면에서 열어 주세요</Button>;
 
   return (
     <>
@@ -245,15 +247,14 @@ export function PwaInstallPrompt({ compact = false }: { compact?: boolean }) {
 }
 
 export function ParentNotificationPrompt({ token }: { token: string }) {
-  const { user } = useAuth();
-  // v2: 예전 버전은 서버가 "발송 성공"이라고만 하면 곧바로 확인 완료로
-  // 저장했다. 이 값은 앱을 지워도 브라우저(크롬)에 그대로 남아있어서,
-  // 새로 설치해도 실제 수신 여부를 물어보는 새 절차를 건너뛰고 배너가
-  // 계속 숨어 있었다. 키에 버전을 붙여 예전 값을 전부 무효화한다.
-  const confirmationKey = `haemil.parentPush.tested.v2:${token}`;
-  const [testConfirmed, setTestConfirmed] = useState(
-    () => window.localStorage.getItem(confirmationKey) === "1"
-  );
+  return <ParentNotificationSettings key={token} token={token} />;
+}
+
+function ParentNotificationSettings({ token }: { token: string }) {
+  const { user, loading: authLoading } = useAuth();
+  const [standalone, setStandalone] = useState(getPwaInstallSnapshot().installed);
+  const checkVersion = useRef(0);
+  const changingSubscription = useRef(false);
   const [state, setState] = useState<
     "idle" | "loading" | "enabled" | "blocked" | "unsupported"
   >("idle");
@@ -280,10 +281,8 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
     onError: error => toast.error(error.message),
   });
   const confirmNotificationReceived = () => {
-    window.localStorage.setItem(confirmationKey, "1");
-    setTestConfirmed(true);
     setAwaitingConfirmation(false);
-    toast.success("알림 설정이 확인되었습니다. 안내창을 숨깁니다.");
+    toast.success("이 기기의 테스트 알림 수신을 확인했습니다.");
   };
   const denyNotificationReceived = () => {
     setAwaitingConfirmation(false);
@@ -291,48 +290,71 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       "휴대폰 설정 > 앱 > 해밀 보호자 > 알림에서 알림이 허용되어 있는지 확인한 뒤 다시 시도해 주세요."
     );
   };
+  const subscribeRef = useRef(subscribe.mutateAsync);
+  subscribeRef.current = subscribe.mutateAsync;
   useEffect(() => {
     let cancelled = false;
-    const restoreExistingSubscription = async () => {
-      if (user?.role === "admin") return;
-      if ("Notification" in window && Notification.permission === "denied") {
-        if (!cancelled) setState("blocked");
+    const restore = async () => {
+      if (changingSubscription.current) return;
+      if (document.visibilityState === "hidden") return;
+      const version = ++checkVersion.current;
+      const update = (value: typeof state) => {
+        if (!cancelled && version === checkVersion.current) setState(value);
+      };
+      setStandalone(getPwaInstallSnapshot().installed);
+      update("idle");
+      if (authLoading || user?.role === "admin") return;
+      if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
+        update("unsupported");
         return;
       }
-      if (
-        !config.data?.available ||
-        !("serviceWorker" in navigator) ||
-        !("PushManager" in window) ||
-        !("Notification" in window) ||
-        Notification.permission !== "granted"
-      )
+      if (Notification.permission === "denied") {
+        update("blocked");
         return;
+      }
+      if (Notification.permission !== "granted") return;
+      if (!config.data?.available) {
+        update("unsupported");
+        return;
+      }
+      update("loading");
       try {
-        const registration = await navigator.serviceWorker.ready;
+        const registration = await readyPushRegistration();
         const existing = await registration.pushManager.getSubscription();
-        if (existing) {
-          const payload = existing.toJSON();
-          if (payload.endpoint && payload.keys?.p256dh && payload.keys.auth) {
-            await subscribe.mutateAsync({
-              token,
-              subscription: {
-                endpoint: payload.endpoint,
-                keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
-              },
-            });
-            if (!cancelled) setState("enabled");
-          }
+        if (cancelled || version !== checkVersion.current) return;
+        const payload = existing?.toJSON();
+        if (!payload?.endpoint || !payload.keys?.p256dh || !payload.keys.auth) {
+          update("idle");
+          return;
         }
+        // The API awaits registration for every sibling before acknowledging it.
+        const result = await subscribeRef.current({
+          token,
+          subscription: {
+            endpoint: payload.endpoint,
+            keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
+          },
+        });
+        update(registeredForGuardian(result) && Notification.permission === "granted" ? "enabled" : "idle");
       } catch {
-        // The regular setup button remains available when the browser lookup fails.
+        update("unsupported");
       }
     };
-    void restoreExistingSubscription();
+    void restore();
+    window.addEventListener("focus", restore);
+    document.addEventListener("visibilitychange", restore);
+    const displayMode = window.matchMedia("(display-mode: standalone)");
+    displayMode.addEventListener("change", restore);
     return () => {
       cancelled = true;
+      ++checkVersion.current;
+      window.removeEventListener("focus", restore);
+      document.removeEventListener("visibilitychange", restore);
+      displayMode.removeEventListener("change", restore);
     };
-  }, [config.data?.available, user?.role]);
+  }, [token, config.data?.available, authLoading, user?.role]);
   const enable = async () => {
+    if (changingSubscription.current || authLoading) return;
     if (
       !("serviceWorker" in navigator) ||
       !("PushManager" in window) ||
@@ -341,6 +363,8 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       setState("unsupported");
       return;
     }
+    changingSubscription.current = true;
+    ++checkVersion.current;
     setState("loading");
     try {
       if (!config.data?.available || !config.data.publicKey) {
@@ -352,7 +376,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
         setState(permission === "denied" ? "blocked" : "idle");
         return;
       }
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await readyPushRegistration();
       const existing = await registration.pushManager.getSubscription();
       const subscription =
         existing ||
@@ -363,19 +387,23 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       const payload = subscription.toJSON();
       if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys.auth)
         throw new Error("invalid push subscription");
-      await subscribe.mutateAsync({
+      const result = await subscribe.mutateAsync({
         token,
         subscription: {
           endpoint: payload.endpoint,
           keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
         },
       });
+      if (!registeredForGuardian(result)) throw new Error("보호자 기기 등록을 확인하지 못했습니다.");
       setState("enabled");
     } catch {
       setState("unsupported");
+    } finally {
+      changingSubscription.current = false;
     }
   };
   const reconnect = async () => {
+    if (changingSubscription.current || authLoading) return;
     setAwaitingConfirmation(false);
     if (
       !("serviceWorker" in navigator) ||
@@ -385,9 +413,11 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       setState("unsupported");
       return;
     }
+    changingSubscription.current = true;
+    ++checkVersion.current;
     setState("loading");
     try {
-      const registration = await navigator.serviceWorker.ready;
+      const registration = await readyPushRegistration();
       const existing = await registration.pushManager.getSubscription();
       if (existing) {
         await unsubscribe.mutateAsync({ token, endpoint: existing.endpoint });
@@ -400,13 +430,14 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
       const payload = fresh.toJSON();
       if (!payload.endpoint || !payload.keys?.p256dh || !payload.keys.auth)
         throw new Error("invalid push subscription");
-      await subscribe.mutateAsync({
+      const result = await subscribe.mutateAsync({
         token,
         subscription: {
           endpoint: payload.endpoint,
           keys: { p256dh: payload.keys.p256dh, auth: payload.keys.auth },
         },
       });
+      if (!registeredForGuardian(result)) throw new Error("보호자 기기 등록을 확인하지 못했습니다.");
       setState("enabled");
       toast.success("모바일 알림을 새로 연결했습니다.");
       await testNotification.mutateAsync({ token });
@@ -417,18 +448,15 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
           : "unsupported"
       );
       toast.error("알림을 다시 연결하지 못했습니다. 브라우저의 사이트 알림 설정을 확인해 주세요.");
+    } finally {
+      changingSubscription.current = false;
     }
   };
-  // Once a guardian has completed setup and confirmed a test notification we
-  // hide this card. However that "confirmed" flag lives in localStorage and
-  // never expires, so if notifications later stop working (permission
-  // revoked in phone settings, app reinstalled without clearing site data,
-  // etc.) the card must come back so the guardian can see what happened and
-  // re-enable it. Only suppress the card while everything still looks fine.
   if (user?.role === "admin") return null;
-  if (testConfirmed && state !== "blocked" && state !== "unsupported")
-    return null;
+  const configured = standalone && state === "enabled";
   return (
+    <details open={configured && !awaitingConfirmation ? undefined : true} key={configured ? "configured" : "setup"}>
+      <summary className={configured ? "cursor-pointer py-2 text-xs text-[#657570]" : "hidden"}>알림 관리 · 테스트 알림 / 다시 연결</summary>
     <div className="rounded-2xl border border-[#C9DDD4] bg-[#F1F8F4] p-4">
       <div className="flex items-start gap-3">
         <span className="rounded-xl bg-[#DDEEE5] p-2.5 text-[#315B57]">
@@ -494,7 +522,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
             <Button
               size="sm"
               className="journal-primary-button mt-2"
-              disabled={state === "loading"}
+              disabled={state === "loading" || authLoading}
               onClick={enable}
             >
               {state === "loading" ? "설정 중…" : "알림 허용"}
@@ -503,7 +531,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
           {state === "unsupported" && (
             <p className="mt-2 text-xs text-[#A05242]">
               이 브라우저에서는 알림을 사용할 수 없거나 서버 설정이 아직
-              완료되지 않았습니다.
+              완료되지 않았거나 기기 등록을 확인하지 못했습니다. 알림 허용을 눌러 다시 시도해 주세요.
             </p>
           )}
           {state === "blocked" && (
@@ -515,6 +543,7 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
         </div>
       </div>
     </div>
+    </details>
   );
 }
 
