@@ -2,6 +2,7 @@ import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import fs from "node:fs";
+import packageJson from "./package.json";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 
@@ -153,7 +154,7 @@ const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusDebugCol
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(`v${JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, "package.json"), "utf8")).version} · ${new Date().toISOString().replace(/[-:]/g, "").replace("T", ".").slice(0, 15)}Z`),
+    __APP_VERSION__: JSON.stringify(`v${packageJson.version} · ${new Date().toISOString().replace(/[-:]/g, "").replace("T", ".").slice(0, 15)}Z`),
   },
   plugins,
   resolve: {
