@@ -130,6 +130,25 @@
 .portal-calendar-image-caption small { font-size:10px;line-height:1.4; }
 .portal-calendar-text { align-items:center;gap:12px;padding:17px;background:linear-gradient(135deg,#F5EBD8,#EDF1E9);color:#315B57; }.portal-calendar-text>svg { flex:0 0 auto;color:#B8891B; }
 .portal-calendar-text>div { display:grid;gap:3px;min-width:0; }.portal-calendar-text span { color:#927542; }.portal-calendar-text small { color:#6B7B76;font-size:10px;line-height:1.5; }
+
+/* 보호자 학습 결과 링크: 장식 레이어가 모바일 탭을 가로채지 않게 한다. */
+.portal-hero::after,
+.portal-hero-icon { pointer-events:none; }
+@media (max-width: 720px) {
+  .portal-resource-actions { position:relative;z-index:3;max-width:none; }
+  .portal-resource-actions a {
+    position:relative;
+    z-index:1;
+    display:inline-flex;
+    min-width:150px;
+    min-height:48px;
+    flex:1 1 150px;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    touch-action:manipulation;
+  }
+}
 .portal-calendar-panel.is-mobile { min-height:154px; }.portal-calendar-panel.is-mobile.portal-calendar-text { padding:19px; }.portal-calendar-panel.is-mobile .portal-calendar-image-caption { margin:16px;padding:12px 14px; }.portal-calendar-panel.is-mobile .portal-calendar-image-caption b,.portal-calendar-panel.is-mobile .portal-calendar-text b { font-size:24px; }
 @media (max-width:720px) { .portal-calendar-panel.is-mobile { min-height:148px; }.portal-calendar-text small { font-size:11px; }.portal-calendar-image-caption { padding:16px; } }
 

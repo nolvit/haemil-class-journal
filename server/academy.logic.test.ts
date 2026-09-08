@@ -402,6 +402,8 @@ describe("수업일지 완성 상태", () => {
     expect(buildParentAttendanceMessage({ target: 5, sessionCount: 5, attendanceDayCount: 4, makeupCount: 0, makeupDoubleCount: 1 })).toBe("이번 주 출석은 5회 목표 중 5회입니다. 출석일은 4일이나 보강×2로 목표 수업 횟수에 도달했습니다. 훌륭해요!");
     expect(buildParentAttendanceMessage({ target: 5, sessionCount: 4.5, attendanceDayCount: 4, makeupCount: 1, makeupDoubleCount: 0 })).toBe("이번 주 출석은 5회 목표 중 4.5회입니다. 출석일은 4일이나 보강으로 비록 목표 수업 횟수에 도달하지 못했지만 잘했어요!");
     expect(buildParentAttendanceMessage({ target: 5, sessionCount: 3, attendanceDayCount: 3, makeupCount: 0, makeupDoubleCount: 0 })).toBe("이번 주 출석은 5회 목표 중 3회입니다. 출석률을 더 높여봅시다!");
+    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 2, attendanceDayCount: 2, makeupCount: 0, makeupDoubleCount: 0, isFridayAttendanceComplete: false })).toBe("이번 주 출석은 5회 목표 중 2회입니다.");
+    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 2, attendanceDayCount: 2, makeupCount: 0, makeupDoubleCount: 0, isFridayAttendanceComplete: true })).toBe("이번 주 출석은 5회 목표 중 2회입니다. 출석률을 더 높여봅시다!");
   });
 });
 

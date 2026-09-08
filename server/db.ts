@@ -3006,6 +3006,10 @@ export async function getPublicStudentWeek(
     attendanceDayCount,
     makeupCount,
     makeupDoubleCount,
+    // 금요일이 출석·결석·미등록·공휴일 등 최종 상태로 입력된 뒤에만 평가한다.
+    isFridayAttendanceComplete: !isAttendancePending(
+      businessAttendances[4]?.status
+    ),
   });
   const lessons = getHistoricalLessonCount({
     currentSettledCount: Number(student.lastWeekCount ?? 0),

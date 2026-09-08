@@ -30,10 +30,22 @@ export function buildParentAttendanceMessage(input: {
   attendanceDayCount: number;
   makeupCount: number;
   makeupDoubleCount: number;
+  /** 부가 평가는 금요일 출석 상태까지 입력된 주에만 공개한다. */
+  isFridayAttendanceComplete?: boolean;
 }) {
-  const { target, sessionCount, attendanceDayCount, makeupCount, makeupDoubleCount } = input;
+  const {
+    target,
+    sessionCount,
+    attendanceDayCount,
+    makeupCount,
+    makeupDoubleCount,
+    isFridayAttendanceComplete = true,
+  } = input;
   const count = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
   if (!target) return "이번 주의 학습 기록을 확인해 주세요.";
+
+  const summary = `이번 주 출석은 ${count(target)}회 목표 중 ${count(sessionCount)}회입니다.`;
+  if (!isFridayAttendanceComplete) return summary;
 
   const reachedTarget = sessionCount >= target;
   const hasMakeup = makeupCount > 0 || makeupDoubleCount > 0;
@@ -43,12 +55,12 @@ export function buildParentAttendanceMessage(input: {
   const makeupConnector = makeupDescription === "보강" ? "으로" : "로";
 
   if (hasMakeup) {
-    const base = `이번 주 출석은 ${count(target)}회 목표 중 ${count(sessionCount)}회입니다. 출석일은 ${attendanceDayCount}일이나 ${makeupDescription}${makeupConnector} `;
+    const base = `${summary} 출석일은 ${attendanceDayCount}일이나 ${makeupDescription}${makeupConnector} `;
     return reachedTarget
       ? `${base}목표 수업 횟수에 도달했습니다. 훌륭해요!`
       : `${base}비록 목표 수업 횟수에 도달하지 못했지만 잘했어요!`;
   }
-  if (attendanceDayCount / target <= 0.75) return `이번 주 출석은 ${count(target)}회 목표 중 ${count(sessionCount)}회입니다. 출석률을 더 높여봅시다!`;
+  if (attendanceDayCount / target <= 0.75) return `${summary} 출석률을 더 높여봅시다!`;
   if (reachedTarget) return `이번 주 출석 목표 ${count(target)}회를 모두 달성했습니다. 잘했어요!`;
-  return `이번 주 출석은 ${count(target)}회 목표 중 ${count(sessionCount)}회입니다.`;
+  return summary;
 }
