@@ -1,9 +1,117 @@
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { modeLabels } from "@shared/avatarRewards";
 import "./rewards.css";
+function PointAdjustment({
+  studentId,
+  balance,
+  onSaved,
+}: {
+  studentId: number;
+  balance: number;
+  onSaved: () => void;
+}) {
+  const [direction, setDirection] = useState("add");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const mutate = trpc.avatarRewards.adjust.useMutation({
+    onError: e => toast.error(e.message),
+    onSuccess: () => {
+      setAmount("");
+      setReason("");
+      setRequestId(crypto.randomUUID());
+      onSaved();
+      toast.success("포인트 내역에 기록했습니다.");
+    },
+  });
+  const delta = Number(amount) * (direction === "add" ? 1 : -1);
+  return (
+    <section>
+      <h2>포인트 지급·차감</h2>
+      <p>
+        사유는 학생의 포인트 내역에도 표시됩니다. 지급은 누적 획득에 포함하고,
+        차감은 사용 가능 포인트만 줄입니다.
+      </p>
+      <form
+        className="reward-adjust"
+        onSubmit={e => {
+          e.preventDefault();
+          if (
+            window.confirm(
+              `${direction === "add" ? "지급" : "차감"} ${Number(amount).toLocaleString()}P · ${reason}\n적용 후 ${Number(balance + delta).toLocaleString()}P`
+            )
+          )
+            mutate.mutate({ studentId, delta, reason, requestId });
+        }}
+      >
+        <label>
+          조정 방식
+          <select
+            value={direction}
+            disabled={mutate.isPending}
+            onChange={e => {
+              setDirection(e.target.value);
+              setRequestId(crypto.randomUUID());
+            }}
+          >
+            <option value="add">포인트 지급 (+)</option>
+            <option value="subtract">포인트 차감 (−)</option>
+          </select>
+        </label>
+        <label>
+          포인트
+          <Input
+            type="number"
+            min="1"
+            max="100000"
+            step="1"
+            required
+            value={amount}
+            disabled={mutate.isPending}
+            onChange={e => {
+              setAmount(e.target.value);
+              setRequestId(crypto.randomUUID());
+            }}
+          />
+        </label>
+        <label>
+          학생에게 보여 줄 조정 사유
+          <Input
+            required
+            maxLength={140}
+            placeholder="예: 꾸준한 과제 수행 보너스 / 잘못 지급된 포인트 정정"
+            value={reason}
+            disabled={mutate.isPending}
+            onChange={e => {
+              setReason(e.target.value);
+              setRequestId(crypto.randomUUID());
+            }}
+          />
+        </label>
+        <p>
+          현재 {balance.toLocaleString()}P → 적용 후{" "}
+          {(balance + delta).toLocaleString()}P
+        </p>
+        <Button
+          disabled={
+            mutate.isPending ||
+            !reason.trim() ||
+            !Number.isInteger(delta) ||
+            !delta ||
+            (delta < 0 && balance + delta < 0)
+          }
+          type="submit"
+        >
+          {mutate.isPending ? "반영 중…" : "포인트 조정 적용"}
+        </Button>
+      </form>
+    </section>
+  );
+}
 async function readImage(file: File) {
   if (
     !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
@@ -141,6 +249,12 @@ export default function AvatarAdmin() {
           {!snapshot.data.orders.length && (
             <section>아직 주문이 없습니다.</section>
           )}
+          <PointAdjustment
+            key={studentId}
+            studentId={studentId}
+            balance={snapshot.data.account.balance}
+            onSaved={refresh}
+          />
           {snapshot.data.orders.map(o => (
             <section key={o.id}>
               <h2>
@@ -165,6 +279,12 @@ export default function AvatarAdmin() {
                 배경: {o.input.background}
                 <br />
                 장신구: {o.input.accessories.join(", ") || "없음"}
+                <br />
+                펫: {o.input.pet || "없음"}
+                <br />
+                자세: {o.input.pose || "자연스러운 자세"}
+                <br />
+                기타 요구사항: {o.input.extra || "없음"}
               </p>
               <a href={o.masterUrl} target="_blank" rel="noreferrer">
                 주문 당시 마스터 이미지 열기

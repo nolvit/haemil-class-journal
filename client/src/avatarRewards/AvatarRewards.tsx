@@ -17,21 +17,22 @@ import {
   type RewardOrderInput,
 } from "@shared/avatarRewards";
 import manifest from "./assetManifest.json";
+import {
+  imagination,
+  imaginationFields,
+  randomSuggestion,
+} from "@shared/avatarImagination";
 import "./rewards.css";
 
-const fields = [
-  ["top", "상의", "검정색 화려한 용 무늬가 들어간 후드티"],
-  ["bottom", "하의", "연청색 와이드 청바지"],
-  ["shoes", "신발", "흰색과 초록색 운동화"],
-  ["hair", "헤어", "짙은 갈색 자연스러운 쉼표머리"],
-  ["background", "배경", "밤의 도시 옥상 배경"],
-] as const;
 const emptyOrder: RewardOrderInput = {
   top: "",
   bottom: "",
   shoes: "",
   hair: "",
   background: "",
+  pet: "",
+  pose: "",
+  extra: "",
   accessories: [],
   mode: "original",
 };
@@ -49,6 +50,7 @@ export function AvatarRewards({
   >("home");
   const [order, setOrder] = useState<RewardOrderInput>(emptyOrder);
   const [cropY, setCropY] = useState<number | null>(null);
+  const [cropX, setCropX] = useState<number | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(
     null
   );
@@ -80,6 +82,7 @@ export function AvatarRewards({
     onError,
     onSuccess: () => {
       setCropY(null);
+      setCropX(null);
       void refresh();
       toast.success("대표 사진을 저장했어요.");
     },
@@ -94,6 +97,7 @@ export function AvatarRewards({
   );
   const busy = submit.isPending || select.isPending || representative.isPending;
   const position = cropY ?? account?.cropY ?? 0;
+  const horizontal = cropX ?? account?.cropX ?? 50;
   return (
     <Dialog
       open={open}
@@ -116,9 +120,9 @@ export function AvatarRewards({
               src={image}
               alt="대표 아바타"
               style={{
-                objectPosition: `50% ${position}%`,
+                objectPosition: `${horizontal}% ${position}%`,
                 transform: "scale(3)",
-                transformOrigin: `50% ${position}%`,
+                transformOrigin: `${horizontal}% ${position}%`,
               }}
             />
           ) : (
@@ -186,6 +190,13 @@ export function AvatarRewards({
                   </div>
                 </div>
                 <div className="reward-progress">
+                  <Button
+                    variant="outline"
+                    className="reward-ledger-button"
+                    onClick={() => setPage("ledger")}
+                  >
+                    내 포인트 적립·사용 내역 보기
+                  </Button>
                   <div>
                     <span>다음 스페셜 아바타</span>
                     <b>{data.nextPrice.toLocaleString()} P</b>
@@ -301,7 +312,9 @@ export function AvatarRewards({
                 <p>
                   주문할 때 포인트를 사용하며, 취소가 필요하면 선생님께 말씀해
                   주세요. 대표 이미지 변경은 무료예요. 누적 획득 포인트는
-                  사용해도 줄지 않지만, 출결 정정은 반영돼요.
+                  사용해도 줄지 않지만, 출결 정정은 반영돼요. 선생님이 지급한
+                  보너스는 누적 획득에도 포함되며, 관리자 차감은 사용 가능
+                  포인트만 줄어요.
                 </p>
                 <small>
                   새 포인트 적립은 2026년 9월 9일 수업부터 적용돼요. 출결
@@ -387,9 +400,9 @@ export function AvatarRewards({
                         src={image}
                         alt="원형 사진 미리보기"
                         style={{
-                          objectPosition: `50% ${position}%`,
+                          objectPosition: `${horizontal}% ${position}%`,
                           transform: "scale(3)",
-                          transformOrigin: `50% ${position}%`,
+                          transformOrigin: `${horizontal}% ${position}%`,
                         }}
                       />
                     </div>
@@ -404,6 +417,17 @@ export function AvatarRewards({
                         onChange={e => setCropY(Number(e.target.value))}
                       />
                     </label>
+                    <label>
+                      좌우 위치
+                      <input
+                        aria-label="얼굴 좌우 위치"
+                        type="range"
+                        min="0"
+                        max="100"
+                        value={horizontal}
+                        onChange={e => setCropX(Number(e.target.value))}
+                      />
+                    </label>
                     <Button
                       disabled={busy}
                       onClick={() =>
@@ -411,6 +435,7 @@ export function AvatarRewards({
                           ...identity,
                           cardId: account.representativeId,
                           cropY: position,
+                          cropX: horizontal,
                         })
                       }
                     >
@@ -432,19 +457,65 @@ export function AvatarRewards({
                   이번 제작은 <b>{data.nextPrice.toLocaleString()}P</b>예요.
                   주문을 보내면 포인트가 차감돼요.
                 </div>
-                {fields.map(([key, label, example]) => (
-                  <label key={key}>
-                    {label}
+                <div className="reward-note">
+                  마법 같은 옷과 친구를 상상해 보세요. 랜덤 문구도 마음대로
+                  고쳐도 좋아요!
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() =>
+                      setOrder(current => {
+                        const next = { ...current };
+                        for (const [key] of imaginationFields)
+                          if (!next[key].trim())
+                            next[key] = randomSuggestion(key);
+                        return next;
+                      })
+                    }
+                  >
+                    빈칸만 랜덤으로 채우기
+                  </Button>
+                </div>
+                {imaginationFields.map(([key, label]) => (
+                  <div className="reward-field" key={key}>
+                    <div className="reward-field-heading">
+                      <label htmlFor={"reward-" + key}>
+                        {label}
+                        {["pet", "pose", "extra"].includes(key) && (
+                          <small>선택</small>
+                        )}
+                      </label>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        aria-label={label + " 랜덤"}
+                        onClick={() =>
+                          setOrder(current => ({
+                            ...current,
+                            [key]: randomSuggestion(key, current[key]),
+                          }))
+                        }
+                      >
+                        랜덤
+                      </Button>
+                    </div>
                     <Input
-                      required
-                      maxLength={300}
-                      placeholder={`예: ${example}`}
+                      id={"reward-" + key}
+                      aria-label={label}
+                      required={!["pet", "pose", "extra"].includes(key)}
+                      maxLength={key === "extra" ? 600 : 300}
+                      placeholder={"예: " + imagination[key][0]}
+                      aria-describedby={"example-" + key}
                       value={order[key]}
                       onChange={e =>
                         setOrder({ ...order, [key]: e.target.value })
                       }
                     />
-                  </label>
+                    <small id={"example-" + key}>
+                      예: {imagination[key][0]}
+                    </small>
+                  </div>
                 ))}
                 <label>
                   장신구 <small>선택 · 최대 8개</small>
@@ -455,7 +526,7 @@ export function AvatarRewards({
                       aria-label={`장신구 ${i + 1}`}
                       required
                       maxLength={200}
-                      placeholder="예: 은색 별 목걸이"
+                      placeholder={"예: " + imagination.accessory[0]}
                       value={v}
                       onChange={e =>
                         setOrder({
@@ -466,6 +537,22 @@ export function AvatarRewards({
                         })
                       }
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-label={`장신구 ${i + 1} 랜덤`}
+                      onClick={() =>
+                        setOrder(current => ({
+                          ...current,
+                          accessories: current.accessories.map((a, j) =>
+                            i === j ? randomSuggestion("accessory", a) : a
+                          ),
+                        }))
+                      }
+                    >
+                      랜덤
+                    </Button>
                     <button
                       type="button"
                       aria-label={`장신구 ${i + 1} 삭제`}

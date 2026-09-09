@@ -441,6 +441,7 @@ export const rewardAccounts = mysqlTable("reward_accounts", {
   masterUrl: text("masterUrl"),
   representativeId: varchar("representativeId", { length: 36 }),
   cropY: int("cropY").default(0).notNull(),
+  cropX: int("cropX").default(50).notNull(),
 });
 export const rewardDays = mysqlTable(
   "reward_days",
@@ -457,6 +458,8 @@ export const rewardLedger = mysqlTable(
     id: int("id").autoincrement().primaryKey(),
     studentId: int("studentId").notNull(),
     delta: int("delta").notNull(),
+    actorUserId: int("actorUserId"),
+    requestId: varchar("requestId", { length: 36 }).unique("requestId"),
     reason: varchar("reason", { length: 200 }).notNull(),
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },

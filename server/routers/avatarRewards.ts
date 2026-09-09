@@ -3,7 +3,10 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { getPortalFamilyByToken } from "../db";
-import { rewardOrderInput } from "../../shared/avatarRewards";
+import {
+  rewardOrderInput,
+  rewardAdjustmentInput,
+} from "../../shared/avatarRewards";
 import * as store from "../avatarRewardStore";
 import { storagePut } from "../storage";
 const identity = z.object({
@@ -88,12 +91,21 @@ export const avatarRewardsRouter = router({
       z.object({
         cardId: z.string().uuid().nullable(),
         cropY: z.number().int().min(0).max(100),
+        cropX: z.number().int().min(0).max(100).default(50),
       })
     )
     .mutation(({ input }) =>
-      store.setRewardRepresentative(input.studentId, input.cardId, input.cropY)
+      store.setRewardRepresentative(
+        input.studentId,
+        input.cardId,
+        input.cropY,
+        input.cropX
+      )
     ),
   adminList: adminProcedure.query(() => store.rewardAdminList()),
+  adjust: adminProcedure
+    .input(rewardAdjustmentInput)
+    .mutation(({ input, ctx }) => store.adjustRewardPoints(input, ctx.user.id)),
   adminSnapshot: adminProcedure
     .input(student)
     .query(({ input }) => store.rewardSnapshot(input.studentId)),

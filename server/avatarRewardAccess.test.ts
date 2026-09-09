@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { attendanceRecordPoints } from "./avatarRewardStore";
 import { buildRewardPrompt } from "./avatarRewardPrompt";
-import { rewardOrderInput } from "../shared/avatarRewards";
+import {
+  rewardOrderInput,
+  rewardAdjustmentInput,
+} from "../shared/avatarRewards";
+import { imagination, randomSuggestion } from "../shared/avatarImagination";
 import {
   avatarRewardsRouter,
   validateRewardImage,
@@ -16,6 +20,9 @@ const input = {
   shoes: "운동화",
   hair: "갈색 쉼표머리",
   background: "도시 옥상",
+  pet: "별빛 아기 용",
+  pose: "작은 달 받치기",
+  extra: "나비 모양 그림자",
   accessories: ["별 목걸이"],
   mode: "original" as const,
 };
@@ -61,7 +68,11 @@ describe("reward integration boundaries", () => {
   });
   it("adapts original semantics and includes hair and background without requiring clothing images", () => {
     const prompt = buildRewardPrompt(input);
-    expect(prompt).toContain("V2");
+    expect(prompt).toContain("V3");
+    expect(prompt).toContain("별빛 아기 용");
+    expect(prompt).toContain("작은 달 받치기");
+    expect(prompt).toContain("나비 모양 그림자");
+    expect(prompt).toContain("follow the requested pose in BOTH");
     expect(prompt).toContain("갈색 쉼표머리");
     expect(prompt).toContain("도시 옥상");
     expect(prompt).toContain("Preserve the facial identity");
@@ -92,6 +103,47 @@ describe("reward integration boundaries", () => {
       })
     ).toThrow();
   });
+  it("supports old orders and validates optional additions", () => {
+    const { pet, pose, extra, ...old } = input;
+    expect(rewardOrderInput.parse(old)).toMatchObject({
+      pet: "",
+      pose: "",
+      extra: "",
+    });
+    expect(
+      rewardOrderInput.safeParse({ ...input, extra: "a".repeat(601) }).success
+    ).toBe(false);
+  });
+  it("offers a different editable random suggestion for every field", () => {
+    for (const field of Object.keys(
+      imagination
+    ) as (keyof typeof imagination)[]) {
+      const suggestion = randomSuggestion(
+        field,
+        imagination[field][0],
+        () => 0
+      );
+      expect(suggestion).not.toBe(imagination[field][0]);
+      expect(imagination[field]).toContain(suggestion);
+    }
+  });
+  it("requires a nonzero integer adjustment and a reason", () => {
+    const base = {
+      studentId: 1,
+      delta: 50,
+      reason: "보너스",
+      requestId: "11111111-1111-4111-8111-111111111111",
+    };
+    for (const bad of [
+      { delta: 0 },
+      { delta: 1.5 },
+      { reason: " " },
+      { delta: 100001 },
+    ])
+      expect(rewardAdjustmentInput.safeParse({ ...base, ...bad }).success).toBe(
+        false
+      );
+  });
   it("rejects another student and anonymous administration before accessing the store", async () => {
     const caller = avatarRewardsRouter.createCaller({
       user: null,
@@ -107,6 +159,14 @@ describe("reward integration boundaries", () => {
     await expect(caller.adminList()).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+    await expect(
+      caller.adjust({
+        studentId: 1,
+        delta: 50,
+        reason: "테스트",
+        requestId: "11111111-1111-4111-8111-111111111111",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       caller.cancel({
         studentId: 1,

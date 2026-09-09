@@ -68,6 +68,7 @@ let state = {
     masterUrl: image,
     representativeId: null,
     cropY: 0,
+    cropX: 50,
   },
   nextPrice: 500,
   orders: [],
@@ -103,8 +104,21 @@ await page.route("**/api/trpc/**", async route => {
       ];
     else if (method.endsWith("snapshot") || method.endsWith("adminSnapshot"))
       value = state;
-    else if (method.endsWith("submit")) {
+    else if (method.endsWith("adjust")) {
+      state.account.balance += input.delta;
+      state.account.lifetime += Math.max(0, input.delta);
+      state.ledger.unshift({
+        id: 1,
+        delta: input.delta,
+        reason: "관리자 지급: " + input.reason,
+        createdAt: "2026-09-09 12:00:00",
+      });
+      value = { balance: state.account.balance };
+    } else if (method.endsWith("submit")) {
       assert.equal(input.order.hair, "갈색 쉼표머리");
+      assert.ok(input.order.pet);
+      assert.ok(input.order.pose);
+      assert.ok(input.order.extra);
       state.account.balance -= 500;
       state.orders = [
         {
@@ -147,6 +161,7 @@ await page.route("**/api/trpc/**", async route => {
     } else if (method.endsWith("representative")) {
       state.account.representativeId = input.cardId;
       state.account.cropY = input.cropY;
+      state.account.cropX = input.cropX;
       value = null;
     } else if (method.endsWith("master")) value = null;
     else throw new Error("Unhandled method " + method);
@@ -172,15 +187,42 @@ try {
     ["배경", "도시 옥상"],
   ])
     await page.getByLabel(label, { exact: true }).fill(value);
+  await page.getByRole("button", { name: "펫 랜덤", exact: true }).click();
+  const petBefore = await page.getByLabel("펫", { exact: true }).inputValue();
+  await page.getByRole("button", { name: "펫 랜덤", exact: true }).click();
+  assert.notEqual(
+    await page.getByLabel("펫", { exact: true }).inputValue(),
+    petBefore
+  );
+  await page.getByRole("button", { name: "빈칸만 랜덤으로 채우기" }).click();
+  assert.equal(
+    await page.getByLabel("헤어", { exact: true }).inputValue(),
+    "갈색 쉼표머리"
+  );
   await page.getByRole("button", { name: "장신구 추가" }).click();
   await page.getByLabel("장신구 1", { exact: true }).fill("은색 별 목걸이");
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(350);
+  const bounds = await page.getByRole("dialog").boundingBox();
+  assert.ok(
+    bounds.y >= 0 && bounds.y + bounds.height <= 845,
+    JSON.stringify(bounds)
+  );
   await page.screenshot({ path: path.join(qaRoot, "mobile-order.png") });
   await page.getByRole("button", { name: "500P로 주문 보내기" }).click();
   await page.getByText("주문을 전달했어요.", { exact: false }).waitFor();
   await page.keyboard.press("Escape");
   await page.goto("http://127.0.0.1:5186/?admin");
   await page.getByLabel("학생 선택").selectOption("1");
+  await page.getByLabel("포인트", { exact: true }).fill("50");
+  await page
+    .getByLabel("학생에게 보여 줄 조정 사유", { exact: true })
+    .fill("과제 보너스");
+  page.once("dialog", d => d.accept());
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("avatarRewards.adjust")),
+    page.getByRole("button", { name: "포인트 조정 적용" }).click(),
+  ]);
   await page
     .getByLabel("후보 이미지 2장")
     .setInputFiles([
@@ -219,6 +261,22 @@ try {
     page.getByRole("button", { name: "위치 저장" }).click(),
   ]);
   assert.equal(state.account.cropY, 20);
+  await page.getByRole("slider", { name: "얼굴 좌우 위치" }).fill("75");
+  await Promise.all([
+    page.waitForResponse(
+      r =>
+        r.url().includes("avatarRewards.representative") &&
+        r.request().method() === "POST"
+    ),
+    page.getByRole("button", { name: "위치 저장" }).click(),
+  ]);
+  assert.equal(state.account.cropX, 75);
+  await page.getByRole("button", { name: "아바타 홈으로" }).click();
+  await page
+    .getByRole("button", { name: "내 포인트 적립·사용 내역 보기" })
+    .click();
+  await page.getByText("관리자 지급: 과제 보너스", { exact: false }).waitFor();
+  await page.screenshot({ path: path.join(qaRoot, "mobile-ledger.png") });
   const overflow = await page.evaluate(
     () => document.documentElement.scrollWidth > innerWidth
   );

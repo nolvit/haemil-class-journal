@@ -7,3 +7,20 @@ export const rewardDDL = [
   `CREATE TABLE IF NOT EXISTS avatar_candidates (id VARCHAR(36) PRIMARY KEY, orderId VARCHAR(36) NOT NULL, url TEXT NOT NULL, INDEX avatar_candidate_order(orderId))`,
   `CREATE TABLE IF NOT EXISTS avatar_collection (id VARCHAR(36) PRIMARY KEY, studentId INT NOT NULL, orderId VARCHAR(36) NOT NULL UNIQUE, url TEXT NOT NULL, mode VARCHAR(20) NOT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, INDEX avatar_collection_student(studentId))`,
 ];
+export const rewardSchemaUpgrades = [
+  {
+    table: "reward_accounts",
+    column: "cropX",
+    sql: "ALTER TABLE reward_accounts ADD COLUMN cropX INT NOT NULL DEFAULT 50",
+  },
+  {
+    table: "reward_ledger",
+    column: "actorUserId",
+    sql: "ALTER TABLE reward_ledger ADD COLUMN actorUserId INT NULL",
+  },
+  {
+    table: "reward_ledger",
+    column: "requestId",
+    sql: "ALTER TABLE reward_ledger ADD COLUMN requestId VARCHAR(36) NULL UNIQUE",
+  },
+] as const;

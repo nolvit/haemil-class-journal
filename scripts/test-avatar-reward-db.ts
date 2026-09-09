@@ -71,6 +71,9 @@ try {
     shoes: "운동화",
     hair: "쉼표머리",
     background: "도시 옥상",
+    pet: "",
+    pose: "",
+    extra: "",
     accessories: [],
     mode: "original" as const,
   };
@@ -118,12 +121,57 @@ try {
   await assert.rejects(() =>
     store.setRewardRepresentative(2, s.cards[0].id, 20)
   );
-  await store.setRewardRepresentative(1, s.cards[0].id, 20);
+  await store.setRewardRepresentative(1, s.cards[0].id, 20, 75);
   s = await store.rewardSnapshot(1);
   assert.equal(s.account.cropY, 20);
+  assert.equal(s.account.cropX, 75);
   assert.equal(s.account.representativeId, s.cards[0].id);
   passed++;
   await assert.rejects(() => store.submitRewardOrder(1, input));
+  passed++;
+  const award = {
+    studentId: 1,
+    delta: 200,
+    reason: "과제 보너스",
+    requestId: crypto.randomUUID(),
+  };
+  const before = s.account.balance,
+    lifetime = s.account.lifetime;
+  await Promise.all([
+    store.adjustRewardPoints(award, 9),
+    store.adjustRewardPoints(award, 9),
+  ]);
+  s = await store.rewardSnapshot(1);
+  assert.equal(s.account.balance, before + 200);
+  assert.equal(s.account.lifetime, lifetime + 200);
+  assert.equal(
+    s.ledger.filter(l => l.reason === "관리자 지급: 과제 보너스").length,
+    1
+  );
+  passed++;
+  await store.adjustRewardPoints(
+    {
+      ...award,
+      delta: -100,
+      reason: "지급 정정",
+      requestId: crypto.randomUUID(),
+    },
+    9
+  );
+  s = await store.rewardSnapshot(1);
+  assert.equal(s.account.balance, before + 100);
+  assert.equal(s.account.lifetime, lifetime + 200);
+  passed++;
+  await assert.rejects(() =>
+    store.adjustRewardPoints({ ...award, delta: 201 }, 9)
+  );
+  passed++;
+  await assert.rejects(() =>
+    store.adjustRewardPoints(
+      { ...award, delta: -10000, requestId: crypto.randomUUID() },
+      9
+    )
+  );
   passed++;
   await c.end();
   console.log(`PASS ${passed} real MySQL integration scenarios`);

@@ -369,3 +369,40 @@
     translate: none !important;
   }
 }
+.reward-field {
+  display: grid;
+  gap: 8px;
+}
+.reward-field-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.reward-field-heading label {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+}
+.reward-field > small {
+  font-size: 12px;
+  line-height: 1.6;
+  color: #6d7a70;
+}
+.reward-note > button {
+  display: block;
+  margin-top: 10px;
+}
+.reward-ledger-button {
+  width: 100%;
+  margin: 0 0 16px;
+}
+.reward-adjust {
+  display: grid;
+  gap: 14px;
+}
+.reward-adjust label {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+}

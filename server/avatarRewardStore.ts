@@ -8,7 +8,12 @@ import type {
   RewardOrderInput,
   RewardSnapshot,
 } from "../shared/avatarRewards";
-import { rewardDDL } from "./avatarRewardSchema";
+import { rewardDDL, rewardSchemaUpgrades } from "./avatarRewardSchema";
+import {
+  rewardOrderInput,
+  rewardAdjustmentInput,
+} from "../shared/avatarRewards";
+import type { z } from "zod";
 import { buildRewardPrompt } from "./avatarRewardPrompt";
 
 let pool: mysql.Pool | undefined;
@@ -25,6 +30,19 @@ export async function ensureRewardSchema() {
   if (!process.env.DATABASE_URL) return;
   initialized ??= (async () => {
     for (const statement of rewardDDL) await database().query(statement);
+    for (const upgrade of rewardSchemaUpgrades) {
+      const [columns] = await database().query<RowDataPacket[]>(
+        "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?",
+        [upgrade.table, upgrade.column]
+      );
+      if (!columns.length) {
+        try {
+          await database().query(upgrade.sql);
+        } catch (e) {
+          if ((e as { code?: string }).code !== "ER_DUP_FIELDNAME") throw e;
+        }
+      }
+    }
   })().catch(e => {
     initialized = undefined;
     throw e;
@@ -142,7 +160,7 @@ async function transaction<T>(
     await reconcile(c, a);
     const result = await work(c, a);
     await c.query(
-      "UPDATE reward_accounts SET balance=?,lifetime=?,completedOrders=?,masterUrl=?,representativeId=?,cropY=? WHERE studentId=?",
+      "UPDATE reward_accounts SET balance=?,lifetime=?,completedOrders=?,masterUrl=?,representativeId=?,cropY=?,cropX=? WHERE studentId=?",
       [
         a.balance,
         a.lifetime,
@@ -150,6 +168,7 @@ async function transaction<T>(
         a.masterUrl,
         a.representativeId,
         a.cropY,
+        a.cropX,
         studentId,
       ]
     );
@@ -176,7 +195,7 @@ async function orders(
   return Promise.all(
     result.map(async o => ({
       ...o,
-      input: JSON.parse(o.input),
+      input: rewardOrderInput.parse(JSON.parse(o.input)),
       candidates: await rows<{ id: string; url: string }>(
         c,
         "SELECT id,url FROM avatar_candidates WHERE orderId=? ORDER BY id",
@@ -314,7 +333,8 @@ export async function selectRewardCandidate(
 export async function setRewardRepresentative(
   studentId: number,
   cardId: string | null,
-  cropY: number
+  cropY: number,
+  cropX: number = 50
 ) {
   return transaction(studentId, async (c, a) => {
     if (
@@ -330,6 +350,45 @@ export async function setRewardRepresentative(
       reject("내 컬렉션에서 선택해 주세요.");
     a.representativeId = cardId;
     a.cropY = cropY;
+    a.cropX = cropX;
+  });
+}
+export async function adjustRewardPoints(
+  input: z.infer<typeof rewardAdjustmentInput>,
+  actorUserId: number
+) {
+  const parsed = rewardAdjustmentInput.parse(input);
+  return transaction(parsed.studentId, async (c, a) => {
+    const reason = `관리자 ${parsed.delta > 0 ? "지급" : "차감"}: ${parsed.reason}`;
+    const [existing] = await rows<{
+      studentId: number;
+      delta: number;
+      reason: string;
+      actorUserId: number;
+    }>(
+      c,
+      "SELECT studentId,delta,reason,actorUserId FROM reward_ledger WHERE requestId=?",
+      [parsed.requestId]
+    );
+    if (existing) {
+      if (
+        existing.studentId !== parsed.studentId ||
+        existing.delta !== parsed.delta ||
+        existing.reason !== reason ||
+        existing.actorUserId !== actorUserId
+      )
+        reject("이미 사용한 조정 요청입니다. 새로 입력해 주세요.");
+      return { balance: a.balance, duplicate: true };
+    }
+    if (parsed.delta < 0 && a.balance + parsed.delta < 0)
+      reject("사용 가능 포인트보다 많이 차감할 수 없습니다.");
+    a.balance += parsed.delta;
+    a.lifetime += Math.max(0, parsed.delta);
+    await c.query(
+      "INSERT INTO reward_ledger(studentId,delta,reason,actorUserId,requestId) VALUES(?,?,?,?,?)",
+      [parsed.studentId, parsed.delta, reason, actorUserId, parsed.requestId]
+    );
+    return { balance: a.balance, duplicate: false };
   });
 }
 export async function setRewardMaster(studentId: number, url: string) {
