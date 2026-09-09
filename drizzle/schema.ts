@@ -6,6 +6,7 @@ import {
   int,
   mysqlEnum,
   mysqlTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -501,4 +502,65 @@ export const avatarCollection = mysqlTable(
     createdAt: timestamp("createdAt").defaultNow().notNull(),
   },
   t => ({ studentIndex: index("avatar_collection_student").on(t.studentId) })
+);
+
+// Cosmetic inventory and opt-in social collections.
+export const avatarWardrobe = mysqlTable("avatar_wardrobe", {
+  studentId: int("studentId").primaryKey(),
+  equipped: varchar("equipped", { length: 20 }).default("lunar").notNull(),
+  background: varchar("background", { length: 20 })
+    .default("classic")
+    .notNull(),
+  cropZoom: int("cropZoom").default(300).notNull(),
+});
+export const avatarFrameInventory = mysqlTable(
+  "avatar_frame_inventory",
+  {
+    studentId: int("studentId").notNull(),
+    frameId: varchar("frameId", { length: 20 }).notNull(),
+    purchasedAt: timestamp("purchasedAt").defaultNow().notNull(),
+  },
+  t => ({
+    ownerItem: primaryKey({ columns: [t.studentId, t.frameId] }),
+  })
+);
+export const avatarBackgroundInventory = mysqlTable(
+  "avatar_background_inventory",
+  {
+    studentId: int("studentId").notNull(),
+    backgroundId: varchar("backgroundId", { length: 20 }).notNull(),
+    purchasedAt: timestamp("purchasedAt").defaultNow().notNull(),
+  },
+  t => ({
+    ownerItem: primaryKey({ columns: [t.studentId, t.backgroundId] }),
+  })
+);
+export const avatarSharing = mysqlTable("avatar_sharing", {
+  cardId: varchar("cardId", { length: 36 }).primaryKey(),
+  visible: boolean("visible").default(false).notNull(),
+  showName: boolean("showName").default(false).notNull(),
+  showGrade: boolean("showGrade").default(false).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+});
+export const avatarLikes = mysqlTable(
+  "avatar_likes",
+  {
+    cardId: varchar("cardId", { length: 36 }).notNull(),
+    studentId: int("studentId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    cardStudent: primaryKey({ columns: [t.cardId, t.studentId] }),
+  })
+);
+export const avatarLikeRewards = mysqlTable(
+  "avatar_like_rewards",
+  {
+    cardId: varchar("cardId", { length: 36 }).notNull(),
+    studentId: int("studentId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    cardStudent: primaryKey({ columns: [t.cardId, t.studentId] }),
+  })
 );

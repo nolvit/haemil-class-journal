@@ -109,7 +109,10 @@ export function Stylebook() {
           <ArrowUpRight aria-hidden="true" size={25} />
         </button>
       </DialogTrigger>
-      <DialogContent className="stylebook-dialog" showCloseButton={false}>
+      <DialogContent
+        className="stylebook-dialog avatar-theme"
+        showCloseButton={false}
+      >
         <div className="stylebook-dismiss">
           <DialogClose asChild>
             <button type="button" aria-label="스타일북 닫기">

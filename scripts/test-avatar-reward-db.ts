@@ -173,6 +173,108 @@ try {
     )
   );
   passed++;
+
+  const cardId = (await store.rewardSnapshot(1)).cards[0].id;
+  await assert.rejects(() => store.equipFrame(1, "solar"));
+  passed++;
+  await assert.rejects(() => store.purchaseFrame(2, "solar"));
+  passed++;
+  await store.adjustRewardPoints(
+    {
+      studentId: 1,
+      delta: 2000,
+      reason: "QA store",
+      requestId: crypto.randomUUID(),
+    },
+    9
+  );
+  const beforeBuy = (await store.rewardSnapshot(1)).account.balance;
+  await Promise.all([
+    store.purchaseFrame(1, "aurora"),
+    store.purchaseFrame(1, "aurora"),
+  ]);
+  assert.equal(
+    (await store.rewardSnapshot(1)).account.balance,
+    beforeBuy - 300
+  );
+  await store.equipFrame(1, "aurora");
+  await Promise.all([
+    store.purchaseBackground(1, "library"),
+    store.purchaseBackground(1, "library"),
+  ]);
+  assert.equal(
+    (await store.rewardSnapshot(1)).account.balance,
+    beforeBuy - 600
+  );
+  await store.equipBackground(1, "library");
+  const wardrobe = await store.wardrobe(1);
+  assert.equal(wardrobe.background, "library");
+  assert.equal(wardrobe.equipped, "aurora");
+  passed++;
+  await store.setCropZoom(1, 240);
+  assert.equal((await store.wardrobe(1)).cropZoom, 240);
+  passed++;
+  assert.equal((await store.gallery(2)).length, 0);
+  await assert.rejects(() =>
+    store.shareCard(2, {
+      cardId,
+      visible: true,
+      showName: true,
+      showGrade: true,
+    })
+  );
+  passed++;
+  await store.shareCard(1, {
+    cardId,
+    visible: true,
+    showName: false,
+    showGrade: false,
+  });
+  let feed = await store.gallery(2);
+  assert.equal(feed[0].name, "박00");
+  assert.equal(feed[0].grade, "중0학년");
+  assert.equal("studentId" in feed[0], false);
+  assert.equal(feed[0].background, "library");
+  passed++;
+  const beforeLike = (await store.rewardSnapshot(1)).account;
+  await Promise.all(
+    Array.from({ length: 5 }, () => store.likeCard(2, cardId, true))
+  );
+  feed = await store.gallery(2);
+  assert.equal(feed[0].likes, 1);
+  const afterLike = (await store.rewardSnapshot(1)).account;
+  assert.equal(afterLike.balance, beforeLike.balance + 10);
+  assert.equal(afterLike.lifetime, beforeLike.lifetime + 10);
+  passed++;
+  await store.likeCard(2, cardId, false);
+  assert.equal((await store.gallery(2))[0].likes, 0);
+  await store.likeCard(2, cardId, true);
+  assert.equal(
+    (await store.rewardSnapshot(1)).account.balance,
+    afterLike.balance
+  );
+  passed++;
+  await assert.rejects(() => store.likeCard(1, cardId, true));
+  passed++;
+  await store.shareCard(1, {
+    cardId,
+    visible: true,
+    showName: true,
+    showGrade: true,
+  });
+  feed = await store.gallery(2);
+  assert.equal(feed[0].name, "QA");
+  assert.equal(feed[0].grade, "test");
+  passed++;
+  await store.shareCard(1, {
+    cardId,
+    visible: false,
+    showName: true,
+    showGrade: true,
+  });
+  assert.equal((await store.gallery(2)).length, 0);
+  await assert.rejects(() => store.likeCard(2, cardId, true));
+  passed++;
   await c.end();
   console.log(`PASS ${passed} real MySQL integration scenarios`);
 } finally {

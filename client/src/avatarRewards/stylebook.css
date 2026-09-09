@@ -480,3 +480,19 @@
   color: #263247;
   cursor: pointer;
 }
+
+/* Enlarged art shares the collection's celestial visual language. */
+.stylebook-viewer {
+  background: radial-gradient(ellipse at top, #294646, #0c151f 65%) !important;
+  border-color: #b49b68 !important;
+  box-shadow: 0 0 35px #bb9e4c33 !important;
+}
+.stylebook-viewer-controls button {
+  border: 1px solid #a78f5c;
+  background: linear-gradient(#284344, #12232a);
+  color: #e7d6a2;
+}
+.stylebook-viewer-viewport {
+  border: 1px solid #8f7c5055;
+  background: radial-gradient(ellipse, #233c4244, #101621);
+}

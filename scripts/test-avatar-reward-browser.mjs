@@ -75,6 +75,15 @@ let state = {
   cards: [],
   ledger: [],
 };
+const wardrobe = {
+  equipped: "lunar",
+  background: "classic",
+  owned: ["lunar"],
+  ownedBackgrounds: ["classic"],
+  cropZoom: 300,
+  sharing: [],
+};
+let liked = false;
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
 page.on("pageerror", e => errors.push(e.message));
@@ -91,7 +100,57 @@ await page.route("**/api/trpc/**", async route => {
   const results = methods.map((method, i) => {
     const input = payload?.[i]?.json ?? {};
     let value;
-    if (method.endsWith("adminList"))
+    if (method.endsWith("wardrobe")) value = wardrobe;
+    else if (method.endsWith("purchaseFrame")) {
+      if (!wardrobe.owned.includes(input.frameId)) {
+        state.account.balance -= 300;
+        wardrobe.owned.push(input.frameId);
+      }
+      value = null;
+    } else if (method.endsWith("equipFrame")) {
+      wardrobe.equipped = input.frameId;
+      value = null;
+    } else if (method.endsWith("purchaseBackground")) {
+      if (!wardrobe.ownedBackgrounds.includes(input.backgroundId)) {
+        state.account.balance -= 300;
+        wardrobe.ownedBackgrounds.push(input.backgroundId);
+      }
+      value = null;
+    } else if (method.endsWith("equipBackground")) {
+      wardrobe.background = input.backgroundId;
+      value = null;
+    } else if (method.endsWith("cropZoom")) {
+      wardrobe.cropZoom = input.zoom;
+      value = null;
+    } else if (method.endsWith("share")) {
+      wardrobe.sharing = [
+        {
+          cardId: input.cardId,
+          visible: input.visible,
+          showName: input.showName,
+          showGrade: input.showGrade,
+        },
+      ];
+      value = null;
+    } else if (method.endsWith("gallery"))
+      value = [
+        {
+          id: "44444444-4444-4444-8444-444444444444",
+          url: image,
+          mode: "superstar",
+          frame: "astral",
+          background: "nebula",
+          name: "박00",
+          grade: "중0학년",
+          likes: liked ? 1 : 0,
+          liked,
+          mine: false,
+        },
+      ];
+    else if (method.endsWith("like")) {
+      liked = input.liked;
+      value = null;
+    } else if (method.endsWith("adminList"))
       value = [
         {
           id: 1,
@@ -283,7 +342,9 @@ try {
   );
   await page.screenshot({ path: path.join(qaRoot, "mobile-order.png") });
   await page.getByRole("button", { name: "500P로 주문 보내기" }).click();
-  await page.getByText("주문을 전달했어요.", { exact: false }).waitFor();
+  await page
+    .getByText("창조의 여정이 진행 중이에요.", { exact: false })
+    .waitFor();
   await page.keyboard.press("Escape");
   await page.goto("http://127.0.0.1:5186/?admin");
   await page.getByLabel("학생 선택").selectOption("1");
@@ -354,6 +415,82 @@ try {
     () => document.documentElement.scrollWidth > innerWidth
   );
   assert.equal(overflow, false);
+
+  await page.getByRole("button", { name: "컬렉션", exact: true }).click();
+  await page.getByRole("button", { name: "MASTER 확대 보기" }).click();
+  await page.locator(".art-portal").waitFor();
+  await page.getByRole("slider", { name: "그림 확대 비율" }).fill("200");
+  assert.equal(await page.locator(".art-portal output").textContent(), "200%");
+  await page.getByRole("button", { name: "그림 확대 닫기" }).click();
+  await page.getByRole("slider", { name: "얼굴 확대 비율" }).fill("240");
+  await page
+    .getByRole("button", { name: "확대 비율 저장", exact: true })
+    .click();
+  await page.waitForResponse(r => r.url().includes("wardrobe"));
+  assert.equal(wardrobe.cropZoom, 240);
+  await page.locator(".card-sharing summary").click();
+  await page.getByLabel("사진 공개", { exact: true }).check();
+  await page.getByRole("button", { name: "공개 설정 저장" }).click();
+  await page.getByText("공개 중 · 공개 설정", { exact: true }).waitFor();
+  assert.equal(wardrobe.sharing[0].showName, false);
+  assert.equal(wardrobe.sharing[0].showGrade, false);
+  await page.locator(".reward-dialog").evaluate(el => el.scrollTo(0, 0));
+  await page.waitForTimeout(450);
+  await page.waitForTimeout(4200);
+  await page.screenshot({
+    path: path.join(qaRoot, "fantasy-mobile-collection.png"),
+  });
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await page.waitForTimeout(450);
+  await page.screenshot({
+    path: path.join(qaRoot, "fantasy-desktop-collection.png"),
+  });
+  // Synthetic credits stay inside the mocked browser fixture.
+  state.account.balance = 2000;
+  await page.getByRole("button", { name: "아바타 홈으로" }).click();
+  await page
+    .getByRole("button", { name: "내 포인트 적립·사용 내역 보기" })
+    .click();
+  await page.reload();
+  await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
+  await page.getByRole("button", { name: "상점", exact: true }).click();
+  await page.getByRole("button", { name: "300P로 소장", exact: true }).click();
+  await page.getByRole("button", { name: "구매 확정", exact: true }).click();
+  await page.getByRole("button", { name: "장착하기", exact: true }).click();
+  assert.equal(wardrobe.equipped, "aurora");
+  await page.getByRole("button", { name: "카드 배경", exact: true }).click();
+  await page.getByRole("button", { name: "300P로 소장", exact: true }).click();
+  await page.getByRole("button", { name: "구매 확정", exact: true }).click();
+  await page.getByRole("button", { name: "장착하기", exact: true }).click();
+  await page.waitForTimeout(450);
+  assert.equal(wardrobe.background, "library");
+  await page.locator(".reward-dialog").evaluate(el => el.scrollTo(0, 0));
+  await page.waitForTimeout(4200);
+  await page.screenshot({ path: path.join(qaRoot, "fantasy-shop.png") });
+  await page.getByRole("button", { name: "광장", exact: true }).click();
+  await page.getByRole("button", { name: "박00 카드 좋아요" }).click();
+  await page.waitForTimeout(250);
+  assert.equal(liked, true);
+  await page.screenshot({ path: path.join(qaRoot, "fantasy-gallery.png") });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(450);
+  const navButtons = await page
+    .locator(".reward-links button")
+    .allTextContents();
+  assert.deepEqual(navButtons, ["컬렉션", "포인트", "안내", "상점", "광장"]);
+  assert.equal(
+    await page
+      .locator(".reward-dialog")
+      .evaluate(el => el.scrollWidth > el.clientWidth),
+    false
+  );
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  assert.equal(
+    await page
+      .locator(".reward-dialog")
+      .evaluate(el => getComputedStyle(el).animationName),
+    "none"
+  );
   assert.deepEqual(errors, []);
   console.log(
     "PASS desktop/mobile order, administrator upload, candidate selection, collection, representative crop, no horizontal overflow or JS errors"

@@ -10,7 +10,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { UserRound, Sparkles, ArrowLeft, Plus, X } from "lucide-react";
+import {
+  UserRound,
+  Sparkles,
+  ArrowLeft,
+  Plus,
+  X,
+  Layers,
+  ScrollText,
+  CircleHelp,
+  Store,
+  Heart,
+} from "lucide-react";
 import {
   modeLabels,
   modeDescriptions,
@@ -23,6 +34,10 @@ import {
   randomSuggestion,
 } from "@shared/avatarImagination";
 import "./rewards.css";
+import "./avatar-theme.css";
+import { FantasyCard, ArtworkPortal, type Artwork } from "./FantasyCard";
+import { AvatarShop, AvatarGallery, CardSharing } from "./AvatarUniverse";
+import type { Wardrobe } from "@shared/avatarCollection";
 
 const emptyOrder: RewardOrderInput = {
   top: "",
@@ -46,7 +61,7 @@ export function AvatarRewards({
   const identity = { token, studentId };
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<
-    "home" | "order" | "collection" | "ledger" | "guide"
+    "home" | "order" | "collection" | "ledger" | "guide" | "shop" | "gallery"
   >("home");
   const [order, setOrder] = useState<RewardOrderInput>(emptyOrder);
   const [cropY, setCropY] = useState<number | null>(null);
@@ -58,7 +73,32 @@ export function AvatarRewards({
     refetchInterval: open ? 15_000 : 60_000,
     retry: false,
   });
-  const refresh = () => query.refetch();
+  const wardrobeQuery = trpc.avatarRewards.wardrobe.useQuery(identity, {
+    retry: false,
+  });
+  const wardrobe: Wardrobe = wardrobeQuery.data ?? {
+    equipped: "lunar",
+    background: "classic",
+    owned: ["lunar"],
+    ownedBackgrounds: ["classic"],
+    cropZoom: 300,
+    sharing: [],
+  };
+  const [art, setArt] = useState<Artwork | null>(null);
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+  const [zoom, setZoom] = useState<number | null>(null);
+  const zoomMutation = trpc.avatarRewards.cropZoom.useMutation({
+    onSuccess: () => {
+      setZoom(null);
+      void wardrobeQuery.refetch();
+      toast.success("확대 비율을 저장했어요.");
+    },
+    onError: e => toast.error(e.message),
+  });
+  const refresh = () => {
+    void wardrobeQuery.refetch();
+    return query.refetch();
+  };
   const onError = (e: { message: string }) => toast.error(e.message);
   const submit = trpc.avatarRewards.submit.useMutation({
     onError,
@@ -66,7 +106,9 @@ export function AvatarRewards({
       setPage("home");
       setOrder(emptyOrder);
       void refresh();
-      toast.success("주문을 보냈어요. 선생님이 두 장을 준비해 주실 거예요.");
+      toast.success(
+        "창조의 여정이 시작되었어요. 두 장의 카드가 완성되면 선택할 수 있어요."
+      );
     },
   });
   const select = trpc.avatarRewards.select.useMutation({
@@ -121,7 +163,7 @@ export function AvatarRewards({
               alt="대표 아바타"
               style={{
                 objectPosition: `${horizontal}% ${position}%`,
-                transform: "scale(3)",
+                transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
                 transformOrigin: `${horizontal}% ${position}%`,
               }}
             />
@@ -131,7 +173,7 @@ export function AvatarRewards({
           {active?.status === "ready" && <span className="reward-dot" />}
         </button>
       </DialogTrigger>
-      <DialogContent className="reward-dialog">
+      <DialogContent className="reward-dialog avatar-theme">
         <div className="reward-heading">
           {page !== "home" && (
             <button aria-label="아바타 홈으로" onClick={() => setPage("home")}>
@@ -147,12 +189,17 @@ export function AvatarRewards({
                   collection: "내 컬렉션",
                   ledger: "포인트 내역",
                   guide: "포인트는 이렇게 모아요",
+                  shop: "별빛 상점",
+                  gallery: "별빛 광장",
                 }[page]
               }
             </DialogTitle>
             <DialogDescription>
               꾸준히 쌓은 배움, 나다운 모습으로.
             </DialogDescription>
+          </div>
+          <div className="avatar-brand">
+            haemil<small>THE COLLECTION</small>
           </div>
         </div>
         {query.isLoading && <p role="status">아바타를 불러오는 중이에요…</p>}
@@ -168,11 +215,20 @@ export function AvatarRewards({
               <>
                 <div className="reward-portrait">
                   {image ? (
-                    <img src={image} alt="나의 전신 아바타" />
+                    <FantasyCard
+                      url={image}
+                      title="나의 아바타"
+                      frame={wardrobe.equipped}
+                      background={wardrobe.background}
+                      representative
+                      onOpen={() =>
+                        setArt({ url: image, title: "나의 아바타" })
+                      }
+                    />
                   ) : (
                     <div className="reward-empty">
                       <UserRound size={52} />
-                      <p>선생님이 마스터 아바타를 준비하고 있어요.</p>
+                      <p>아직 깨어나지 않은 첫 번째 카드예요.</p>
                       <small>포인트는 수업한 만큼 먼저 쌓여요.</small>
                     </div>
                   )}
@@ -215,27 +271,38 @@ export function AvatarRewards({
                 </div>
                 {active?.status === "submitted" && (
                   <div className="reward-note">
-                    주문을 전달했어요. 선생님이 아바타 두 장을 준비 중이에요.
+                    창조의 여정이 진행 중이에요. 두 장의 카드가 완성되면 빛을
+                    발할 거예요.
                   </div>
                 )}
                 {active?.status === "ready" && (
                   <section className="reward-arrival">
                     <h3>선택할 아바타가 도착했어요!</h3>
                     <p>마음에 드는 한 장을 골라 주세요.</p>
-                    <div className="reward-cards">
+                    <div className="universe-grid">
                       {active.candidates.map((c, i) => (
-                        <button
-                          className={
-                            selectedCandidate === c.id ? "selected" : ""
-                          }
+                        <FantasyCard
                           key={c.id}
-                          aria-label={`후보 ${i + 1}`}
-                          onClick={() => setSelectedCandidate(c.id)}
-                          aria-pressed={selectedCandidate === c.id}
+                          url={c.url}
+                          title={`후보 ${i + 1}`}
+                          frame={wardrobe.equipped}
+                          background={wardrobe.background}
+                          selected={selectedCandidate === c.id}
+                          onOpen={() =>
+                            setArt({ url: c.url, title: `후보 ${i + 1}` })
+                          }
                         >
-                          <img src={c.url} alt={`후보 ${i + 1}`} />
-                          <span>후보 {i + 1}</span>
-                        </button>
+                          <button
+                            type="button"
+                            aria-label={`후보 ${i + 1}`}
+                            aria-pressed={selectedCandidate === c.id}
+                            onClick={() => setSelectedCandidate(c.id)}
+                          >
+                            {selectedCandidate === c.id
+                              ? "선택됨"
+                              : "이 카드 선택"}
+                          </button>
+                        </FantasyCard>
                       ))}
                     </div>
                     <Button
@@ -267,13 +334,6 @@ export function AvatarRewards({
                     </Button>
                   )}
                 <Stylebook />
-                <div className="reward-links">
-                  <button onClick={() => setPage("collection")}>
-                    내 컬렉션
-                  </button>
-                  <button onClick={() => setPage("ledger")}>포인트 내역</button>
-                  <button onClick={() => setPage("guide")}>이용 안내</button>
-                </div>
               </>
             )}
             {page === "guide" && (
@@ -286,10 +346,16 @@ export function AvatarRewards({
                 <div className="reward-note">
                   <b>하원 기록까지 꼭 완료해 주세요.</b>
                   <p>
-                    하원 기록이 없으면 그날은 0P예요. 선생님이 출결을 수정하면
+                    하원 기록이 없으면 그날은 0P예요. 출결 기록이 수정되면
                     포인트도 다시 계산돼요.
                   </p>
                 </div>
+                <h3>좋아요 보상 · 10P</h3>
+                <p>
+                  공개한 카드에 다른 학생이 처음 좋아요를 보내면 10P를 받아요.
+                  같은 학생이 같은 카드의 좋아요를 취소해도 이미 받은 보상은
+                  유지되며, 다시 눌러도 추가 지급되지 않아요.
+                </p>
                 <h3>스페셜 아바타 제작 포인트</h3>
                 <ol>
                   {[
@@ -311,9 +377,9 @@ export function AvatarRewards({
                   매일 최대 포인트를 모으면 15일 수업으로 만들 수 있어요.
                 </p>
                 <p>
-                  주문할 때 포인트를 사용하며, 취소가 필요하면 선생님께 말씀해
+                  주문할 때 포인트를 사용하며, 취소가 필요하면 학원에 문의해
                   주세요. 대표 이미지 변경은 무료예요. 누적 획득 포인트는
-                  사용해도 줄지 않지만, 출결 정정은 반영돼요. 선생님이 지급한
+                  사용해도 줄지 않지만, 출결 정정은 반영돼요. 추가로 획득한
                   보너스는 누적 획득에도 포함되며, 관리자 차감은 사용 가능
                   포인트만 줄어요.
                 </p>
@@ -347,66 +413,106 @@ export function AvatarRewards({
             {page === "collection" && (
               <>
                 <p>마음에 드는 카드를 대표로 설정해 보세요.</p>
-                <div className="reward-cards">
+                <div className="universe-grid">
                   {account.masterUrl && (
-                    <div>
-                      <img src={account.masterUrl} alt="마스터 아바타" />
-                      <Button
-                        variant="outline"
+                    <FantasyCard
+                      url={account.masterUrl}
+                      title="MASTER"
+                      frame={wardrobe.equipped}
+                      background={wardrobe.background}
+                      representative={!account.representativeId}
+                      selected={selectedCard === "master"}
+                      onOpen={() => {
+                        setSelectedCard("master");
+                        setArt({
+                          url: account.masterUrl!,
+                          title: "마스터 아바타",
+                        });
+                      }}
+                    >
+                      <button
+                        type="button"
                         disabled={busy}
                         onClick={() =>
                           representative.mutate({
                             ...identity,
                             cardId: null,
                             cropY: 0,
+                            cropX: 50,
                           })
                         }
                       >
                         {!account.representativeId
                           ? "대표 · 마스터"
                           : "마스터로 설정"}
-                      </Button>
-                    </div>
+                      </button>
+                    </FantasyCard>
                   )}
                   {data.cards.map(c => (
-                    <div key={c.id}>
-                      <img src={c.url} alt="컬렉션 아바타" />
-                      <small>
-                        {modeLabels[c.mode as keyof typeof modeLabels]} ·{" "}
-                        {c.createdAt.slice(0, 10)}
-                      </small>
-                      <Button
-                        variant="outline"
+                    <FantasyCard
+                      key={c.id}
+                      url={c.url}
+                      title={`${modeLabels[c.mode as keyof typeof modeLabels]} · ${c.createdAt.slice(0, 10)}`}
+                      frame={wardrobe.equipped}
+                      background={wardrobe.background}
+                      representative={account.representativeId === c.id}
+                      selected={selectedCard === c.id}
+                      onOpen={() => {
+                        setSelectedCard(c.id);
+                        setArt({ url: c.url, title: "내 컬렉션" });
+                      }}
+                    >
+                      <button
+                        type="button"
                         disabled={busy}
                         onClick={() =>
                           representative.mutate({
                             ...identity,
                             cardId: c.id,
                             cropY: 0,
+                            cropX: 50,
                           })
                         }
                       >
                         {account.representativeId === c.id
                           ? "현재 대표"
                           : "대표로 설정"}
-                      </Button>
-                    </div>
+                      </button>
+                      {wardrobeQuery.data && (
+                        <CardSharing
+                          key={JSON.stringify(
+                            wardrobe.sharing.find(x => x.cardId === c.id)
+                          )}
+                          identity={identity}
+                          cardId={c.id}
+                          wardrobe={wardrobe}
+                          onRefresh={() => void refresh()}
+                        />
+                      )}
+                    </FantasyCard>
                   ))}
                 </div>
                 {image && (
                   <div className="reward-crop">
                     <h3>원형 사진 위치 조정</h3>
-                    <div className="reward-profile preview">
+                    <button
+                      type="button"
+                      className="reward-profile preview"
+                      aria-label="원형 사진 크게 보기"
+                      onClick={() =>
+                        setArt({ url: image, title: "원형 사진 원본" })
+                      }
+                    >
                       <img
                         src={image}
                         alt="원형 사진 미리보기"
                         style={{
                           objectPosition: `${horizontal}% ${position}%`,
-                          transform: "scale(3)",
+                          transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
                           transformOrigin: `${horizontal}% ${position}%`,
                         }}
                       />
-                    </div>
+                    </button>
                     <label>
                       얼굴 위치
                       <input
@@ -429,6 +535,30 @@ export function AvatarRewards({
                         onChange={e => setCropX(Number(e.target.value))}
                       />
                     </label>
+                    <label>
+                      얼굴 확대·축소
+                      <input
+                        aria-label="얼굴 확대 비율"
+                        type="range"
+                        min="100"
+                        max="500"
+                        step="10"
+                        value={zoom ?? wardrobe.cropZoom}
+                        onChange={e => setZoom(Number(e.target.value))}
+                      />
+                      <output>{zoom ?? wardrobe.cropZoom}%</output>
+                    </label>
+                    <Button
+                      disabled={zoomMutation.isPending}
+                      onClick={() =>
+                        zoomMutation.mutate({
+                          ...identity,
+                          zoom: zoom ?? wardrobe.cropZoom,
+                        })
+                      }
+                    >
+                      확대 비율 저장
+                    </Button>
                     <Button
                       disabled={busy}
                       onClick={() =>
@@ -625,6 +755,53 @@ export function AvatarRewards({
                 </Button>
               </form>
             )}
+            {(page === "shop" || page === "collection") &&
+              wardrobeQuery.error && (
+                <button onClick={() => void wardrobeQuery.refetch()}>
+                  장식·공개 설정 다시 불러오기
+                </button>
+              )}
+            {page === "shop" && wardrobeQuery.isLoading && (
+              <p role="status">상점을 불러오는 중…</p>
+            )}
+            {page === "shop" && wardrobeQuery.data && (
+              <AvatarShop
+                identity={identity}
+                wardrobe={wardrobe}
+                balance={account.balance}
+                image={
+                  image ??
+                  "/avatar-rewards/avatars/official/official_female_avatar.png"
+                }
+                onRefresh={() => void refresh()}
+                onOpen={setArt}
+              />
+            )}
+            {page === "gallery" && (
+              <AvatarGallery identity={identity} onOpen={setArt} />
+            )}
+            <nav className="reward-links" aria-label="아바타 메뉴">
+              {(
+                [
+                  ["collection", "컬렉션", Layers],
+                  ["ledger", "포인트", ScrollText],
+                  ["guide", "안내", CircleHelp],
+                  ["shop", "상점", Store],
+                  ["gallery", "광장", Heart],
+                ] as const
+              ).map(([id, label, Icon]) => (
+                <button
+                  type="button"
+                  key={id}
+                  aria-current={page === id ? "page" : undefined}
+                  onClick={() => setPage(id)}
+                >
+                  <Icon size={18} />
+                  {label}
+                </button>
+              ))}
+            </nav>
+            <ArtworkPortal art={art} onClose={() => setArt(null)} />
           </>
         )}
       </DialogContent>

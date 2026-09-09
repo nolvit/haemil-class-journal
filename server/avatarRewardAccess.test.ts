@@ -156,6 +156,33 @@ describe("reward integration boundaries", () => {
     await expect(
       caller.submit({ token: "valid-token", studentId: 2, order: input })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    for (const request of [
+      caller.wardrobe({ token: "valid-token", studentId: 2 }),
+      caller.gallery({ token: "valid-token", studentId: 2, page: 0 }),
+      caller.purchaseFrame({
+        token: "valid-token",
+        studentId: 2,
+        frameId: "aurora",
+      }),
+      caller.purchaseBackground({
+        token: "valid-token",
+        studentId: 2,
+        backgroundId: "library",
+      }),
+      caller.share({
+        token: "valid-token",
+        studentId: 2,
+        cardId: "11111111-1111-4111-8111-111111111111",
+        visible: true,
+      }),
+      caller.like({
+        token: "valid-token",
+        studentId: 2,
+        cardId: "11111111-1111-4111-8111-111111111111",
+        liked: true,
+      }),
+    ])
+      await expect(request).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(caller.adminList()).rejects.toMatchObject({
       code: "FORBIDDEN",
     });

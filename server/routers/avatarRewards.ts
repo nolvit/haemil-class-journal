@@ -1,3 +1,8 @@
+import {
+  frameId,
+  backgroundId,
+  sharingInput,
+} from "../../shared/avatarCollection";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
@@ -67,6 +72,42 @@ async function saveImage(image: z.infer<typeof imageInput>) {
   ).url;
 }
 export const avatarRewardsRouter = router({
+  purchaseBackground: studentProcedure
+    .input(z.object({ backgroundId }))
+    .mutation(({ input }) =>
+      store.purchaseBackground(input.studentId, input.backgroundId)
+    ),
+  equipBackground: studentProcedure
+    .input(z.object({ backgroundId }))
+    .mutation(({ input }) =>
+      store.equipBackground(input.studentId, input.backgroundId)
+    ),
+  wardrobe: studentProcedure.query(({ input }) =>
+    store.wardrobe(input.studentId)
+  ),
+  purchaseFrame: studentProcedure
+    .input(z.object({ frameId }))
+    .mutation(({ input }) =>
+      store.purchaseFrame(input.studentId, input.frameId)
+    ),
+  equipFrame: studentProcedure
+    .input(z.object({ frameId }))
+    .mutation(({ input }) => store.equipFrame(input.studentId, input.frameId)),
+  cropZoom: studentProcedure
+    .input(z.object({ zoom: z.number().int().min(100).max(500) }))
+    .mutation(({ input }) => store.setCropZoom(input.studentId, input.zoom)),
+  share: studentProcedure
+    .input(sharingInput)
+    .mutation(({ input }) => store.shareCard(input.studentId, input)),
+  gallery: studentProcedure
+    .input(z.object({ page: z.number().int().min(0).max(1000).default(0) }))
+    .query(({ input }) => store.gallery(input.studentId, input.page)),
+  like: studentProcedure
+    .input(z.object({ cardId: z.string().uuid(), liked: z.boolean() }))
+    .mutation(({ input }) =>
+      store.likeCard(input.studentId, input.cardId, input.liked)
+    ),
+
   snapshot: studentProcedure.query(({ input }) =>
     store.rewardSnapshot(input.studentId)
   ),

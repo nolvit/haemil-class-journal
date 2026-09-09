@@ -5,6 +5,8 @@ import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { modeLabels } from "@shared/avatarRewards";
 import "./rewards.css";
+import "./avatar-theme.css";
+import { ArtworkPortal, type Artwork } from "./FantasyCard";
 function PointAdjustment({
   studentId,
   balance,
@@ -127,6 +129,7 @@ async function readImage(file: File) {
   return { data, mime: file.type as "image/png" | "image/jpeg" | "image/webp" };
 }
 export default function AvatarAdmin() {
+  const [art, setArt] = useState<Artwork | null>(null);
   const [studentId, setStudentId] = useState(0),
     [master, setMaster] = useState<File | null>(null),
     [images, setImages] = useState<File[]>([]),
@@ -208,11 +211,22 @@ export default function AvatarAdmin() {
               이미지로 사용합니다.
             </p>
             {snapshot.data.account.masterUrl && (
-              <img
-                className="master"
-                src={snapshot.data.account.masterUrl}
-                alt="현재 마스터 아바타"
-              />
+              <button
+                type="button"
+                aria-label="현재 마스터 아바타 확대 보기"
+                onClick={() =>
+                  setArt({
+                    url: snapshot.data!.account.masterUrl!,
+                    title: "현재 마스터 아바타",
+                  })
+                }
+              >
+                <img
+                  className="master"
+                  src={snapshot.data.account.masterUrl}
+                  alt="현재 마스터 아바타"
+                />
+              </button>
             )}
             <input
               key={`master-${studentId}`}
@@ -372,7 +386,15 @@ export default function AvatarAdmin() {
                 <div className="reward-cards">
                   {o.candidates.map((c, i) => (
                     <div key={c.id}>
-                      <img src={c.url} alt={`후보 ${i + 1}`} />
+                      <button
+                        type="button"
+                        aria-label={`후보 ${i + 1} 확대 보기`}
+                        onClick={() =>
+                          setArt({ url: c.url, title: `후보 ${i + 1}` })
+                        }
+                      >
+                        <img src={c.url} alt={`후보 ${i + 1}`} />
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -398,6 +420,7 @@ export default function AvatarAdmin() {
           </section>
         </>
       )}
+      <ArtworkPortal art={art} onClose={() => setArt(null)} />
     </main>
   );
 }
