@@ -16,7 +16,7 @@ import {
   modeDescriptions,
   type RewardOrderInput,
 } from "@shared/avatarRewards";
-import manifest from "./assetManifest.json";
+import { Stylebook } from "./Stylebook";
 import {
   imagination,
   imaginationFields,
@@ -266,6 +266,7 @@ export function AvatarRewards({
                       스페셜 아바타 만들기
                     </Button>
                   )}
+                <Stylebook />
                 <div className="reward-links">
                   <button onClick={() => setPage("collection")}>
                     내 컬렉션
@@ -612,26 +613,7 @@ export function AvatarRewards({
                     </label>
                   ))}
                 </fieldset>
-                <details>
-                  <summary>의상 참고 이미지 보기</summary>
-                  <p>
-                    이미지는 설명을 돕는 예시예요. 원하는 옷을 자유롭게 적어
-                    주세요.
-                  </p>
-                  <div className="reward-examples">
-                    {manifest.assets
-                      .filter(a => a.path.startsWith("avatars/catalog/"))
-                      .slice(0, 12)
-                      .map(a => (
-                        <img
-                          loading="lazy"
-                          key={a.id}
-                          src={`/avatar-rewards/${a.path}`}
-                          alt={a.id.replaceAll("_", " ")}
-                        />
-                      ))}
-                  </div>
-                </details>
+                <Stylebook />
                 <Button
                   type="submit"
                   className="reward-primary"

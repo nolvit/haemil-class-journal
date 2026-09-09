@@ -1,8 +1,8 @@
 {
   "library": "HAEMIL_AVATAR_REWARD_LIBRARY",
   "version": "0.1",
-  "asset_count": 41,
-  "source_asset_count": 41,
+  "asset_count": 44,
+  "source_asset_count": 44,
   "assets": [
     {
       "id": "style_c_reference",
@@ -700,6 +700,57 @@
       "has_alpha": false,
       "sha256_16": "ffeedaa53154171f",
       "notes": ""
+    },
+    {
+      "id": "style_a_main",
+      "category": "reference",
+      "subcategory": "style",
+      "level": null,
+      "variant": null,
+      "purpose": "Haemil stylebook main example",
+      "status": "reference_only",
+      "privacy": "public_asset",
+      "path": "references/style/style_a_main.png",
+      "original_filename": "style_a_main.png",
+      "width": 1122,
+      "height": 1402,
+      "has_alpha": false,
+      "sha256_16": "c54486cf9388e7cf",
+      "notes": "User-approved main example for the stylebook."
+    },
+    {
+      "id": "style_c_main",
+      "category": "reference",
+      "subcategory": "style",
+      "level": null,
+      "variant": null,
+      "purpose": "Haemil stylebook main example",
+      "status": "reference_only",
+      "privacy": "public_asset",
+      "path": "references/style/style_c_main.png",
+      "original_filename": "style_c_main.png",
+      "width": 1122,
+      "height": 1402,
+      "has_alpha": false,
+      "sha256_16": "2122ce2bab98462d",
+      "notes": "User-approved main example for the stylebook."
+    },
+    {
+      "id": "style_b_main",
+      "category": "reference",
+      "subcategory": "style",
+      "level": null,
+      "variant": null,
+      "purpose": "Haemil stylebook main example",
+      "status": "reference_only",
+      "privacy": "public_asset",
+      "path": "references/style/style_b_main.png",
+      "original_filename": "style_b_main.png",
+      "width": 1122,
+      "height": 1402,
+      "has_alpha": false,
+      "sha256_16": "ee8d9eedc4322de5",
+      "notes": "User-approved main example for the stylebook."
     }
   ]
 }

@@ -178,6 +178,79 @@ try {
   await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
   await page.getByRole("button", { name: "스페셜 아바타 만들기" }).waitFor();
   await page.screenshot({ path: path.join(qaRoot, "desktop-home.png") });
+  for (const [width, height, label] of [
+    [1200, 900, "desktop"],
+    [390, 844, "mobile"],
+  ]) {
+    await page.setViewportSize({ width, height });
+    await page.locator(".stylebook-launch").click();
+    await page.locator(".stylebook-dialog").waitFor();
+    await page.waitForTimeout(350);
+    await page
+      .locator(".stylebook-look img")
+      .evaluateAll(imgs => Promise.all(imgs.map(im => im.decode())));
+    await page.screenshot({
+      path: path.join(qaRoot, label + "-stylebook.png"),
+    });
+    const box = await page.locator(".stylebook-dialog").boundingBox();
+    assert.ok(
+      box.x >= 0 &&
+        box.y >= 0 &&
+        box.x + box.width <= width + 1 &&
+        box.y + box.height <= height + 1
+    );
+    await page
+      .getByRole("button", { name: "내추럴 데이 크게 보기", exact: true })
+      .click();
+    await page.locator(".stylebook-viewer").waitFor();
+    await page
+      .getByRole("button", { name: "이미지 확대", exact: true })
+      .click();
+    await page.getByText("150%", { exact: true }).waitFor();
+    const zoomBounds = await page
+      .locator(".stylebook-viewer-viewport")
+      .evaluate(el => ({ scroll: el.scrollHeight, height: el.clientHeight }));
+    assert.ok(zoomBounds.scroll > zoomBounds.height);
+    await page
+      .getByRole("button", { name: "다음 이미지", exact: true })
+      .click();
+    await page
+      .locator(".stylebook-viewer")
+      .getByRole("heading", { name: "플레이 유어 스타일" })
+      .waitFor();
+    await page.getByText("100%", { exact: true }).waitFor();
+    await page.getByRole("button", { name: "확대 보기 닫기" }).click();
+    await page
+      .getByRole("button", { name: "해나 크게 보기", exact: true })
+      .click();
+    await page
+      .locator(".stylebook-viewer")
+      .getByRole("heading", { name: "해나", exact: true })
+      .waitFor();
+    await page.keyboard.press("ArrowRight");
+    await page
+      .locator(".stylebook-viewer")
+      .getByRole("heading", { name: "미르", exact: true })
+      .waitFor();
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: path.join(qaRoot, label + "-viewer.png") });
+    await page.keyboard.press("Escape");
+    await page.locator(".stylebook-viewer").waitFor({ state: "hidden" });
+    await page.locator(".stylebook-official").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(350);
+    await page.screenshot({ path: path.join(qaRoot, label + "-official.png") });
+    await page.getByRole("button", { name: "신발", exact: true }).click();
+    assert.ok((await page.locator(".stylebook-catalog button").count()) > 0);
+    assert.equal(
+      await page
+        .locator(".stylebook-dialog")
+        .evaluate(el => el.scrollWidth > el.clientWidth),
+      false
+    );
+    await page.keyboard.press("Escape");
+    await page.locator(".stylebook-dialog").waitFor({ state: "hidden" });
+  }
+  await page.setViewportSize({ width: 1200, height: 900 });
   await page.getByRole("button", { name: "스페셜 아바타 만들기" }).click();
   for (const [label, value] of [
     ["상의", "후드티"],
