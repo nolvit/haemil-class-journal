@@ -1,4 +1,5 @@
 import { Badge } from "@/components/ui/badge";
+import { AvatarRewards } from "@/avatarRewards/AvatarRewards";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -200,11 +201,19 @@ export default function StudentPortal() {
   const [journalDate, setJournalDate] = useState(initialPortalDate);
   const [includeWeekend, setIncludeWeekend] = useState(false);
   const [selectedStudentId, setSelectedStudentId] = useState<number>();
-  const [expandedImage, setExpandedImage] = useState<{ url: string; alt: string } | null>(null);
+  const [expandedImage, setExpandedImage] = useState<{
+    url: string;
+    alt: string;
+  } | null>(null);
   const viewRecordedRef = useRef(false);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const input = useMemo(
-    () => ({ token, journalDate, includeWeekend, studentId: selectedStudentId }),
+    () => ({
+      token,
+      journalDate,
+      includeWeekend,
+      studentId: selectedStudentId,
+    }),
     [token, journalDate, includeWeekend, selectedStudentId]
   );
   const { data, isLoading, error } = trpc.academy.publicStudent.useQuery(
@@ -218,11 +227,14 @@ export default function StudentPortal() {
     const storageKey = `haemil.portalView:${token}:${monthKey}`;
     if (window.sessionStorage.getItem(storageKey) === "1") return;
     viewRecordedRef.current = true;
-    recordView.mutate({ token }, {
-      onSuccess: result => {
-        if (result.recorded) window.sessionStorage.setItem(storageKey, "1");
-      },
-    });
+    recordView.mutate(
+      { token },
+      {
+        onSuccess: result => {
+          if (result.recorded) window.sessionStorage.setItem(storageKey, "1");
+        },
+      }
+    );
   }, [token]);
   if (isLoading)
     return (
@@ -375,20 +387,29 @@ export default function StudentPortal() {
               </p>
             </div>
           </div>
-          <div className="text-right">
-            <span className="block text-xs font-medium text-[#71817D]">
-              보호자 열람
-            </span>
-            <span className="mt-1 block text-[10px] text-[#9A958A]">
-              {period}
-            </span>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <span className="block text-xs font-medium text-[#71817D]">
+                보호자 열람
+              </span>
+              <span className="mt-1 block text-[10px] text-[#9A958A]">
+                {period}
+              </span>
+            </div>
+            <AvatarRewards
+              key={data.student.id}
+              token={token}
+              studentId={data.student.id}
+            />
           </div>
         </header>
         {data.familyMembers.length > 1 && (
           <section className="portal-family-switcher" aria-label="자녀 선택">
             <div>
               <b>자녀 선택</b>
-              <small>한 앱에서 형제·자매의 수업일지와 알림을 함께 확인합니다.</small>
+              <small>
+                한 앱에서 형제·자매의 수업일지와 알림을 함께 확인합니다.
+              </small>
             </div>
             <div className="portal-family-buttons">
               {data.familyMembers.map(member => (
@@ -396,8 +417,14 @@ export default function StudentPortal() {
                   key={member.id}
                   type="button"
                   size="sm"
-                  variant={data.student.id === member.id ? "default" : "outline"}
-                  className={data.student.id === member.id ? "journal-primary-button" : "bg-white"}
+                  variant={
+                    data.student.id === member.id ? "default" : "outline"
+                  }
+                  className={
+                    data.student.id === member.id
+                      ? "journal-primary-button"
+                      : "bg-white"
+                  }
                   onClick={() => setSelectedStudentId(member.id)}
                   aria-pressed={data.student.id === member.id}
                 >
@@ -617,7 +644,7 @@ export default function StudentPortal() {
                       date,
                       todayInKorea(),
                       attendance?.status,
-                      attendance?.arrivalTime,
+                      attendance?.arrivalTime
                     );
                     const status = attendance?.status ?? "";
                     const statusMessage = [
@@ -635,7 +662,9 @@ export default function StudentPortal() {
                         key={`${group.id}-${date}`}
                       >
                         {journal && scheduled && (
-                          <span className="portal-scheduled-badge">수업 예정</span>
+                          <span className="portal-scheduled-badge">
+                            수업 예정
+                          </span>
                         )}
                         <p className="whitespace-pre-line">
                           {journal?.content || statusMessage}
@@ -744,7 +773,7 @@ export default function StudentPortal() {
                       date,
                       todayInKorea(),
                       attendance?.status,
-                      attendance?.arrivalTime,
+                      attendance?.arrivalTime
                     );
                     const status = attendance?.status ?? "";
                     const statusMessage = [
@@ -795,10 +824,23 @@ export default function StudentPortal() {
             <b>소중한 자녀를 믿고 맡겨 주셔서 감사드립니다.</b>
           </div>
         </footer>
-        <Dialog open={Boolean(expandedImage)} onOpenChange={open => { if (!open) setExpandedImage(null); }}>
+        <Dialog
+          open={Boolean(expandedImage)}
+          onOpenChange={open => {
+            if (!open) setExpandedImage(null);
+          }}
+        >
           <DialogContent className="max-h-[94vh] max-w-[94vw] border-0 bg-black/95 p-2 sm:max-w-[900px]">
-            <DialogTitle className="sr-only">휴강 안내 이미지 크게 보기</DialogTitle>
-            {expandedImage && <img src={expandedImage.url} alt={expandedImage.alt} className="max-h-[88vh] w-full object-contain" />}
+            <DialogTitle className="sr-only">
+              휴강 안내 이미지 크게 보기
+            </DialogTitle>
+            {expandedImage && (
+              <img
+                src={expandedImage.url}
+                alt={expandedImage.alt}
+                className="max-h-[88vh] w-full object-contain"
+              />
+            )}
           </DialogContent>
         </Dialog>
       </main>

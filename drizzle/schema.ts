@@ -230,11 +230,12 @@ export const parentPortalMonthlyViews = mysqlTable(
     updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   },
   table => ({
-    studentMonthUnique: uniqueIndex("parent_portal_monthly_views_student_month_unique").on(
-      table.studentId,
+    studentMonthUnique: uniqueIndex(
+      "parent_portal_monthly_views_student_month_unique"
+    ).on(table.studentId, table.monthKey),
+    monthIndex: index("parent_portal_monthly_views_month_index").on(
       table.monthKey
     ),
-    monthIndex: index("parent_portal_monthly_views_month_index").on(table.monthKey),
   })
 );
 
@@ -430,3 +431,71 @@ export type InsertUser = typeof users.$inferInsert;
 export type ClassGroup = typeof classGroups.$inferSelect;
 export type Student = typeof students.$inferSelect;
 export type TuitionStandard = typeof tuitionStandards.$inferSelect;
+
+// Journal attendance rewards (migration 0022; isolated from the former prototype).
+export const rewardAccounts = mysqlTable("reward_accounts", {
+  studentId: int("studentId").primaryKey(),
+  balance: int("balance").default(0).notNull(),
+  lifetime: int("lifetime").default(0).notNull(),
+  completedOrders: int("completedOrders").default(0).notNull(),
+  masterUrl: text("masterUrl"),
+  representativeId: varchar("representativeId", { length: 36 }),
+  cropY: int("cropY").default(0).notNull(),
+});
+export const rewardDays = mysqlTable(
+  "reward_days",
+  {
+    studentId: int("studentId").notNull(),
+    day: varchar("day", { length: 10 }).notNull(),
+    points: int("points").notNull(),
+  },
+  t => ({ studentDay: uniqueIndex("reward_day_unique").on(t.studentId, t.day) })
+);
+export const rewardLedger = mysqlTable(
+  "reward_ledger",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    studentId: int("studentId").notNull(),
+    delta: int("delta").notNull(),
+    reason: varchar("reason", { length: 200 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({ studentIndex: index("reward_ledger_student").on(t.studentId, t.id) })
+);
+export const avatarOrders = mysqlTable(
+  "avatar_orders",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    studentId: int("studentId").notNull(),
+    status: varchar("status", { length: 20 }).notNull(),
+    price: int("price").notNull(),
+    input: text("input").notNull(),
+    prompt: text("prompt").notNull(),
+    masterUrl: text("masterUrl").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    studentIndex: index("avatar_order_student").on(t.studentId, t.createdAt),
+  })
+);
+export const avatarCandidates = mysqlTable(
+  "avatar_candidates",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    orderId: varchar("orderId", { length: 36 }).notNull(),
+    url: text("url").notNull(),
+  },
+  t => ({ orderIndex: index("avatar_candidate_order").on(t.orderId) })
+);
+export const avatarCollection = mysqlTable(
+  "avatar_collection",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    studentId: int("studentId").notNull(),
+    orderId: varchar("orderId", { length: 36 }).notNull().unique(),
+    url: text("url").notNull(),
+    mode: varchar("mode", { length: 20 }).notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({ studentIndex: index("avatar_collection_student").on(t.studentId) })
+);

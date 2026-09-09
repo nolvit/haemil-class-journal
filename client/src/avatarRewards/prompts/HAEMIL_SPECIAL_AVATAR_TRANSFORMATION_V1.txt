@@ -1,0 +1,153 @@
+해밀월드 스페셜 아바타 — 변신형 (TRANSFORMATION) V1
+
+Use Image A as a loose character-origin reference, not as a strict likeness target.
+Use Image B as the selected top reference.
+Use Image C as the selected bottom reference.
+Use Image D as the selected shoes reference.
+
+The ORDER DATA appended after this fixed prompt contains the selected item names, descriptions, avatar type, and mood tags. Respect that order data without weakening the fixed rules below.
+
+MODE GOAL — TRANSFORMATION
+
+Create 2 premium Haemil World Special Avatar images that feel like a dramatic transformation of the student’s Master Avatar.
+
+This mode is for a student who wants:
+“나를 바탕으로 하되 분위기를 확 바꿔서 거의 다른 캐릭터처럼 변신한 모습.”
+
+Immediate facial recognizability is NOT the top priority in this mode.
+
+The result may look substantially different from Image A, but should retain a few subtle identity echoes so it still feels inspired by the same student rather than completely random.
+
+LOOSE IDENTITY ANCHORS
+
+Preserve only selected broad identity cues from Image A when they work naturally:
+- age impression
+- general face-shape family
+- characteristic eye mood
+- hairstyle silhouette or hair-flow identity
+- glasses if they are a strongly desired identity feature
+- overall personal energy
+- general body proportion impression
+
+You may substantially reinterpret:
+- facial refinement
+- eye shape
+- jawline
+- nose proportions
+- lip shape
+- hairstyle styling details
+- overall fashion presence
+- character aura
+
+Do not force strict facial likeness.
+
+TRANSFORMATION STRENGTH
+
+Prioritize:
+- mood
+- character concept
+- visual impact
+- aspirational styling
+- selected fashion combination
+
+over literal resemblance.
+
+The character may be difficult to recognize at first glance.
+That is acceptable in this mode.
+
+However:
+- keep the same age category
+- do not create an adult version of a younger student
+- do not sexualize the character
+- do not create a completely unrelated fantasy species unless explicitly requested
+
+OUTFIT APPLICATION
+
+Apply the selected outfit references accurately:
+
+Image B = Top
+Image C = Bottom
+Image D = Shoes
+
+Preserve:
+- color
+- silhouette
+- material impression
+- important design features
+- selected styling concept
+
+Even though the face may transform strongly, the purchased outfit must remain clearly represented.
+
+Do not replace the selected clothes with unrelated fashion.
+Do not add real-brand logos.
+Do not add unrequested outerwear unless it is necessary for a mood explicitly requested in ORDER DATA.
+
+MOOD TAGS
+
+Mood tags from ORDER DATA are a major creative driver in this mode.
+
+Use them strongly to shape:
+- facial expression
+- pose
+- hair styling nuance
+- attitude
+- lighting
+- composition
+- character aura
+
+The final image should make the selected mood immediately understandable.
+
+HAEMIL WORLD STYLE
+
+Use the established Haemil World visual direction:
+- premium polished semi-webtoon 2D illustration
+- modern Korean youth-fashion sensibility
+- high-end character concept art
+- natural anatomy
+- refined lighting
+- stylish webtoon-protagonist presentation
+- age-appropriate character design
+- strong social-sharing appeal
+
+Do not create photorealism.
+Do not create a painted-over-photo look.
+Do not create chibi proportions.
+Avoid cheap game-avatar rendering.
+
+POSE AND COMPOSITION
+
+Create a full-body or near full-body character image.
+
+The 2 results must:
+- represent the same transformed character concept
+- use the same selected outfit combination
+- share the same mood direction
+
+The 2 results should differ mainly in:
+- pose
+- gesture
+- facial expression
+- slight camera/composition nuance
+
+Do not make a collage.
+Each result must be a separate final image.
+
+BACKGROUND
+
+Use a clean or lightly mood-enhancing background.
+Do not let the background overpower the character.
+No typography.
+No UI elements.
+
+FINAL PRIORITY ORDER
+
+1. Strong transformation and selected mood
+2. Accurate selected outfit
+3. Premium Haemil World visual quality
+4. Correct age impression
+5. Subtle echoes of the Master Avatar
+6. Natural anatomy
+
+FINAL TARGET
+
+Create 2 separate premium Haemil World Special Avatar images that feel like a dramatic, aspirational transformation inspired by Image A, with clearly reduced likeness but strong character appeal, while accurately wearing the selected top, bottom, and shoes from Images B, C, and D.

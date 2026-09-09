@@ -1,0 +1,233 @@
+import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
+import tailwind from "@tailwindcss/vite";
+import fs from "node:fs/promises";
+import path from "node:path";
+import assert from "node:assert/strict";
+import { pathToFileURL } from "node:url";
+import superjson from "superjson";
+const repo = process.cwd();
+const qaRoot = path.join(repo, "work/reward-browser");
+await fs.mkdir(qaRoot, { recursive: true });
+await fs.writeFile(
+  path.join(qaRoot, "index.html"),
+  '<html lang="ko"><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script type="module" src="/main.tsx"></script></html>'
+);
+await fs.writeFile(
+  path.join(qaRoot, "main.tsx"),
+  `import React from 'react';import{createRoot}from'react-dom/client';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{httpBatchLink}from'@trpc/client';import superjson from'superjson';import{trpc}from'../../client/src/lib/trpc';import{AvatarRewards}from'../../client/src/avatarRewards/AvatarRewards';import Admin from'../../client/src/avatarRewards/AvatarAdmin';import{Toaster}from'../../client/src/components/ui/sonner';import'./production.css';const q=new QueryClient({defaultOptions:{queries:{retry:false}}}),c=trpc.createClient({links:[httpBatchLink({url:'/api/trpc',transformer:superjson})]});createRoot(document.getElementById('root')!).render(<trpc.Provider client={c} queryClient={q}><QueryClientProvider client={q}><Toaster/>{location.search.includes('admin')?<Admin/>:<main style={{maxWidth:700,margin:'auto',padding:24}}><header style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}><h1>해밀 수업일지</h1><AvatarRewards token="qa-token-1234" studentId={1}/></header><p>오늘의 배움과 성장을 기록해요.</p></main>}</QueryClientProvider></trpc.Provider>);`
+);
+const productionCss = (
+  await fs.readdir(path.join(repo, "dist/public/assets"))
+).find(n => n.startsWith("index-") && n.endsWith(".css"));
+await fs.copyFile(
+  path.join(repo, "dist/public/assets", productionCss),
+  path.join(qaRoot, "production.css")
+);
+const server = await createServer({
+  configFile: false,
+  root: qaRoot,
+  publicDir: path.join(repo, "client/public"),
+  plugins: [react(), tailwind()],
+  resolve: {
+    alias: {
+      "@": path.join(repo, "client/src"),
+      "@shared": path.join(repo, "shared"),
+    },
+  },
+  server: {
+    host: "127.0.0.1",
+    port: 5186,
+    strictPort: true,
+    fs: { allow: [repo] },
+  },
+});
+await server.listen();
+const { chromium } = await import(
+  pathToFileURL(process.env.PLAYWRIGHT_MODULE).href
+);
+const browser = await chromium.launch({ headless: true, channel: "chrome" });
+const image = "/avatar-rewards/avatars/official/official_male_avatar.png";
+const orderInput = {
+  top: "후드티",
+  bottom: "청바지",
+  shoes: "운동화",
+  hair: "갈색 쉼표머리",
+  background: "도시 옥상",
+  accessories: [],
+  mode: "original",
+};
+const orderId = "11111111-1111-4111-8111-111111111111",
+  candidateId = "22222222-2222-4222-8222-222222222222";
+let state = {
+  account: {
+    studentId: 1,
+    balance: 700,
+    lifetime: 700,
+    completedOrders: 0,
+    masterUrl: image,
+    representativeId: null,
+    cropY: 0,
+  },
+  nextPrice: 500,
+  orders: [],
+  cards: [],
+  ledger: [],
+};
+const errors = [];
+const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
+page.on("pageerror", e => errors.push(e.message));
+await page.route("**/api/trpc/**", async route => {
+  const request = route.request(),
+    url = new URL(request.url()),
+    methods = decodeURIComponent(url.pathname.split("/api/trpc/")[1]).split(
+      ","
+    );
+  const payload =
+    request.method() === "GET"
+      ? JSON.parse(url.searchParams.get("input") || "{}")
+      : request.postDataJSON();
+  const results = methods.map((method, i) => {
+    const input = payload?.[i]?.json ?? {};
+    let value;
+    if (method.endsWith("adminList"))
+      value = [
+        {
+          id: 1,
+          name: "테스트 학생",
+          grade: "중1",
+          masterUrl: image,
+          newOrders: state.orders.filter(o => o.status === "submitted").length,
+          readyOrders: 0,
+        },
+      ];
+    else if (method.endsWith("snapshot") || method.endsWith("adminSnapshot"))
+      value = state;
+    else if (method.endsWith("submit")) {
+      assert.equal(input.order.hair, "갈색 쉼표머리");
+      state.account.balance -= 500;
+      state.orders = [
+        {
+          id: orderId,
+          studentId: 1,
+          status: "submitted",
+          price: 500,
+          input: input.order,
+          prompt: "HAEMIL_JOURNAL_AVATAR_V2",
+          masterUrl: image,
+          createdAt: "2026-09-09 12:00:00",
+          candidates: [],
+        },
+      ];
+      value = { id: orderId };
+    } else if (method.endsWith("publish")) {
+      assert.equal(input.images.length, 2);
+      state.orders[0].status = "ready";
+      state.orders[0].candidates = [
+        { id: candidateId, url: image },
+        {
+          id: "33333333-3333-4333-8333-333333333333",
+          url: "/avatar-rewards/avatars/official/official_female_avatar.png",
+        },
+      ];
+      value = null;
+    } else if (method.endsWith("select")) {
+      state.orders[0].status = "completed";
+      state.account.completedOrders++;
+      state.nextPrice = 1000;
+      state.cards = [
+        {
+          id: candidateId,
+          url: image,
+          mode: "original",
+          createdAt: "2026-09-09 12:00:00",
+        },
+      ];
+      value = null;
+    } else if (method.endsWith("representative")) {
+      state.account.representativeId = input.cardId;
+      state.account.cropY = input.cropY;
+      value = null;
+    } else if (method.endsWith("master")) value = null;
+    else throw new Error("Unhandled method " + method);
+    return { result: { data: superjson.serialize(value) } };
+  });
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(results),
+  });
+});
+try {
+  await page.goto("http://127.0.0.1:5186");
+  await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
+  await page.getByRole("button", { name: "스페셜 아바타 만들기" }).waitFor();
+  await page.screenshot({ path: path.join(qaRoot, "desktop-home.png") });
+  await page.getByRole("button", { name: "스페셜 아바타 만들기" }).click();
+  for (const [label, value] of [
+    ["상의", "후드티"],
+    ["하의", "청바지"],
+    ["신발", "운동화"],
+    ["헤어", "갈색 쉼표머리"],
+    ["배경", "도시 옥상"],
+  ])
+    await page.getByLabel(label, { exact: true }).fill(value);
+  await page.getByRole("button", { name: "장신구 추가" }).click();
+  await page.getByLabel("장신구 1", { exact: true }).fill("은색 별 목걸이");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: path.join(qaRoot, "mobile-order.png") });
+  await page.getByRole("button", { name: "500P로 주문 보내기" }).click();
+  await page.getByText("주문을 전달했어요.", { exact: false }).waitFor();
+  await page.keyboard.press("Escape");
+  await page.goto("http://127.0.0.1:5186/?admin");
+  await page.getByLabel("학생 선택").selectOption("1");
+  await page
+    .getByLabel("후보 이미지 2장")
+    .setInputFiles([
+      path.join(
+        repo,
+        "client/public/avatar-rewards/avatars/official/official_male_avatar.png"
+      ),
+      path.join(
+        repo,
+        "client/public/avatar-rewards/avatars/official/official_female_avatar.png"
+      ),
+    ]);
+  await page.getByRole("button", { name: "후보 두 장 전달" }).click();
+  await page
+    .getByRole("heading", { name: "오리지널 · 학생 선택 대기" })
+    .waitFor();
+  await page.screenshot({
+    path: path.join(qaRoot, "mobile-admin.png"),
+    fullPage: true,
+  });
+  await page.goto("http://127.0.0.1:5186");
+  await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
+  await page.getByText("선택할 아바타가 도착했어요!").waitFor();
+  await page.getByRole("button", { name: "후보 1", exact: true }).click();
+  await page.getByRole("button", { name: "이 아바타로 확정" }).click();
+  await page.getByRole("button", { name: "대표로 설정", exact: true }).click();
+  await page.getByRole("button", { name: "현재 대표" }).waitFor();
+  await page.screenshot({ path: path.join(qaRoot, "mobile-collection.png") });
+  await page.getByRole("slider", { name: "얼굴 위치" }).fill("20");
+  await Promise.all([
+    page.waitForResponse(
+      r =>
+        r.url().includes("avatarRewards.representative") &&
+        r.request().method() === "POST"
+    ),
+    page.getByRole("button", { name: "위치 저장" }).click(),
+  ]);
+  assert.equal(state.account.cropY, 20);
+  const overflow = await page.evaluate(
+    () => document.documentElement.scrollWidth > innerWidth
+  );
+  assert.equal(overflow, false);
+  assert.deepEqual(errors, []);
+  console.log(
+    "PASS desktop/mobile order, administrator upload, candidate selection, collection, representative crop, no horizontal overflow or JS errors"
+  );
+} finally {
+  await browser.close();
+  await server.close();
+}

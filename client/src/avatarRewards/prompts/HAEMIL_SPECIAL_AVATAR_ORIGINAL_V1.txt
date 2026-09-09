@@ -1,0 +1,149 @@
+해밀월드 스페셜 아바타 — 오리지널형 (ORIGINAL) V1
+
+Use Image A only as an optional Haemil World continuity and age-category reference.
+Do NOT treat Image A as a required facial-likeness target.
+Use Image B as the selected top reference.
+Use Image C as the selected bottom reference.
+Use Image D as the selected shoes reference.
+
+The ORDER DATA appended after this fixed prompt contains the selected item names, descriptions, avatar type, and mood tags. Respect that order data without weakening the fixed rules below.
+
+MODE GOAL — ORIGINAL
+
+Create 2 premium Haemil World Special Avatar images of a new original character chosen by the student.
+
+This mode is for a student who wants:
+“내 실제 모습과 달라도 괜찮으니 내가 원하는 완전히 새로운 캐릭터.”
+
+The final character does NOT need to resemble Image A.
+
+The student’s chosen avatar type, mood tags, outfit, and Haemil World visual style are more important than facial resemblance.
+
+ORIGINAL CHARACTER FREEDOM
+
+You may create a substantially new:
+- face
+- eye shape
+- eyebrows
+- nose
+- lips
+- facial proportions
+- hairstyle styling
+- character aura
+- overall visual identity
+
+Do not copy Image A’s face unless it naturally helps the requested concept.
+
+Image A may still be used to maintain:
+- appropriate student age category
+- broad body proportion sanity
+- Haemil World continuity
+
+AVATAR TYPE
+
+Follow the avatar type specified in ORDER DATA.
+
+The original character should visually align with the student’s selected avatar presentation type.
+
+Do not treat avatar type as a claim about the student’s legal or biological sex.
+It is an avatar presentation setting for the fictional character.
+
+OUTFIT APPLICATION
+
+Apply the selected outfit references accurately:
+
+Image B = Top
+Image C = Bottom
+Image D = Shoes
+
+Preserve:
+- color
+- silhouette
+- fit
+- material impression
+- important design details
+- overall fashion concept
+
+The selected purchased items must remain clearly recognizable.
+
+Do not replace the outfit with random fashion.
+Do not add real-brand logos.
+Do not add unrelated outerwear unless explicitly requested in ORDER DATA.
+
+MOOD TAGS
+
+Mood tags from ORDER DATA are the main character-design driver.
+
+Use them strongly to define:
+- facial style
+- expression
+- hairstyle nuance
+- pose
+- attitude
+- lighting
+- overall character identity
+
+The final character should feel intentionally designed around the student’s chosen fantasy/self-expression preference.
+
+HAEMIL WORLD STYLE
+
+Use the established Haemil World visual direction:
+- premium polished semi-webtoon 2D illustration
+- modern Korean youth-fashion sensibility
+- high-end webtoon character design
+- natural anatomy
+- refined lighting
+- polished textures
+- age-appropriate student presentation
+- stylish and highly shareable profile art
+
+Do not create photorealism.
+Do not create a painted-over-photo appearance.
+Do not create chibi proportions.
+Do not create adult luxury-model styling for a student avatar.
+
+AGE AND BODY
+
+Keep the character age-appropriate.
+Do not age the character up into an adult.
+Do not sexualize the character.
+Keep anatomy natural and believable.
+
+POSE AND COMPOSITION
+
+Create a full-body or near full-body character image.
+
+The 2 results must:
+- show the same newly designed original character
+- use the same selected outfit
+- follow the same mood and avatar type
+- maintain consistent Haemil World style
+
+The 2 results should differ mainly in:
+- pose
+- hand gesture
+- facial expression
+- slight camera/composition nuance
+
+Do not make a collage.
+Each result must be a separate final image.
+
+BACKGROUND
+
+Use a clean or subtly mood-enhancing background.
+No typography.
+No UI elements.
+No cluttered environmental storytelling unless explicitly requested.
+
+FINAL PRIORITY ORDER
+
+1. Student-selected original character concept
+2. Selected mood tags
+3. Accurate purchased outfit
+4. Correct avatar type
+5. Correct age impression
+6. Premium Haemil World visual quality
+
+FINAL TARGET
+
+Create 2 separate premium Haemil World Special Avatar images of a new original character that does not need to resemble Image A, but accurately reflects the student’s chosen avatar type, mood, and selected top, bottom, and shoes from Images B, C, and D.

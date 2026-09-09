@@ -1,0 +1,166 @@
+해밀월드 스페셜 아바타 — 워너비형 (WANNABE) V1
+
+Use Image A as the student's Master Avatar and core identity reference.
+Use Image B as the selected top reference.
+Use Image C as the selected bottom reference.
+Use Image D as the selected shoes reference.
+
+The ORDER DATA appended after this fixed prompt contains the selected item names, descriptions, avatar type, and mood tags. Respect that order data without weakening the fixed rules below.
+
+MODE GOAL — WANNABE
+
+Create 2 premium Haemil World Special Avatar images that clearly preserve the student’s identity while transforming the character into a much more attractive, stylish, aspirational webtoon-protagonist version.
+
+This is the recommended default mode.
+
+The intended feeling is:
+“내 느낌은 분명히 남아 있지만 훨씬 예쁘고 멋진 주인공이 된 모습.”
+
+The result should be recognizably based on Image A, but attractiveness and polish may be noticeably stronger than in the Master Avatar.
+
+IDENTITY PRESERVATION
+
+Preserve the recognizable identity anchors from Image A:
+- overall face identity
+- core facial proportions
+- characteristic eye impression
+- eyebrow character
+- nose identity
+- mouth and smile tendency
+- hairstyle identity
+- hair silhouette and flow
+- glasses if important to the identity
+- skin-tone impression
+- age impression
+- overall personal vibe
+
+Someone familiar with the Master Avatar should still feel that this is the same character.
+
+However, do not preserve every minor imperfection literally.
+
+WANNABE BEAUTIFICATION
+
+Strong but tasteful idealization is allowed.
+
+You may improve:
+- skin clarity and brightness
+- facial symmetry
+- jawline refinement
+- cheek balance
+- eye clarity and expressiveness
+- eyebrow refinement
+- nose harmony
+- lip shape
+- hair framing and volume
+- posture
+- overall facial balance
+
+The avatar should look clearly prettier or more handsome than a literal likeness version.
+
+Do not turn the student into a completely unrelated beautiful person.
+Avoid an artificial plastic-surgery look.
+Avoid extreme V-line jaws, huge anime eyes, heavy makeup, or adult celebrity styling.
+
+OUTFIT APPLICATION
+
+Apply the selected outfit references accurately:
+
+Image B = Top
+Image C = Bottom
+Image D = Shoes
+
+Preserve:
+- color
+- silhouette
+- fit
+- material impression
+- key design details
+- overall fashion mood
+
+The selected items should remain clearly recognizable in the final result.
+
+Do not substitute random clothing.
+Do not add unrelated outerwear.
+Do not add real-brand logos.
+Do not add unrequested accessories unless explicitly included in ORDER DATA.
+
+MOOD TAGS
+
+Use the selected mood tags from ORDER DATA actively.
+
+Mood tags may influence:
+- facial expression
+- pose
+- attitude
+- lighting
+- styling energy
+- overall character presence
+
+The selected mood should strengthen the aspirational feeling without aging the student up.
+
+HAEMIL WORLD STYLE
+
+Use the established Haemil World visual direction:
+- premium polished semi-webtoon 2D illustration
+- modern Korean youth fashion
+- attractive webtoon-protagonist quality
+- natural but aesthetically improved anatomy
+- refined lighting
+- clean linework
+- polished textures
+- stylish and highly shareable profile art
+- age-appropriate student presentation
+
+The result should feel more aspirational than realistic.
+
+Do not create photorealism.
+Do not create a painted-over-photo appearance.
+Do not use chibi proportions.
+Do not use exaggerated anime distortion.
+
+AGE AND BODY
+
+Keep the same age impression as Image A.
+Do not make the student look like an adult model.
+Do not sexualize the character.
+Do not over-mature the physique.
+
+POSE AND COMPOSITION
+
+Create a full-body or near full-body character image.
+
+The 2 results must:
+- use the same student identity
+- use the same selected outfit combination
+- use the same creation mode and mood
+- maintain consistent visual quality
+
+The 2 results should differ mainly in:
+- pose
+- hand gesture
+- expression
+- slight camera/composition nuance
+
+Do not make a collage.
+Each result must be an independent image.
+
+BACKGROUND
+
+Use a clean and refined simple background.
+A subtle mood-based lighting treatment is allowed.
+No typography.
+No UI elements.
+No cluttered story scene.
+
+FINAL PRIORITY ORDER
+
+1. Recognizable student identity
+2. Strong aspirational beautification
+3. Accurate selected outfit
+4. Selected mood
+5. Correct age impression
+6. Premium Haemil World visual quality
+
+FINAL TARGET
+
+Create 2 separate premium Haemil World Special Avatar images that feel like the same student from Image A reimagined as a highly attractive, stylish, aspirational webtoon protagonist while accurately wearing the selected top, bottom, and shoes from Images B, C, and D.

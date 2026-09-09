@@ -9,6 +9,7 @@ import { z } from "zod";
 import { ENV } from "./_core/env";
 import { sdk } from "./_core/sdk";
 import * as db from "./db";
+import { avatarRewardsRouter } from "./routers/avatarRewards";
 
 function verifyLocalPassword(password: string) {
   const [saltHex, expectedHex] = ENV.adminPasswordHash.split(":");
@@ -115,6 +116,7 @@ export const appRouter = router({
     }),
   }),
   academy: academyRouter,
+  avatarRewards: avatarRewardsRouter,
 });
 
 export type AppRouter = typeof appRouter;

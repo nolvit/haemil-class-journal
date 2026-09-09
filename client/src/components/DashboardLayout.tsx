@@ -46,6 +46,7 @@ import { useLocation } from "wouter";
 import { DashboardLayoutSkeleton } from "./DashboardLayoutSkeleton";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
+import { AvatarOrderNotification } from "@/avatarRewards/AvatarAdmin";
 
 type MenuItem = {
   icon: typeof LayoutDashboard;
@@ -74,6 +75,12 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
   {
     label: "학원 관리",
     items: [
+      {
+        icon: GraduationCap,
+        label: "아바타 제작",
+        path: "/avatar-rewards",
+        adminOnly: true,
+      },
       {
         icon: GraduationCap,
         label: "학생 관리",
@@ -438,6 +445,7 @@ function DashboardLayoutContent({
               )}
             </div>
           </SidebarHeader>
+          {user?.role === "admin" && <AvatarOrderNotification />}
           <SidebarContent className="gap-0 px-3">
             {visibleGroups.map(group => (
               <div className="journal-menu-group" key={group.label}>
@@ -491,7 +499,12 @@ function DashboardLayoutContent({
                     </p>
                     <div className="mt-0.5 flex flex-wrap items-center justify-between gap-1 text-[#AAB9B6]">
                       <span className="text-[11px]">관리자</span>
-                      <small className="text-[9px]" title="앱 버전 · 빌드 시각(UTC)">{appVersion}</small>
+                      <small
+                        className="text-[9px]"
+                        title="앱 버전 · 빌드 시각(UTC)"
+                      >
+                        {appVersion}
+                      </small>
                     </div>
                   </div>
                 </button>

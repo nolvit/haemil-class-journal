@@ -19,6 +19,7 @@ const StudentPortal = lazy(() => import("@/pages/StudentPortal"));
 const Students = lazy(() => import("@/pages/Students"));
 const TuitionStandards = lazy(() => import("@/pages/TuitionStandards"));
 const CheckIn = lazy(() => import("@/pages/CheckIn"));
+const AvatarAdmin = lazy(() => import("@/avatarRewards/AvatarAdmin"));
 
 function RouteLoading() {
   return (
@@ -42,6 +43,14 @@ function Router() {
       <Switch>
         <Route path="/p/:token" component={StudentPortal} />
         <Route path="/check-in" component={CheckIn} />
+        <Route
+          path="/avatar-rewards"
+          component={() => (
+            <StaffPage>
+              <AvatarAdmin />
+            </StaffPage>
+          )}
+        />
         <Route
           path="/"
           component={() => (

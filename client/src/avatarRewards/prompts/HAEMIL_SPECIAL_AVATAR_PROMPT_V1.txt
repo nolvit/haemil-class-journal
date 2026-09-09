@@ -1,0 +1,117 @@
+해밀월드 스페셜 아바타 수동 제작 요청
+
+Use Image A as the student’s Master Avatar identity reference.
+Use Image B as the selected top item reference.
+Use Image C as the selected bottom item reference.
+Use Image D as the selected shoes item reference.
+
+Create a premium Haemil World Special Avatar based on the student in Image A and the selected outfit items.
+
+Core goal:
+The final result must clearly feel like the same student as the Master Avatar in Image A.
+Preserve the student’s recognizable identity while changing the outfit to match the selected items.
+
+Identity preservation:
+Preserve the student’s identity from Image A including:
+- overall facial identity
+- face shape impression
+- eye impression
+- eyebrow character
+- nose identity
+- mouth and smile tendency
+- hairstyle identity
+- hair silhouette and flow
+- glasses if they are part of the identity
+- skin tone impression
+- age impression
+- overall personal vibe
+
+Do not turn the student into a different person.
+Someone who knows the student should still recognize them.
+
+Outfit application:
+Apply the selected outfit items from the references as accurately as possible.
+
+Image B defines the top.
+Image C defines the bottom.
+Image D defines the shoes.
+
+Preserve the important outfit properties from each reference:
+- color
+- silhouette
+- fit
+- material impression
+- key design details
+- overall styling mood
+
+Do not replace the outfit with a random look.
+Do not mix in unrelated clothes.
+Do not add unrequested outerwear.
+Do not add obvious brand logos.
+
+Style:
+Use the established Haemil World art direction:
+- premium polished semi-webtoon 2D illustration
+- modern Korean student fashion
+- clean and attractive character rendering
+- natural anatomy
+- stylish and aspirational mood
+- age-appropriate presentation
+- consistent full-body proportions
+- high-quality profile or character-card level finish
+
+The result should feel like an official Haemil World character illustration.
+
+Age and body:
+Preserve the student’s real age impression.
+Do not age the student up.
+Do not make the body overly mature.
+Do not sexualize the character.
+
+Pose and composition:
+Create a full-body or near full-body character image.
+The character should be clearly visible from head to toe when possible.
+Use a natural and visually appealing standing or light action pose.
+Keep the character as the main subject.
+
+Expression:
+Use a pleasant and polished expression.
+The face may feel calm, friendly, confident, soft, or stylish depending on what suits the student best.
+Do not use an awkward or blank expression.
+
+Background:
+Use a clean and simple background.
+The background should not distract from the character.
+No cluttered room scene is needed.
+No typography.
+No UI elements.
+
+Output rule:
+Generate 2 separate final images.
+Both images must show:
+- the same student identity
+- the same selected outfit combination
+- the same overall Haemil World style
+
+The 2 images should differ mainly in:
+- pose
+- hand gesture
+- expression
+- slight camera feeling or composition nuance
+
+Do not merge the 2 results into one collage.
+Each result must be an independent image.
+
+Important restrictions:
+- do not change the student into another person
+- do not ignore the selected outfit references
+- do not add unrelated accessories unless requested
+- do not use real brand logos
+- do not make the character look too old
+- do not create exaggerated anime distortion
+- do not create chibi proportions
+- do not create photorealism
+- do not create a painted-over-photo appearance
+
+Final target:
+Create 2 high-quality Haemil World Special Avatar images that clearly show the same student from Image A wearing the selected top, bottom, and shoes from Images B, C, and D in a polished premium semi-webtoon style.

@@ -15,6 +15,10 @@ import {
   applyWeeklyAutoUnregisteredDays,
 } from "../db";
 import { dispatchRemainingTwoNotifications } from "../remainingCountNotifications";
+import {
+  ensureRewardSchema,
+  settleRewardAttendance,
+} from "../avatarRewardStore";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -38,10 +42,32 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
 async function startServer() {
   await seedLocalUploads();
   await ensureRemainingCountNotificationSchema();
-  void settlePreviousWeekCounts().catch(error => console.error("주간 수업 횟수 자동 누적 확인 실패", error));
-  const weeklySettlementTimer = setInterval(() => {
-    void settlePreviousWeekCounts().catch(error => console.error("주간 수업 횟수 자동 누적 확인 실패", error));
-  }, 60 * 60 * 1000);
+  await ensureRewardSchema();
+  let rewardSettlementRunning = false;
+  const settleRewards = async () => {
+    if (rewardSettlementRunning) return;
+    rewardSettlementRunning = true;
+    try {
+      await settleRewardAttendance();
+    } catch (error) {
+      console.error("출석 포인트 정산 실패", error);
+    } finally {
+      rewardSettlementRunning = false;
+    }
+  };
+  void settleRewards();
+  setInterval(() => void settleRewards(), 60_000).unref();
+  void settlePreviousWeekCounts().catch(error =>
+    console.error("주간 수업 횟수 자동 누적 확인 실패", error)
+  );
+  const weeklySettlementTimer = setInterval(
+    () => {
+      void settlePreviousWeekCounts().catch(error =>
+        console.error("주간 수업 횟수 자동 누적 확인 실패", error)
+      );
+    },
+    60 * 60 * 1000
+  );
   weeklySettlementTimer.unref();
   // 매주 월요일이 되면(자정 이후 아무 때나) 미리 지정해둔 미등록
   // 요일을 그 주에 한 번씩 자동으로 채워 넣는다. 이미 값이 있는
@@ -49,11 +75,14 @@ async function startServer() {
   void applyWeeklyAutoUnregisteredDays().catch(error =>
     console.error("주간 자동 미등록 처리 확인 실패", error)
   );
-  const autoUnregisteredWeekdaysTimer = setInterval(() => {
-    void applyWeeklyAutoUnregisteredDays().catch(error =>
-      console.error("주간 자동 미등록 처리 확인 실패", error)
-    );
-  }, 60 * 60 * 1000);
+  const autoUnregisteredWeekdaysTimer = setInterval(
+    () => {
+      void applyWeeklyAutoUnregisteredDays().catch(error =>
+        console.error("주간 자동 미등록 처리 확인 실패", error)
+      );
+    },
+    60 * 60 * 1000
+  );
   autoUnregisteredWeekdaysTimer.unref();
   void dispatchRemainingTwoNotifications().catch(error =>
     console.error("잔여 2회 보호자 알림 확인 실패", error)

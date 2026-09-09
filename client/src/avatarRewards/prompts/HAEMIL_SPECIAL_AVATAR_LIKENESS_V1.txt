@@ -1,0 +1,140 @@
+해밀월드 스페셜 아바타 — 닮은꼴형 (LIKENESS) V1
+
+Use Image A as the student's Master Avatar and strongest identity reference.
+Use Image B as the selected top reference.
+Use Image C as the selected bottom reference.
+Use Image D as the selected shoes reference.
+
+The ORDER DATA appended after this fixed prompt contains the selected item names, descriptions, avatar type, and mood tags. Respect that order data without weakening the fixed rules below.
+
+MODE GOAL — LIKENESS
+
+Create 2 premium Haemil World Special Avatar images that preserve the student’s established Master Avatar identity as closely as possible.
+
+This mode is for a student who wants:
+“내 모습과 느낌을 최대한 그대로 유지한 스페셜 아바타.”
+
+The result should clearly and immediately look like the same character as Image A.
+
+IDENTITY PRIORITY
+
+Identity preservation is the highest priority.
+
+Preserve from Image A:
+- overall facial identity
+- face shape and facial proportions
+- eye shape and eye impression
+- eyebrow shape and character
+- nose identity
+- mouth and smile tendency
+- hairstyle identity
+- hair part, silhouette, and general flow
+- glasses if they are part of the Master Avatar
+- skin-tone impression
+- age impression
+- body proportion impression
+- overall personal vibe
+
+Do not reinterpret the student into a different attractive character.
+Do not significantly change facial structure.
+Do not make the eyes, jaw, nose, or lips dramatically different.
+
+Light polishing is allowed only when it does not reduce recognizability.
+
+OUTFIT APPLICATION
+
+Apply the selected outfit references accurately:
+
+Image B = Top
+Image C = Bottom
+Image D = Shoes
+
+Preserve the important properties of each selected item:
+- color
+- silhouette
+- fit
+- material impression
+- key design details
+- overall styling mood
+
+Do not replace a selected item with a random alternative.
+Do not add unrelated outerwear.
+Do not add obvious real-brand logos.
+Do not add unrequested accessories unless they are already part of the Master Avatar identity or explicitly included in ORDER DATA.
+
+MOOD TAGS
+
+Use the selected mood tags from ORDER DATA only as secondary styling guidance.
+
+Mood tags may influence:
+- expression
+- pose
+- hand gesture
+- subtle styling energy
+- lighting nuance
+
+Mood tags must NOT override identity preservation.
+
+HAEMIL WORLD STYLE
+
+Use the established Haemil World visual direction:
+- premium polished semi-webtoon 2D illustration
+- modern Korean student fashion
+- high-quality webtoon character rendering
+- natural anatomy
+- clean linework
+- refined textures
+- age-appropriate presentation
+- attractive but believable student character art
+- profile-quality finish suitable for sharing
+
+Do not create photorealism.
+Do not create a painted-over-photo appearance.
+Do not use chibi proportions.
+Do not use exaggerated anime facial distortion.
+
+AGE AND BODY
+
+Preserve the student’s Master Avatar age impression.
+Do not age the character up.
+Do not sexualize the character.
+Do not make the physique unrealistically mature.
+
+POSE AND COMPOSITION
+
+Create a full-body or near full-body character image.
+Keep the character as the clear focal point.
+
+The 2 results must:
+- show the same student identity
+- use the same selected outfit combination
+- use the same Haemil World art direction
+
+The 2 results should differ mainly in:
+- pose
+- hand gesture
+- facial expression
+- subtle camera/composition nuance
+
+Do not create a collage.
+Do not combine the 2 results into one image.
+
+BACKGROUND
+
+Use a clean, simple, non-distracting background.
+No UI.
+No typography.
+No busy environmental scene.
+
+FINAL PRIORITY ORDER
+
+1. Same Master Avatar identity
+2. Accurate selected outfit
+3. Correct age impression
+4. Natural anatomy
+5. Mood-tag expression
+6. Premium Haemil World finish
+
+FINAL TARGET
+
+Create 2 separate high-quality Haemil World Special Avatar images that are unmistakably the same character as Image A, wearing the selected top, bottom, and shoes from Images B, C, and D.
