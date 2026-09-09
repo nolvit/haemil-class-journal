@@ -1,8 +1,8 @@
 {
   "library": "HAEMIL_AVATAR_REWARD_LIBRARY",
   "version": "0.1",
-  "asset_count": 47,
-  "source_asset_count": 47,
+  "asset_count": 41,
+  "source_asset_count": 41,
   "assets": [
     {
       "id": "style_c_reference",
@@ -70,23 +70,6 @@
       "height": 1536,
       "has_alpha": false,
       "sha256_16": "e743d8a131afe59b",
-      "notes": ""
-    },
-    {
-      "id": "default_basic_female_avatar",
-      "category": "avatar",
-      "subcategory": "base",
-      "level": null,
-      "variant": null,
-      "purpose": "Default basic outfit reference: white tee + light gray shorts",
-      "status": "active",
-      "privacy": "public_asset",
-      "path": "avatars/base/default_basic_female_avatar.png",
-      "original_filename": "흰_티셔츠와_회색_반바지_소녀.png",
-      "width": 1122,
-      "height": 1402,
-      "has_alpha": true,
-      "sha256_16": "a674fd450a1ed36f",
       "notes": ""
     },
     {
@@ -345,23 +328,6 @@
       "notes": ""
     },
     {
-      "id": "top_cardigan_female_alt_01",
-      "category": "avatar_item",
-      "subcategory": "top",
-      "level": null,
-      "variant": null,
-      "purpose": "Shop/reference preview for top clothing",
-      "status": "catalog_candidate",
-      "privacy": "public_asset",
-      "path": "avatars/catalog/tops/top_cardigan_female_alt_01.png",
-      "original_filename": "낡은_카디건의_시크한_소녀.png",
-      "width": 1122,
-      "height": 1402,
-      "has_alpha": true,
-      "sha256_16": "3ffa0fd68fbfab64",
-      "notes": ""
-    },
-    {
       "id": "top_cardigan_navy_female_01",
       "category": "avatar_item",
       "subcategory": "top",
@@ -444,23 +410,6 @@
       "height": 1402,
       "has_alpha": false,
       "sha256_16": "c96dbc5c6a8504bb",
-      "notes": ""
-    },
-    {
-      "id": "top_casual_female_alt",
-      "category": "avatar_item",
-      "subcategory": "top",
-      "level": null,
-      "variant": null,
-      "purpose": "Shop/reference preview for top clothing",
-      "status": "catalog_candidate",
-      "privacy": "public_asset",
-      "path": "avatars/catalog/tops/top_casual_female_alt.png",
-      "original_filename": "포켓에_손을_넣은_소녀_포트레이트.png",
-      "width": 1122,
-      "height": 1402,
-      "has_alpha": false,
-      "sha256_16": "0dd04d9db26a286c",
       "notes": ""
     },
     {
@@ -563,23 +512,6 @@
       "height": 1402,
       "has_alpha": false,
       "sha256_16": "ecce4af95b5b7671",
-      "notes": ""
-    },
-    {
-      "id": "bottom_pleated_skirt_charcoal_02",
-      "category": "avatar_item",
-      "subcategory": "bottom",
-      "level": null,
-      "variant": null,
-      "purpose": "Shop/reference preview for bottom clothing",
-      "status": "catalog_candidate",
-      "privacy": "public_asset",
-      "path": "avatars/catalog/bottoms/bottom_pleated_skirt_charcoal_02.png",
-      "original_filename": "차콜_플리츠_스커트의_쿨한_소녀.png",
-      "width": 1122,
-      "height": 1402,
-      "has_alpha": false,
-      "sha256_16": "44be88a1401fb56b",
       "notes": ""
     },
     {
@@ -767,40 +699,6 @@
       "height": 1402,
       "has_alpha": false,
       "sha256_16": "ffeedaa53154171f",
-      "notes": ""
-    },
-    {
-      "id": "bottoms_contact_sheet",
-      "category": "reference",
-      "subcategory": "contact_sheet",
-      "level": null,
-      "variant": null,
-      "purpose": "Visual browse sheet",
-      "status": "reference_only",
-      "privacy": "public_asset",
-      "path": "references/contact_sheets/bottoms_contact_sheet.png",
-      "original_filename": "bottoms_contact.png",
-      "width": 400,
-      "height": 1350,
-      "has_alpha": false,
-      "sha256_16": "5cf84f4f96689134",
-      "notes": ""
-    },
-    {
-      "id": "generated_contact_sheet",
-      "category": "reference",
-      "subcategory": "contact_sheet",
-      "level": null,
-      "variant": null,
-      "purpose": "Visual browse sheet",
-      "status": "reference_only",
-      "privacy": "public_asset",
-      "path": "references/contact_sheets/generated_contact_sheet.png",
-      "original_filename": "contact_generated.png",
-      "width": 440,
-      "height": 1800,
-      "has_alpha": false,
-      "sha256_16": "9745a4a2cb479ba6",
       "notes": ""
     }
   ]

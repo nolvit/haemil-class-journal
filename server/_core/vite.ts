@@ -60,6 +60,11 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
+  // Missing library images must never fall through to the SPA document.
+  app.use("/avatar-rewards", (_req, res) => {
+    res.set("Cache-Control", "no-store").sendStatus(404);
+  });
+
   // fall through to index.html if the file doesn't exist
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
