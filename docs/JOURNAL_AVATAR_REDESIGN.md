@@ -5,7 +5,7 @@
 2026-09-09: feature/journal-avatar-reward 브랜치 생성. 분리된 해밀월드 프로토타입, 방 이미지, 전용 테스트·실행 스크립트·구설계 문서를 작업 트리에서 제거했다. 미커밋 수업일지 변경은 유지했다. 운영 DB는 변경하지 않았다.
 
 ## 보존 자료
-client/public/avatar-rewards 아래 avatars 및 references 53개 파일 보존. 프롬프트 원본은 client/src/avatarRewards/prompts에 보존. 방 경로를 제외한 assetManifest.json을 별도 구성했다. 의상 이미지는 판매 상품이 아니라 주문 입력 예시다.
+client/public/avatar-rewards 아래 avatars 및 references 47개 파일 보존. 프롬프트 원본은 client/src/avatarRewards/prompts에 보존. 방 경로를 제외한 assetManifest.json을 별도 구성했다. 의상 이미지는 판매 상품이 아니라 주문 입력 예시다.
 전체 소스 복구 사본은 이 작업의 work/before-redesign.tar.gz에 있다(node_modules, .git, dist, data, tmp 제외). 사용자 업로드 data는 원래 위치에서 유지했다. 복구 사본은 배포하지 않는다.
 
 ## 확정 기능
@@ -39,3 +39,6 @@ client/public/avatar-rewards 아래 avatars 및 references 53개 파일 보존. 
 - 단위/권한 회귀 테스트 74개 통과. 실제 Chrome에서 배포 CSS를 사용한 UI 테스트 통과(1200px/390px). 브라우저 테스트는 합성 API 응답을 사용하며 실제 DB 검증과 별도로 수행했다.
 - 검증에서 발견한 MySQL 잠금/스냅샷 경합, 모바일 translate 잘림, 후보 접근성 이름 및 초기 얼굴 크롭을 수정했다.
 - migration 0022는 추가 생성만 수행한다. 서버 시작 시 동일 DDL을 멱등 실행하여 기존 학습 데이터와 업로드를 보존한다. 운영 배포 결과는 최종 보고서에 기록한다.
+
+- 최종 자산 검토에서 references에 남아 있던 방·책상 연락판 6개와 방 업그레이드 프롬프트를 제외했다. 아바타 관련 이미지 47개와 아바타 원본 프롬프트 5개를 보존했다.
+
