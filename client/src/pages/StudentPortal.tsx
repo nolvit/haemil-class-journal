@@ -294,10 +294,13 @@ export default function StudentPortal() {
     setJournalDate(current => shiftDate(current, days));
   const handleTouchStart = (event: React.TouchEvent<HTMLElement>) => {
     if (
+      document.body.dataset.avatarOverlay === "open" ||
       !isPortalMobileListVisible() ||
       event.touches.length !== 1 ||
       (event.target instanceof Element &&
-        event.target.closest("button, input, label, a, [role=button]"))
+        event.target.closest(
+          "button, input, label, a, [role=button], [role=dialog], [data-swipe-disabled]"
+        ))
     ) {
       swipeStartRef.current = null;
       return;
@@ -306,7 +309,11 @@ export default function StudentPortal() {
     swipeStartRef.current = { x: touch.clientX, y: touch.clientY };
   };
   const handleTouchEnd = (event: React.TouchEvent<HTMLElement>) => {
-    if (!isPortalMobileListVisible()) return;
+    if (
+      !isPortalMobileListVisible() ||
+      document.body.dataset.avatarOverlay === "open"
+    )
+      return;
     const start = swipeStartRef.current;
     swipeStartRef.current = null;
     if (!start || event.changedTouches.length !== 1) return;

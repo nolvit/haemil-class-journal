@@ -36,6 +36,9 @@ export const sharingInput = z.object({
   visible: z.boolean(),
   showName: z.boolean().default(false),
   showGrade: z.boolean().default(false),
+  cropX: z.number().int().min(0).max(100).default(50),
+  cropY: z.number().int().min(0).max(100).default(20),
+  cropZoom: z.number().int().min(100).max(500).default(190),
 });
 export type SharingInput = z.infer<typeof sharingInput>;
 export type Wardrobe = {
@@ -49,6 +52,9 @@ export type Wardrobe = {
     visible: boolean;
     showName: boolean;
     showGrade: boolean;
+    cropX: number;
+    cropY: number;
+    cropZoom: number;
   }[];
   cardStyles: Record<string, { frame: FrameId; background: BackgroundId }>;
   cardFrames: Record<string, string[]>;

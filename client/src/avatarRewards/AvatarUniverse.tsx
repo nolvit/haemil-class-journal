@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Heart, LockKeyhole, ShoppingBag, Sparkles } from "lucide-react";
@@ -230,21 +230,42 @@ export function AvatarShop({
 export function CardSharing({
   identity,
   cardId,
+  url,
   wardrobe,
   onRefresh,
+  onDirtyChange,
 }: {
   identity: Identity;
   cardId: string;
+  url: string;
   wardrobe: Wardrobe;
   onRefresh: () => void;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const saved = wardrobe.sharing.find(s => s.cardId === cardId);
   const [visible, setVisible] = useState(saved?.visible ?? false),
     [showName, setName] = useState(saved?.showName ?? false),
-    [showGrade, setGrade] = useState(saved?.showGrade ?? false);
+    [showGrade, setGrade] = useState(saved?.showGrade ?? false),
+    [cropX, setCropX] = useState(saved?.cropX ?? 50),
+    [cropY, setCropY] = useState(saved?.cropY ?? 20),
+    [cropZoom, setCropZoom] = useState(saved?.cropZoom ?? 190);
+  const dirty =
+    visible !== (saved?.visible ?? false) ||
+    showName !== (saved?.showName ?? false) ||
+    showGrade !== (saved?.showGrade ?? false) ||
+    cropX !== (saved?.cropX ?? 50) ||
+    cropY !== (saved?.cropY ?? 20) ||
+    cropZoom !== (saved?.cropZoom ?? 190);
+  const dirtyListener = useRef(onDirtyChange);
+  dirtyListener.current = onDirtyChange;
+  useEffect(() => {
+    dirtyListener.current?.(dirty);
+    return () => dirtyListener.current?.(false);
+  }, [dirty]);
   const share = trpc.avatarRewards.share.useMutation({
     onError: e => toast.error(e.message),
     onSuccess: () => {
+      dirtyListener.current?.(false);
       onRefresh();
       toast.success(
         visible ? "별빛 광장에 공개했어요." : "비공개로 전환했어요."
@@ -258,6 +279,54 @@ export function CardSharing({
         {saved?.visible ? "공개 중 · 공개 설정" : "비공개 · 공개 설정"}
       </summary>
       <p>공개하면 카드 사진이 학생 포털의 별빛 광장에 표시돼요.</p>
+      <div className="gallery-crop-editor">
+        <div className="constellation-orbit">
+          <img
+            src={url}
+            alt="광장 프로필 미리보기"
+            style={{
+              objectPosition: `${cropX}% ${cropY}%`,
+              transform: `scale(${cropZoom / 100})`,
+              transformOrigin: `${cropX}% ${cropY}%`,
+            }}
+          />
+        </div>
+        <label>
+          좌우 위치{" "}
+          <input
+            aria-label="광장 좌우 위치"
+            type="range"
+            min="0"
+            max="100"
+            value={cropX}
+            onChange={e => setCropX(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          상하 위치{" "}
+          <input
+            aria-label="광장 상하 위치"
+            type="range"
+            min="0"
+            max="100"
+            value={cropY}
+            onChange={e => setCropY(Number(e.target.value))}
+          />
+        </label>
+        <label>
+          확대{" "}
+          <input
+            aria-label="광장 확대 비율"
+            type="range"
+            min="100"
+            max="500"
+            step="10"
+            value={cropZoom}
+            onChange={e => setCropZoom(Number(e.target.value))}
+          />
+          <output>{cropZoom}%</output>
+        </label>
+      </div>
       <label>
         <input
           type="checkbox"
@@ -287,7 +356,16 @@ export function CardSharing({
       <button
         disabled={share.isPending}
         onClick={() =>
-          share.mutate({ ...identity, cardId, visible, showName, showGrade })
+          share.mutate({
+            ...identity,
+            cardId,
+            visible,
+            showName,
+            showGrade,
+            cropX,
+            cropY,
+            cropZoom,
+          })
         }
       >
         {share.isPending ? "저장 중…" : "공개 설정 저장"}

@@ -64,6 +64,9 @@ export type RewardCard = {
   createdAt: string;
   frame: import("./avatarCollection").FrameId;
   background: import("./avatarCollection").BackgroundId;
+  galleryCropX: number;
+  galleryCropY: number;
+  galleryCropZoom: number;
 };
 export type RewardSnapshot = {
   account: RewardAccount;

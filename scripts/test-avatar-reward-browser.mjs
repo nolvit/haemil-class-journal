@@ -15,7 +15,7 @@ await fs.writeFile(
 );
 await fs.writeFile(
   path.join(qaRoot, "main.tsx"),
-  `import React from 'react';import{createRoot}from'react-dom/client';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{httpBatchLink}from'@trpc/client';import superjson from'superjson';import{trpc}from'../../client/src/lib/trpc';import{AvatarRewards}from'../../client/src/avatarRewards/AvatarRewards';import Admin from'../../client/src/avatarRewards/AvatarAdmin';import{Toaster}from'../../client/src/components/ui/sonner';import'./production.css';const q=new QueryClient({defaultOptions:{queries:{retry:false}}}),c=trpc.createClient({links:[httpBatchLink({url:'/api/trpc',transformer:superjson})]});createRoot(document.getElementById('root')!).render(<trpc.Provider client={c} queryClient={q}><QueryClientProvider client={q}><Toaster/>{location.search.includes('admin')?<Admin/>:<main style={{maxWidth:700,margin:'auto',padding:24}}><header style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}><h1>해밀 수업일지</h1><AvatarRewards token="qa-token-1234" studentId={1}/></header><p>오늘의 배움과 성장을 기록해요.</p></main>}</QueryClientProvider></trpc.Provider>);`
+  `import React from 'react';import{createRoot}from'react-dom/client';import{QueryClient,QueryClientProvider}from'@tanstack/react-query';import{httpBatchLink}from'@trpc/client';import superjson from'superjson';import{trpc}from'../../client/src/lib/trpc';import{AvatarRewards}from'../../client/src/avatarRewards/AvatarRewards';import Admin,{AvatarOrderNotification}from'../../client/src/avatarRewards/AvatarAdmin';import{Toaster}from'../../client/src/components/ui/sonner';import'./production.css';const q=new QueryClient({defaultOptions:{queries:{retry:false}}}),c=trpc.createClient({links:[httpBatchLink({url:'/api/trpc',transformer:superjson})]});createRoot(document.getElementById('root')!).render(<trpc.Provider client={c} queryClient={q}><QueryClientProvider client={q}><Toaster/>{location.search.includes('admin')?<><AvatarOrderNotification/><Admin/></>:<main style={{maxWidth:700,margin:'auto',padding:24}}><header style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}><h1>해밀 수업일지</h1><AvatarRewards token="qa-token-1234" studentId={1}/></header><p>오늘의 배움과 성장을 기록해요.</p></main>}</QueryClientProvider></trpc.Provider>);`
 );
 const productionCss = (
   await fs.readdir(path.join(repo, "dist/public/assets"))
@@ -147,6 +147,9 @@ await page.route("**/api/trpc/**", async route => {
           visible: input.visible,
           showName: input.showName,
           showGrade: input.showGrade,
+          cropX: input.cropX,
+          cropY: input.cropY,
+          cropZoom: input.cropZoom,
         },
       ];
       value = null;
@@ -168,7 +171,15 @@ await page.route("**/api/trpc/**", async route => {
           mine: false,
         },
       ];
-    else if (method.endsWith("like")) {
+    else if (method.endsWith("adminGalleryCrop")) {
+      const card = state.cards.find(c => c.id === input.cardId);
+      if (card) {
+        card.galleryCropX = input.cropX;
+        card.galleryCropY = input.cropY;
+        card.galleryCropZoom = input.cropZoom;
+      }
+      value = null;
+    } else if (method.endsWith("like")) {
       liked = input.liked;
       value = null;
     } else if (method.endsWith("adminList"))
@@ -237,6 +248,9 @@ await page.route("**/api/trpc/**", async route => {
           createdAt: "2026-09-09 12:00:00",
           frame: "lunar",
           background: "classic",
+          galleryCropX: 50,
+          galleryCropY: 20,
+          galleryCropZoom: 190,
         },
       ];
       value = null;
@@ -373,6 +387,7 @@ try {
   await page.locator(".reward-dialog").waitFor({ state: "hidden" });
   await page.waitForFunction(() => !history.state?.haemilAvatarOverlay);
   await page.goto("http://127.0.0.1:5186/?admin");
+  await page.getByText("새 아바타 주문 1건", { exact: true }).first().waitFor();
   await page.getByLabel("시즌", { exact: true }).selectOption("christmas");
   await page.getByLabel("에셋 종류").selectOption("thumb");
   assert.ok(
@@ -414,9 +429,17 @@ try {
   await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
   await page.getByText("선택할 아바타가 도착했어요!").waitFor();
   await page.getByRole("button", { name: "후보 1", exact: true }).click();
-  await page.getByRole("button", { name: "이 아바타로 확정" }).click();
-  await page.getByRole("button", { name: "대표로 설정", exact: true }).click();
-  await page.getByRole("button", { name: "현재 대표" }).waitFor();
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("avatarRewards.select")),
+    page.getByRole("button", { name: "이 아바타로 확정" }).click(),
+  ]);
+  const representativeButton = page
+    .locator("button")
+    .filter({ hasText: /대표로 설정|현재 대표/ })
+    .first();
+  await representativeButton.waitFor();
+  if ((await representativeButton.textContent())?.includes("대표로 설정"))
+    await representativeButton.click();
   await page.screenshot({ path: path.join(qaRoot, "mobile-collection.png") });
   await page.getByRole("slider", { name: "얼굴 위치" }).fill("20");
   await Promise.all([
@@ -452,8 +475,6 @@ try {
   await page.getByRole("button", { name: "컬렉션", exact: true }).click();
   await page.getByRole("button", { name: "MASTER 확대 보기" }).click();
   await page.locator(".art-portal").waitFor();
-  await page.getByRole("slider", { name: "그림 확대 비율" }).fill("200");
-  assert.equal(await page.locator(".art-portal output").textContent(), "200%");
   await page
     .getByRole("button", { name: "프레임 포함 이미지 저장", exact: true })
     .waitFor();
@@ -475,16 +496,49 @@ try {
   assert.ok(!chunks.some(x => ["eXIf", "tEXt", "iTXt", "zTXt"].includes(x)));
   assert.equal(png.readUInt32BE(16), 900);
   assert.equal(png.readUInt32BE(20), 1200);
-  const vp = page.locator(".art-viewport");
-  await vp.evaluate(el => {
-    el.scrollLeft = 20;
+  await page.getByRole("button", { name: "카드 전체 화면으로 보기" }).click();
+  const fullscreen = page.getByRole("dialog", { name: "전체 화면 카드" });
+  await fullscreen.waitFor();
+  await fullscreen.evaluate(el => {
+    el.setPointerCapture = () => {};
   });
-  const vb = await vp.boundingBox();
-  await page.mouse.move(vb.x + vb.width / 2, vb.y + 100);
-  await page.mouse.down();
-  await page.mouse.move(vb.x + vb.width / 2 + 160, vb.y + 100, { steps: 8 });
-  await page.mouse.up();
-  assert.equal(await vp.evaluate(el => el.scrollLeft), 0);
+  await fullscreen.dispatchEvent("pointerdown", {
+    pointerId: 11,
+    pointerType: "touch",
+    clientX: 100,
+    clientY: 200,
+  });
+  await fullscreen.dispatchEvent("pointerdown", {
+    pointerId: 12,
+    pointerType: "touch",
+    clientX: 200,
+    clientY: 200,
+  });
+  await fullscreen.dispatchEvent("pointermove", {
+    pointerId: 12,
+    pointerType: "touch",
+    clientX: 300,
+    clientY: 200,
+  });
+  await page.waitForFunction(() => {
+    const image = document.querySelector(".card-fullscreen img");
+    return image && new DOMMatrix(getComputedStyle(image).transform).a > 1;
+  });
+  assert.ok(
+    (await fullscreen.locator("img").evaluate(el => {
+      const matrix = new DOMMatrix(getComputedStyle(el).transform);
+      return matrix.a;
+    })) > 1
+  );
+  await fullscreen.dispatchEvent("pointerup", {
+    pointerId: 11,
+    pointerType: "touch",
+  });
+  await fullscreen.dispatchEvent("pointerup", {
+    pointerId: 12,
+    pointerType: "touch",
+  });
+  await page.getByRole("button", { name: "전체 화면 닫기" }).click();
   assert.ok(await page.locator(".reward-dialog").isVisible());
   await page.getByRole("button", { name: "그림 확대 닫기" }).click();
   await page.getByRole("slider", { name: "얼굴 확대 비율" }).fill("240");
@@ -494,11 +548,20 @@ try {
   await page.waitForResponse(r => r.url().includes("wardrobe"));
   assert.equal(wardrobe.cropZoom, 240);
   await page.locator(".card-sharing summary").click();
+  await page.getByRole("slider", { name: "광장 좌우 위치" }).fill("72");
+  page.once("dialog", dialog => dialog.dismiss());
+  await page.getByRole("button", { name: "포인트", exact: true }).click();
+  assert.ok(
+    await page
+      .getByRole("button", { name: "컬렉션", exact: true })
+      .getAttribute("aria-current")
+  );
   await page.getByLabel("사진 공개", { exact: true }).check();
   await page.getByRole("button", { name: "공개 설정 저장" }).click();
   await page.getByText("공개 중 · 공개 설정", { exact: true }).waitFor();
   assert.equal(wardrobe.sharing[0].showName, false);
   assert.equal(wardrobe.sharing[0].showGrade, false);
+  assert.equal(wardrobe.sharing[0].cropX, 72);
   await page.locator(".reward-dialog").evaluate(el => el.scrollTo(0, 0));
   await page.waitForTimeout(450);
   await page.waitForTimeout(4200);
@@ -582,6 +645,14 @@ try {
     await page.locator(".reward-dialog").waitFor({ state: "hidden" });
     await page.waitForFunction(() => !history.state?.haemilAvatarOverlay);
   }
+  await page.goto("http://127.0.0.1:5186/?admin");
+  await page.getByLabel("학생 선택").selectOption("1");
+  await page.getByRole("slider", { name: "관리자 광장 좌우 위치" }).fill("64");
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("adminGalleryCrop")),
+    page.getByRole("button", { name: "광장 프로필 저장" }).click(),
+  ]);
+  assert.equal(state.cards[0].galleryCropX, 64);
   assert.deepEqual(errors, []);
   console.log(
     "PASS desktop/mobile order, administrator upload, candidate selection, collection, representative crop, no horizontal overflow or JS errors"

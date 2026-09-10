@@ -13,7 +13,11 @@ import {
   type GalleryCard,
   type SharingInput,
 } from "../shared/avatarCollection";
-import mysql, { type PoolConnection, type RowDataPacket } from "mysql2/promise";
+import mysql, {
+  type PoolConnection,
+  type RowDataPacket,
+  type ResultSetHeader,
+} from "mysql2/promise";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import {
@@ -232,8 +236,9 @@ export async function rewardSnapshot(
     orders: await orders(c, studentId),
     cards: await rows(
       c,
-      `SELECT ac.id,ac.url,ac.mode,ac.createdAt,COALESCE(cs.frameId,'lunar') frame,COALESCE(cs.backgroundId,'classic') background
-       FROM avatar_collection ac LEFT JOIN avatar_card_style cs ON cs.cardId=ac.id
+      `SELECT ac.id,ac.url,ac.mode,ac.createdAt,COALESCE(cs.frameId,'lunar') frame,COALESCE(cs.backgroundId,'classic') background,
+       COALESCE(sh.cropX,50) galleryCropX,COALESCE(sh.cropY,20) galleryCropY,COALESCE(sh.cropZoom,190) galleryCropZoom
+       FROM avatar_collection ac LEFT JOIN avatar_card_style cs ON cs.cardId=ac.id LEFT JOIN avatar_sharing sh ON sh.cardId=ac.id
        WHERE ac.studentId=? ORDER BY ac.createdAt DESC`,
       [studentId]
     ),
@@ -492,9 +497,12 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
       visible: number;
       showName: number;
       showGrade: number;
+      cropX: number;
+      cropY: number;
+      cropZoom: number;
     }>(
       c,
-      "SELECT sh.cardId,sh.visible,sh.showName,sh.showGrade FROM avatar_sharing sh JOIN avatar_collection ac ON ac.id=sh.cardId WHERE ac.studentId=?",
+      "SELECT sh.cardId,sh.visible,sh.showName,sh.showGrade,sh.cropX,sh.cropY,sh.cropZoom FROM avatar_sharing sh JOIN avatar_collection ac ON ac.id=sh.cardId WHERE ac.studentId=?",
       [studentId]
     );
     const styles = await rows<{
@@ -629,10 +637,38 @@ export async function shareCard(studentId: number, input: SharingInput) {
     )
       reject("내 컬렉션만 공개할 수 있어요.");
     await c.query(
-      "INSERT INTO avatar_sharing(cardId,visible,showName,showGrade) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE visible=VALUES(visible),showName=VALUES(showName),showGrade=VALUES(showGrade)",
-      [v.cardId, v.visible, v.visible && v.showName, v.visible && v.showGrade]
+      "INSERT INTO avatar_sharing(cardId,visible,showName,showGrade,cropX,cropY,cropZoom) VALUES(?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE visible=VALUES(visible),showName=VALUES(showName),showGrade=VALUES(showGrade),cropX=VALUES(cropX),cropY=VALUES(cropY),cropZoom=VALUES(cropZoom)",
+      [
+        v.cardId,
+        v.visible,
+        v.visible && v.showName,
+        v.visible && v.showGrade,
+        v.cropX,
+        v.cropY,
+        v.cropZoom,
+      ]
     );
   });
+}
+export async function setGalleryCropAdmin(
+  cardId: string,
+  cropX: number,
+  cropY: number,
+  cropZoom: number
+) {
+  await ensureRewardSchema();
+  if (
+    ![cropX, cropY].every(v => Number.isInteger(v) && v >= 0 && v <= 100) ||
+    !Number.isInteger(cropZoom) ||
+    cropZoom < 100 ||
+    cropZoom > 500
+  )
+    reject("광장 프로필 위치와 확대 비율을 확인해 주세요.");
+  const [result] = await database().query<ResultSetHeader>(
+    "INSERT INTO avatar_sharing(cardId,cropX,cropY,cropZoom) SELECT id,?,?,? FROM avatar_collection WHERE id=? ON DUPLICATE KEY UPDATE cropX=VALUES(cropX),cropY=VALUES(cropY),cropZoom=VALUES(cropZoom)",
+    [cropX, cropY, cropZoom, cardId]
+  );
+  if (!result.affectedRows) reject("컬렉션 카드를 찾을 수 없습니다.");
 }
 export async function gallery(
   studentId: number,
@@ -642,9 +678,7 @@ export async function gallery(
   const [result] = await database().query<RowDataPacket[]>(
     `
  SELECT ac.id,ac.url,ac.mode,COALESCE(cs.frameId,'lunar') AS frame,COALESCE(cs.backgroundId,'classic') AS background,
- CASE WHEN a.representativeId=ac.id THEN a.cropX ELSE 50 END AS cropX,
- CASE WHEN a.representativeId=ac.id THEN a.cropY ELSE 0 END AS cropY,
- CASE WHEN a.representativeId=ac.id THEN COALESCE(w.cropZoom,300) ELSE 300 END AS cropZoom,
+ sh.cropX,sh.cropY,sh.cropZoom,
  CASE WHEN sh.showName=1 THEN s.name ELSE '박00' END AS name,
  CASE WHEN sh.showGrade=1 THEN s.grade ELSE '중0학년' END AS grade,
  (SELECT COUNT(*) FROM avatar_likes l WHERE l.cardId=ac.id) AS likes,
@@ -652,9 +686,7 @@ export async function gallery(
  (ac.studentId=?) AS mine
  FROM avatar_collection ac JOIN avatar_sharing sh ON sh.cardId=ac.id AND sh.visible=1
  JOIN students s ON s.id=ac.studentId AND s.active=1
- LEFT JOIN avatar_wardrobe w ON w.studentId=ac.studentId
  LEFT JOIN avatar_card_style cs ON cs.cardId=ac.id
- LEFT JOIN reward_accounts a ON a.studentId=ac.studentId
  ORDER BY sh.updatedAt DESC,ac.id DESC LIMIT ? OFFSET ?`,
     [studentId, studentId, galleryPageSize, page * galleryPageSize]
   );

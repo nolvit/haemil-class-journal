@@ -1,10 +1,10 @@
 import { SeasonalPrompts } from "./SeasonalPrompts";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { modeLabels } from "@shared/avatarRewards";
+import { modeLabels, type RewardCard } from "@shared/avatarRewards";
 import "./rewards.css";
 import "./avatar-theme.css";
 import { ArtworkPortal, type Artwork } from "./FantasyCard";
@@ -151,6 +151,82 @@ async function candidateSimilarity(a: File, b: File) {
       Math.abs(x[i + 2] - y[i + 2]);
   return 1 - difference / ((x.length / 4) * 3 * 255);
 }
+function AdminGalleryCrop({
+  card,
+  onSaved,
+}: {
+  card: RewardCard;
+  onSaved: () => void;
+}) {
+  const [x, setX] = useState(card.galleryCropX),
+    [y, setY] = useState(card.galleryCropY),
+    [zoom, setZoom] = useState(card.galleryCropZoom);
+  const save = trpc.avatarRewards.adminGalleryCrop.useMutation({
+    onError: e => toast.error(e.message),
+    onSuccess: () => {
+      onSaved();
+      toast.success("광장 프로필 위치를 저장했습니다.");
+    },
+  });
+  return (
+    <div className="gallery-crop-editor admin-gallery-crop">
+      <div className="constellation-orbit">
+        <img
+          src={card.url}
+          alt="광장 프로필 미리보기"
+          style={{
+            objectPosition: `${x}% ${y}%`,
+            transform: `scale(${zoom / 100})`,
+            transformOrigin: `${x}% ${y}%`,
+          }}
+        />
+      </div>
+      <label>
+        좌우{" "}
+        <input
+          aria-label="관리자 광장 좌우 위치"
+          type="range"
+          min="0"
+          max="100"
+          value={x}
+          onChange={e => setX(Number(e.target.value))}
+        />
+      </label>
+      <label>
+        상하{" "}
+        <input
+          aria-label="관리자 광장 상하 위치"
+          type="range"
+          min="0"
+          max="100"
+          value={y}
+          onChange={e => setY(Number(e.target.value))}
+        />
+      </label>
+      <label>
+        확대{" "}
+        <input
+          aria-label="관리자 광장 확대 비율"
+          type="range"
+          min="100"
+          max="500"
+          step="10"
+          value={zoom}
+          onChange={e => setZoom(Number(e.target.value))}
+        />
+        <output>{zoom}%</output>
+      </label>
+      <Button
+        disabled={save.isPending}
+        onClick={() =>
+          save.mutate({ cardId: card.id, cropX: x, cropY: y, cropZoom: zoom })
+        }
+      >
+        광장 프로필 저장
+      </Button>
+    </div>
+  );
+}
 export default function AvatarAdmin() {
   const [art, setArt] = useState<Artwork | null>(null);
   const [studentId, setStudentId] = useState(0),
@@ -292,6 +368,24 @@ export default function AvatarAdmin() {
             balance={snapshot.data.account.balance}
             onSaved={refresh}
           />
+          {!!snapshot.data.cards.length && (
+            <section>
+              <h2>광장 원형 프로필 관리</h2>
+              <p>
+                학생이 공개할 때 사용하는 원형 위치를 관리자가 수정할 수
+                있습니다.
+              </p>
+              <div className="reward-cards">
+                {snapshot.data.cards.map(card => (
+                  <AdminGalleryCrop
+                    key={card.id}
+                    card={card}
+                    onSaved={refresh}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
           {snapshot.data.orders.map(o => (
             <section key={o.id}>
               <h2>
@@ -462,6 +556,21 @@ export function AvatarOrderNotification() {
     retry: false,
   });
   const count = q.data?.reduce((n, s) => n + Number(s.newOrders), 0) ?? 0;
+  const previous = useRef<number | null>(null);
+  useEffect(() => {
+    if (count > 0 && (previous.current === null || count > previous.current)) {
+      toast.info(`새 스페셜 아바타 제작 요청 ${count}건이 도착했습니다.`, {
+        action: {
+          label: "확인",
+          onClick: () => {
+            location.href = "/avatar-rewards";
+          },
+        },
+        duration: 12000,
+      });
+    }
+    previous.current = count;
+  }, [count]);
   return count > 0 ? (
     <a
       className="reward-admin-notification"

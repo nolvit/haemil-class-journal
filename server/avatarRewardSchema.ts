@@ -36,6 +36,21 @@ export const rewardSchemaUpgrades = [
     sql: "ALTER TABLE reward_ledger ADD COLUMN actorUserId INT NULL",
   },
   {
+    table: "avatar_sharing",
+    column: "cropX",
+    sql: "ALTER TABLE avatar_sharing ADD COLUMN cropX INT NOT NULL DEFAULT 50",
+  },
+  {
+    table: "avatar_sharing",
+    column: "cropY",
+    sql: "ALTER TABLE avatar_sharing ADD COLUMN cropY INT NOT NULL DEFAULT 20",
+  },
+  {
+    table: "avatar_sharing",
+    column: "cropZoom",
+    sql: "ALTER TABLE avatar_sharing ADD COLUMN cropZoom INT NOT NULL DEFAULT 190",
+  },
+  {
     table: "reward_ledger",
     column: "requestId",
     sql: "ALTER TABLE reward_ledger ADD COLUMN requestId VARCHAR(36) NULL UNIQUE",

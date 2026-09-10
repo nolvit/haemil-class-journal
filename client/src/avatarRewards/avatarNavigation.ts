@@ -31,6 +31,7 @@ export function useAvatarBackGuard(
       oldBody = body.style.overscrollBehavior;
     root.style.overscrollBehavior = "none";
     body.style.overscrollBehavior = "none";
+    body.dataset.avatarOverlay = "open";
     const pop = () => {
       if (history.state?.[marker] !== id) close.current();
     };
@@ -39,6 +40,7 @@ export function useAvatarBackGuard(
       window.removeEventListener("popstate", pop);
       root.style.overscrollBehavior = oldRoot;
       body.style.overscrollBehavior = oldBody;
+      delete body.dataset.avatarOverlay;
       if (history.state?.[marker] === id) history.back();
     };
   }, [open, enabled]);

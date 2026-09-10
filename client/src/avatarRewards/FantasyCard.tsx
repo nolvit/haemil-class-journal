@@ -2,7 +2,6 @@ import { toast } from "sonner";
 import { renderCollectionCard, downloadCollectionCard } from "./cardExport";
 import {
   useAvatarBackGuard,
-  useBoundedImagePan,
   AvatarNavigationContext,
 } from "./avatarNavigation";
 import {
@@ -13,7 +12,7 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { Crown, Expand, Moon, Sparkles, X, Minus, Plus } from "lucide-react";
+import { Crown, Expand, Moon, Sparkles, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -36,17 +35,19 @@ export function ArtworkPortal({
   art: Artwork | null;
   onClose: () => void;
 }) {
-  const [zoom, setZoom] = useState(100);
-  const viewport = useRef<HTMLDivElement>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [view, setView] = useState({ scale: 1, x: 0, y: 0 });
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const gesture = useRef<{ distance: number; scale: number } | null>(null);
   const [rendered, setRendered] = useState<{ blob: Blob; url: string } | null>(
     null
   );
   const [error, setError] = useState(false);
   const inherited = useContext(AvatarNavigationContext);
   useAvatarBackGuard(!!art, onClose, !inherited);
-  useBoundedImagePan(viewport, !!art);
   useEffect(() => {
-    setZoom(100);
+    setFullscreen(false);
+    setView({ scale: 1, x: 0, y: 0 });
     setError(false);
     setRendered(null);
     if (!art) return;
@@ -79,7 +80,7 @@ export function ArtworkPortal({
       onOpenChange={v => {
         if (!v) {
           onClose();
-          setZoom(100);
+          setFullscreen(false);
         }
       }}
     >
@@ -100,13 +101,13 @@ export function ArtworkPortal({
             </button>
           </DialogClose>
         </header>
-        <div
-          ref={viewport}
+        <button
+          type="button"
           className="art-viewport"
-          tabIndex={0}
-          aria-label="확대 이미지 스크롤 영역"
+          aria-label="카드 전체 화면으로 보기"
+          onClick={() => rendered && setFullscreen(true)}
         >
-          <div style={{ width: zoom + "%", height: zoom + "%" }}>
+          <div>
             {art &&
               (rendered ? (
                 <img draggable={false} src={rendered.url} alt={art.title} />
@@ -118,38 +119,12 @@ export function ArtworkPortal({
                 </div>
               ))}
           </div>
-        </div>
-        <div className="art-tools">
-          <button
-            type="button"
-            aria-label="그림 축소"
-            disabled={zoom === 100}
-            onClick={() => setZoom(Math.max(100, zoom - 25))}
-          >
-            <Minus />
-          </button>
-          <input
-            aria-label="그림 확대 비율"
-            type="range"
-            min="100"
-            max="300"
-            step="25"
-            value={zoom}
-            onChange={e => setZoom(Number(e.target.value))}
-          />
-          <button
-            type="button"
-            aria-label="그림 확대"
-            disabled={zoom === 300}
-            onClick={() => setZoom(Math.min(300, zoom + 25))}
-          >
-            <Plus />
-          </button>
-          <output>{zoom}%</output>
-          <button type="button" onClick={() => setZoom(100)}>
-            원래 크기
-          </button>
-        </div>
+        </button>
+        <p className="fullscreen-hint">
+          <Expand size={16} />
+          카드를 한 번 더 누르면 전체 화면으로 열려요. 두 손가락으로 확대·축소할
+          수 있어요.
+        </p>
         <button
           type="button"
           className="card-download"
@@ -171,8 +146,75 @@ export function ArtworkPortal({
           이름·학년·좋아요·식별자와 원본 메타데이터 없이 카드 그림만 저장해요.
         </p>
         <p className="av-subtle">
-          확대 후 스크롤하거나 손가락으로 밀어 감상하세요.
+          전체 화면에서 한 손가락으로 이동하고 두 손가락으로 확대해 감상하세요.
         </p>
+        {fullscreen && rendered && (
+          <div
+            className="card-fullscreen"
+            role="dialog"
+            aria-label="전체 화면 카드"
+            onPointerDown={e => {
+              e.currentTarget.setPointerCapture(e.pointerId);
+              pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+              if (pointers.current.size === 2) {
+                const [a, b] = Array.from(pointers.current.values());
+                gesture.current = {
+                  distance: Math.hypot(a.x - b.x, a.y - b.y),
+                  scale: view.scale,
+                };
+              }
+            }}
+            onPointerMove={e => {
+              const old = pointers.current.get(e.pointerId);
+              if (!old) return;
+              pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+              if (pointers.current.size >= 2) {
+                const [a, b] = Array.from(pointers.current.values());
+                const distance = Math.hypot(a.x - b.x, a.y - b.y);
+                const start = gesture.current;
+                if (start)
+                  setView(v => ({
+                    ...v,
+                    scale: Math.max(
+                      1,
+                      Math.min(4, (start.scale * distance) / start.distance)
+                    ),
+                  }));
+              } else
+                setView(v => ({
+                  ...v,
+                  x: v.x + e.clientX - old.x,
+                  y: v.y + e.clientY - old.y,
+                }));
+            }}
+            onPointerUp={e => {
+              pointers.current.delete(e.pointerId);
+              gesture.current = null;
+            }}
+            onPointerCancel={e => {
+              pointers.current.delete(e.pointerId);
+              gesture.current = null;
+            }}
+          >
+            <button
+              className="card-fullscreen-close"
+              type="button"
+              aria-label="전체 화면 닫기"
+              onClick={() => setFullscreen(false)}
+            >
+              <X />
+            </button>
+            <img
+              draggable={false}
+              src={rendered.url}
+              alt={art?.title}
+              style={{
+                transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`,
+              }}
+            />
+            <span>한 손가락으로 이동 · 두 손가락으로 확대/축소</span>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

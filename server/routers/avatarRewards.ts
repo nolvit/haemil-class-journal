@@ -161,6 +161,23 @@ export const avatarRewardsRouter = router({
   adminSnapshot: adminProcedure
     .input(student)
     .query(({ input }) => store.rewardSnapshot(input.studentId)),
+  adminGalleryCrop: adminProcedure
+    .input(
+      z.object({
+        cardId: z.string().uuid(),
+        cropX: z.number().int().min(0).max(100),
+        cropY: z.number().int().min(0).max(100),
+        cropZoom: z.number().int().min(100).max(500),
+      })
+    )
+    .mutation(({ input }) =>
+      store.setGalleryCropAdmin(
+        input.cardId,
+        input.cropX,
+        input.cropY,
+        input.cropZoom
+      )
+    ),
   cancel: adminProcedure
     .input(order)
     .mutation(({ input }) =>

@@ -86,6 +86,9 @@ export function AvatarRewards({
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(
     null
   );
+  const [sharingDirtyCards, setSharingDirtyCards] = useState<Set<string>>(
+    () => new Set()
+  );
   const query = trpc.avatarRewards.snapshot.useQuery(identity, {
     refetchInterval: open ? 15_000 : 60_000,
     retry: false,
@@ -162,24 +165,27 @@ export function AvatarRewards({
   const position = cropY ?? account?.cropY ?? 0;
   const horizontal = cropX ?? account?.cropX ?? 50;
   const cropDirty = cropY !== null || cropX !== null || zoom !== null;
+  const hasUnsavedCrop = cropDirty || sharingDirtyCards.size > 0;
+  const confirmDiscardCrop = () =>
+    !hasUnsavedCrop ||
+    window.confirm(
+      "저장하지 않은 원형 프로필 조정이 있어요. 이동하면 변경 내용이 사라집니다. 이동할까요?"
+    );
   const navigate = (next: typeof page) => {
-    if (
-      page === "collection" &&
-      cropDirty &&
-      !window.confirm(
-        "저장하지 않은 원형 사진 조정이 있어요. 이동하면 변경 내용이 사라집니다. 이동할까요?"
-      )
-    )
-      return;
+    if (page === "collection" && !confirmDiscardCrop()) return;
     setCropY(null);
     setCropX(null);
     setZoom(null);
+    setSharingDirtyCards(new Set());
     setPage(next);
   };
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeAvatar = () => {
+    if (!confirmDiscardCrop()) return;
     setOpen(false);
     setArt(null);
+    setSelectedCandidate(null);
+    setSharingDirtyCards(new Set());
   };
   useAvatarBackGuard(open, closeAvatar);
   useLayoutEffect(() => {
@@ -228,11 +234,11 @@ export function AvatarRewards({
       <Dialog
         open={open}
         onOpenChange={v => {
-          setOpen(v);
-          if (!v) {
-            setArt(null);
-            setSelectedCandidate(null);
-          } else setPage("home");
+          if (!v) closeAvatar();
+          else {
+            setOpen(true);
+            setPage("home");
+          }
         }}
       >
         <DialogTrigger asChild>
@@ -257,7 +263,11 @@ export function AvatarRewards({
             {active?.status === "ready" && <span className="reward-dot" />}
           </button>
         </DialogTrigger>
-        <DialogContent ref={dialogRef} className="reward-dialog avatar-theme">
+        <DialogContent
+          ref={dialogRef}
+          className="reward-dialog avatar-theme"
+          data-swipe-disabled
+        >
           <div className="reward-heading">
             {page !== "home" && (
               <button
@@ -578,8 +588,18 @@ export function AvatarRewards({
                             )}
                             identity={identity}
                             cardId={c.id}
+                            url={c.url}
                             wardrobe={wardrobe}
                             onRefresh={() => void refresh()}
+                            onDirtyChange={dirty =>
+                              setSharingDirtyCards(current => {
+                                if (dirty === current.has(c.id)) return current;
+                                const next = new Set(current);
+                                if (dirty) next.add(c.id);
+                                else next.delete(c.id);
+                                return next;
+                              })
+                            }
                           />
                         )}
                       </FantasyCard>
