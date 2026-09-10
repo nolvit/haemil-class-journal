@@ -52,6 +52,7 @@ import "./avatar-theme.css";
 import { FantasyCard, ArtworkPortal, type Artwork } from "./FantasyCard";
 import { AvatarShop, AvatarGallery, CardSharing } from "./AvatarUniverse";
 import type { Wardrobe } from "@shared/avatarCollection";
+import { AvatarBgmPlayer } from "./AvatarBgm";
 
 const emptyOrder: RewardOrderInput = {
   selectedParts: [],
@@ -295,6 +296,7 @@ export function AvatarRewards({
                 꾸준히 쌓은 배움, 나다운 모습으로.
               </DialogDescription>
             </div>
+            <AvatarBgmPlayer identity={identity} open={open} />
             <div className="avatar-brand">
               haemil<small>THE COLLECTION</small>
             </div>

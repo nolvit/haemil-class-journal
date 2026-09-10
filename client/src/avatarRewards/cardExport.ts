@@ -31,7 +31,8 @@ export async function renderCollectionCard(
     c.scale(CARD_RENDER_SCALE, CARD_RENDER_SCALE);
     c.imageSmoothingEnabled = true;
     c.imageSmoothingQuality = "high";
-    const [gold, light] = palettes[frame];
+    const [gold, light] =
+      palettes[frame as keyof typeof palettes] ?? palettes.lunar;
     const rounded = (
       x: number,
       y: number,

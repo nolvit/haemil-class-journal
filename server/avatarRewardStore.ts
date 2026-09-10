@@ -42,6 +42,18 @@ import type {
   OfficialCharacter,
   OfficialCharacterInput,
 } from "../shared/avatarOfficial";
+import {
+  avatarBgmPrice,
+  avatarBgmTrackId,
+  type AvatarBgmState,
+  type AvatarBgmTrackId,
+} from "../shared/avatarBgm";
+import {
+  defaultShopItems,
+  type ShopItem,
+  type ShopItemInput,
+  type ShopCategory,
+} from "../shared/avatarShop";
 
 let pool: mysql.Pool | undefined;
 let initialized: Promise<void> | undefined;
@@ -57,6 +69,22 @@ export async function ensureRewardSchema() {
   if (!process.env.DATABASE_URL) return;
   initialized ??= (async () => {
     for (const statement of rewardDDL) await database().query(statement);
+    for (const item of defaultShopItems)
+      await database().query(
+        "INSERT IGNORE INTO avatar_shop_items(id,category,name,description,rankLabel,price,season,assetUrl,durationSeconds,active) VALUES(?,?,?,?,?,?,?,?,?,?)",
+        [
+          item.id,
+          item.category,
+          item.name,
+          item.description,
+          item.rank,
+          item.price,
+          item.season,
+          item.assetUrl,
+          item.durationSeconds,
+          item.active,
+        ]
+      );
     for (const upgrade of rewardSchemaUpgrades) {
       const [columns] = await database().query<RowDataPacket[]>(
         "SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?",
@@ -474,6 +502,185 @@ export async function settleRewardAttendance() {
     await transaction(student.id, async () => {});
 }
 
+export async function bgmState(studentId: number): Promise<AvatarBgmState> {
+  return transaction(studentId, async c => {
+    const owned = await rows<{ trackId: AvatarBgmTrackId }>(
+      c,
+      "SELECT trackId FROM avatar_bgm_inventory WHERE studentId=? ORDER BY purchasedAt,trackId",
+      [studentId]
+    );
+    const [settings] = await rows<{ equippedTrackId: string | null }>(
+      c,
+      "SELECT equippedTrackId FROM avatar_bgm_settings WHERE studentId=?",
+      [studentId]
+    );
+    const ownedIds = owned
+      .map(row => avatarBgmTrackId.safeParse(row.trackId))
+      .filter(result => result.success)
+      .map(result => result.data);
+    const equipped = avatarBgmTrackId.safeParse(settings?.equippedTrackId);
+    const catalog = await rows<{
+      id: string;
+      name: string;
+      description: string;
+      price: number;
+      assetUrl: string;
+      durationSeconds: number;
+    }>(
+      c,
+      "SELECT id,name,description,price,assetUrl,durationSeconds FROM avatar_shop_items WHERE category='bgm' AND ((deleted=0 AND active=1) OR id IN (SELECT trackId FROM avatar_bgm_inventory WHERE studentId=?)) ORDER BY createdAt,id",
+      [studentId]
+    );
+    return {
+      owned: ownedIds,
+      equipped:
+        equipped.success && ownedIds.includes(equipped.data)
+          ? equipped.data
+          : null,
+      firstPurchaseFree: ownedIds.length === 0,
+      tracks: catalog
+        .filter(x => x.assetUrl)
+        .map(x => ({
+          id: x.id,
+          title: x.name,
+          description: x.description,
+          price: x.price,
+          url: x.assetUrl,
+          durationSeconds: Number(x.durationSeconds || 0),
+          durationLabel: `${Math.floor(Number(x.durationSeconds || 0) / 60)}분 ${Number(x.durationSeconds || 0) % 60}초`,
+        })),
+    };
+  });
+}
+
+export async function purchaseBgm(
+  studentId: number,
+  trackId: AvatarBgmTrackId
+) {
+  return transaction(studentId, async (c, account) => {
+    const [track] = await rows<{ name: string; price: number }>(
+      c,
+      "SELECT name,price FROM avatar_shop_items WHERE id=? AND category='bgm' AND active=1 AND deleted=0 FOR UPDATE",
+      [trackId]
+    );
+    if (!track) reject("판매 중인 BGM을 찾을 수 없어요.");
+    const owned = await rows<{ trackId: string }>(
+      c,
+      "SELECT trackId FROM avatar_bgm_inventory WHERE studentId=? FOR UPDATE",
+      [studentId]
+    );
+    if (owned.some(row => row.trackId === trackId))
+      return { price: 0, balance: account.balance, duplicate: true };
+    const price = avatarBgmPrice(owned.length, Number(track.price));
+    if (account.balance < price) reject("BGM 구매 포인트가 부족해요.");
+    account.balance -= price;
+    await c.query(
+      "INSERT INTO avatar_bgm_inventory(studentId,trackId,purchasePrice) VALUES(?,?,?)",
+      [studentId, trackId, price]
+    );
+    await c.query(
+      "INSERT INTO avatar_bgm_settings(studentId,equippedTrackId) VALUES(?,?) ON DUPLICATE KEY UPDATE equippedTrackId=IF(equippedTrackId IS NULL,VALUES(equippedTrackId),equippedTrackId)",
+      [studentId, trackId]
+    );
+    if (price) await ledger(c, studentId, -price, `BGM 소장: ${track.name}`);
+    return { price, balance: account.balance, duplicate: false };
+  });
+}
+
+function mapShopItem(x: any): ShopItem {
+  return {
+    ...x,
+    rank: x.rankLabel,
+    price: Number(x.price),
+    durationSeconds:
+      x.durationSeconds == null ? null : Number(x.durationSeconds),
+    active: !!x.active,
+  };
+}
+export async function shopCatalog(
+  category?: ShopCategory,
+  includeHidden = false
+): Promise<ShopItem[]> {
+  await ensureRewardSchema();
+  const params: unknown[] = [];
+  let where = includeHidden ? "deleted=0" : "deleted=0 AND active=1";
+  if (category) {
+    where += " AND category=?";
+    params.push(category);
+  }
+  const [data] = await database().query<RowDataPacket[]>(
+    `SELECT * FROM avatar_shop_items WHERE ${where} ORDER BY category,season,price,id`,
+    params
+  );
+  return data.map(mapShopItem);
+}
+export async function createShopItem(input: ShopItemInput) {
+  await ensureRewardSchema();
+  try {
+    await database().query(
+      "INSERT INTO avatar_shop_items(id,category,name,description,rankLabel,price,season,assetUrl,durationSeconds,active) VALUES(?,?,?,?,?,?,?,?,?,?)",
+      [
+        input.id,
+        input.category,
+        input.name,
+        input.description,
+        input.rank,
+        input.price,
+        input.season,
+        input.assetUrl,
+        input.durationSeconds,
+        input.active,
+      ]
+    );
+  } catch (e) {
+    if ((e as any).code === "ER_DUP_ENTRY")
+      reject("이미 사용 중인 상품 ID예요.");
+    throw e;
+  }
+}
+export async function updateShopItem(input: ShopItemInput) {
+  await ensureRewardSchema();
+  const [r] = await database().query<ResultSetHeader>(
+    "UPDATE avatar_shop_items SET category=?,name=?,description=?,rankLabel=?,price=?,season=?,assetUrl=?,durationSeconds=?,active=? WHERE id=? AND deleted=0",
+    [
+      input.category,
+      input.name,
+      input.description,
+      input.rank,
+      input.price,
+      input.season,
+      input.assetUrl,
+      input.durationSeconds,
+      input.active,
+      input.id,
+    ]
+  );
+  if (!r.affectedRows) reject("상품을 찾을 수 없습니다.");
+}
+export async function deleteShopItem(id: string) {
+  await ensureRewardSchema();
+  const [r] = await database().query<ResultSetHeader>(
+    "UPDATE avatar_shop_items SET active=0,deleted=1 WHERE id=?",
+    [id]
+  );
+  if (!r.affectedRows) reject("상품을 찾을 수 없습니다.");
+}
+
+export async function equipBgm(studentId: number, trackId: AvatarBgmTrackId) {
+  return transaction(studentId, async c => {
+    const owned = await rows(
+      c,
+      "SELECT trackId FROM avatar_bgm_inventory WHERE studentId=? AND trackId=?",
+      [studentId, trackId]
+    );
+    if (!owned.length) reject("먼저 이 BGM을 소장해 주세요.");
+    await c.query(
+      "INSERT INTO avatar_bgm_settings(studentId,equippedTrackId) VALUES(?,?) ON DUPLICATE KEY UPDATE equippedTrackId=VALUES(equippedTrackId)",
+      [studentId, trackId]
+    );
+  });
+}
+
 // All purchases and equips serialize on the existing account lock.
 export async function wardrobe(studentId: number): Promise<Wardrobe> {
   return transaction(studentId, async c => {
@@ -565,8 +772,13 @@ export async function purchaseFrame(
   cardId: string,
   id: FrameId
 ) {
-  const f = frames.find(x => x.id === frameId.parse(id))!;
   return transaction(studentId, async (c, a) => {
+    const [f] = await rows<{ name: string; price: number }>(
+      c,
+      "SELECT name,price FROM avatar_shop_items WHERE id=? AND category='card_frame' AND active=1 AND deleted=0",
+      [frameId.parse(id)]
+    );
+    if (!f) reject("판매 중인 프레임을 찾을 수 없어요.");
     if (
       !(
         await rows(
@@ -577,20 +789,20 @@ export async function purchaseFrame(
       ).length
     )
       reject("내 카드를 선택해 주세요.");
-    if (f.price === 0) return;
+    if (Number(f.price) === 0) return;
     const owned = await rows(
       c,
       "SELECT frameId FROM avatar_card_frames WHERE cardId=? AND frameId=?",
       [cardId, id]
     );
     if (owned.length) return; // Retry-safe: never charge an owned frame twice.
-    if (a.balance < f.price) reject("사용 가능 포인트가 부족해요.");
+    if (a.balance < Number(f.price)) reject("사용 가능 포인트가 부족해요.");
     await c.query(
       "INSERT INTO avatar_card_frames(cardId,frameId) VALUES(?,?)",
       [cardId, id]
     );
-    a.balance -= f.price;
-    await ledger(c, studentId, -f.price, "프레임 구매 · " + f.name);
+    a.balance -= Number(f.price);
+    await ledger(c, studentId, -Number(f.price), "프레임 구매 · " + f.name);
   });
 }
 export async function equipFrame(
@@ -859,8 +1071,13 @@ export async function purchaseBackground(
   cardId: string,
   id: BackgroundId
 ) {
-  const item = backgrounds.find(x => x.id === backgroundId.parse(id))!;
   return transaction(studentId, async (c, a) => {
+    const [item] = await rows<{ name: string; price: number }>(
+      c,
+      "SELECT name,price FROM avatar_shop_items WHERE id=? AND category='card_background' AND active=1 AND deleted=0",
+      [backgroundId.parse(id)]
+    );
+    if (!item) reject("판매 중인 배경을 찾을 수 없어요.");
     if (
       !(
         await rows(
@@ -872,7 +1089,7 @@ export async function purchaseBackground(
     )
       reject("내 카드를 선택해 주세요.");
     if (
-      !item.price ||
+      !Number(item.price) ||
       (
         await rows(
           c,
@@ -882,13 +1099,13 @@ export async function purchaseBackground(
       ).length
     )
       return;
-    if (a.balance < item.price) reject("사용 가능 포인트가 부족해요.");
+    if (a.balance < Number(item.price)) reject("사용 가능 포인트가 부족해요.");
     await c.query(
       "INSERT INTO avatar_card_backgrounds(cardId,backgroundId) VALUES(?,?)",
       [cardId, id]
     );
-    a.balance -= item.price;
-    await ledger(c, studentId, -item.price, "배경 구매 · " + item.name);
+    a.balance -= Number(item.price);
+    await ledger(c, studentId, -Number(item.price), "배경 구매 · " + item.name);
   });
 }
 export async function equipBackground(

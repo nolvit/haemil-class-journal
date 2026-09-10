@@ -15,6 +15,8 @@ import {
 import * as store from "../avatarRewardStore";
 import { storagePut } from "../storage";
 import { officialCharacterInput } from "../../shared/avatarOfficial";
+import { avatarBgmTrackId } from "../../shared/avatarBgm";
+import { shopItemInput, shopCategory } from "../../shared/avatarShop";
 const identity = z.object({
   token: z.string().min(8).max(64),
   studentId: z.number().int().positive(),
@@ -72,7 +74,53 @@ async function saveImage(image: z.infer<typeof imageInput>) {
     )
   ).url;
 }
+const shopAssetInput = z.object({
+  data: z.string().min(1).max(24_000_000),
+  mime: z.enum(["image/png", "image/jpeg", "image/webp", "audio/mpeg"]),
+});
+async function saveShopAsset(file: z.infer<typeof shopAssetInput>) {
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(file.data))
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "상품 파일을 확인해 주세요.",
+    });
+  const bytes = Buffer.from(file.data, "base64");
+  const audio = file.mime === "audio/mpeg";
+  if (bytes.length > (audio ? 15 : 8) * 1024 * 1024)
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "이미지는 8MB, MP3는 15MB 이하로 등록해 주세요.",
+    });
+  if (
+    audio &&
+    !(
+      bytes.subarray(0, 3).toString("ascii") === "ID3" ||
+      (bytes[0] === 255 && (bytes[1] & 224) === 224)
+    )
+  )
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: "올바른 MP3 파일을 등록해 주세요.",
+    });
+  if (!audio) validateRewardImage(file as z.infer<typeof imageInput>);
+  const ext = audio ? "mp3" : file.mime.split("/")[1];
+  return (
+    await storagePut(`avatar-shop/${randomUUID()}.${ext}`, bytes, file.mime)
+  ).url;
+}
 export const avatarRewardsRouter = router({
+  shopCatalog: studentProcedure
+    .input(z.object({ category: shopCategory.optional() }))
+    .query(({ input }) => store.shopCatalog(input.category)),
+  bgmState: studentProcedure.query(({ input }) =>
+    store.bgmState(input.studentId)
+  ),
+  purchaseBgm: studentProcedure
+    .input(z.object({ trackId: avatarBgmTrackId }))
+    .mutation(({ input }) => store.purchaseBgm(input.studentId, input.trackId)),
+  equipBgm: studentProcedure
+    .input(z.object({ trackId: avatarBgmTrackId }))
+    .mutation(({ input }) => store.equipBgm(input.studentId, input.trackId)),
   purchaseBackground: studentProcedure
     .input(z.object({ cardId: z.string().uuid(), backgroundId }))
     .mutation(({ input }) =>
@@ -157,6 +205,32 @@ export const avatarRewardsRouter = router({
     ),
   adminList: adminProcedure.query(() => store.rewardAdminList()),
   officialCharacters: adminProcedure.query(() => store.officialCharacters()),
+  adminShopItems: adminProcedure.query(() =>
+    store.shopCatalog(undefined, true)
+  ),
+  createShopItem: adminProcedure
+    .input(z.object({ item: shopItemInput, asset: shopAssetInput.optional() }))
+    .mutation(async ({ input }) =>
+      store.createShopItem({
+        ...input.item,
+        assetUrl: input.asset
+          ? await saveShopAsset(input.asset)
+          : input.item.assetUrl,
+      })
+    ),
+  updateShopItem: adminProcedure
+    .input(z.object({ item: shopItemInput, asset: shopAssetInput.optional() }))
+    .mutation(async ({ input }) =>
+      store.updateShopItem({
+        ...input.item,
+        assetUrl: input.asset
+          ? await saveShopAsset(input.asset)
+          : input.item.assetUrl,
+      })
+    ),
+  deleteShopItem: adminProcedure
+    .input(z.object({ id: z.string().min(1).max(64) }))
+    .mutation(({ input }) => store.deleteShopItem(input.id)),
   createOfficialCharacter: adminProcedure
     .input(officialCharacterInput.extend({ image: imageInput }))
     .mutation(async ({ input }) => {

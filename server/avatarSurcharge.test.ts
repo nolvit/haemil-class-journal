@@ -64,6 +64,7 @@ vi.mock("mysql2/promise", () => {
       fake.ledger.push({ studentId: p[0], delta: p[1], reason: p[2] });
       return [[], []];
     }
+    if (sql.startsWith("INSERT IGNORE INTO avatar_shop_items")) return [[], []];
     if (sql.startsWith("UPDATE reward_accounts")) {
       fake.account.balance = p[0];
       return [[], []];

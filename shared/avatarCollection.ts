@@ -29,7 +29,7 @@ export const frames = [
     description: "찬란한 황금빛과 태양 문장으로 완성하는 한 장",
   },
 ] as const;
-export const frameId = z.enum(["lunar", "aurora", "astral", "solar"]);
+export const frameId = z.string().trim().min(1).max(64);
 export type FrameId = z.infer<typeof frameId>;
 export const sharingInput = z.object({
   cardId: z.string().uuid(),
@@ -107,7 +107,7 @@ export const backgrounds = [
     description: "황금빛 대칭 문양과 빛나는 궁전의 아치",
   },
 ] as const;
-export const backgroundId = z.enum(["classic", "library", "nebula", "palace"]);
+export const backgroundId = z.string().trim().min(1).max(64);
 export type BackgroundId = z.infer<typeof backgroundId>;
 
 export const galleryPageSize = 36;

@@ -88,6 +88,77 @@ const wardrobe = {
 };
 let liked = false;
 let officials = [];
+const shop = [
+  {
+    id: "lunar",
+    category: "card_frame",
+    name: "월광의 서약",
+    rank: "기본",
+    price: 0,
+    description: "기본 프레임",
+    season: "상시",
+    assetUrl: null,
+    durationSeconds: null,
+    active: true,
+  },
+  {
+    id: "aurora",
+    category: "card_frame",
+    name: "오로라의 정원",
+    rank: "레어",
+    price: 150,
+    description: "오로라 프레임",
+    season: "상시",
+    assetUrl: null,
+    durationSeconds: null,
+    active: true,
+  },
+  {
+    id: "classic",
+    category: "card_background",
+    name: "별의 인장",
+    rank: "기본",
+    price: 0,
+    description: "기본 배경",
+    season: "상시",
+    assetUrl: null,
+    durationSeconds: null,
+    active: true,
+  },
+  {
+    id: "library",
+    category: "card_background",
+    name: "달빛 서고",
+    rank: "레어",
+    price: 150,
+    description: "서고 배경",
+    season: "상시",
+    assetUrl: null,
+    durationSeconds: null,
+    active: true,
+  },
+];
+const tracks = [
+  {
+    id: "moonlight-library",
+    title: "달빛 도서관",
+    durationSeconds: 184,
+    durationLabel: "3분 4초",
+    price: 300,
+    url: "/avatar-rewards/audio/moonlight-library.mp3",
+    description: "달빛 선율",
+  },
+  {
+    id: "starlight-walk",
+    title: "별빛 산책",
+    durationSeconds: 162,
+    durationLabel: "2분 42초",
+    price: 300,
+    url: "/avatar-rewards/audio/starlight-walk.mp3",
+    description: "별빛 선율",
+  },
+];
+const bgm = { owned: [], equipped: null, firstPurchaseFree: true, tracks };
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
 page.on("pageerror", e => errors.push(e.message));
@@ -104,7 +175,23 @@ await page.route("**/api/trpc/**", async route => {
   const results = methods.map((method, i) => {
     const input = payload?.[i]?.json ?? {};
     let value;
-    if (method.endsWith("wardrobe")) value = wardrobe;
+    if (method.endsWith("shopCatalog"))
+      value = shop.filter(x => x.category === input.category);
+    else if (method.endsWith("adminShopItems")) value = shop;
+    else if (method.endsWith("bgmState")) value = bgm;
+    else if (method.endsWith("purchaseBgm")) {
+      const price = bgm.owned.length === 0 ? 0 : 300;
+      if (!bgm.owned.includes(input.trackId)) {
+        bgm.owned.push(input.trackId);
+        bgm.equipped ??= input.trackId;
+        bgm.firstPurchaseFree = false;
+        state.account.balance -= price;
+      }
+      value = { price, balance: state.account.balance, duplicate: false };
+    } else if (method.endsWith("equipBgm")) {
+      bgm.equipped = input.trackId;
+      value = null;
+    } else if (method.endsWith("wardrobe")) value = wardrobe;
     else if (method.endsWith("officialCharacters")) value = officials;
     else if (method.endsWith("createOfficialCharacter")) {
       officials.unshift({
@@ -402,6 +489,10 @@ try {
   }
   page.once("dialog", d => d.accept());
   await page.getByRole("button", { name: /펫 랜덤/ }).click();
+  await page.waitForFunction(() => {
+    const input = document.querySelector("#reward-pet");
+    return input && input.value.length > 0;
+  });
   const petBefore = await page.getByLabel("펫", { exact: true }).inputValue();
   await page.getByRole("button", { name: /펫 랜덤/ }).click();
   assert.ok(petBefore);
@@ -688,6 +779,62 @@ try {
   await page.getByRole("button", { name: "장착하기", exact: true }).click();
   await page.waitForTimeout(450);
   assert.equal(wardrobe.cardStyles[candidateId].background, "library");
+  await page.getByRole("button", { name: "BGM", exact: true }).click();
+  await page.getByText("달빛 도서관", { exact: true }).waitFor();
+  await page.getByText("3분 4초", { exact: true }).waitFor();
+  await page.getByText("별빛 산책", { exact: true }).waitFor();
+  await page.getByText("2분 42초", { exact: true }).waitFor();
+  const durations = await page.evaluate(async () => {
+    const read = src =>
+      new Promise((resolve, reject) => {
+        const audio = new Audio(src);
+        audio.onloadedmetadata = () => resolve(audio.duration);
+        audio.onerror = reject;
+      });
+    return Promise.all([
+      read("/avatar-rewards/audio/moonlight-library.mp3"),
+      read("/avatar-rewards/audio/starlight-walk.mp3"),
+    ]);
+  });
+  assert.ok(Math.abs(durations[0] - 184) < 1);
+  assert.ok(Math.abs(durations[1] - 162) < 1);
+  const moonlight = page
+    .locator(".bgm-product")
+    .filter({ hasText: "달빛 도서관" });
+  await moonlight.getByRole("button", { name: "20초 미리듣기" }).click();
+  await moonlight.getByRole("button", { name: "미리듣기 중지" }).waitFor();
+  await page.locator(".avatar-bgm-shop audio").evaluate(audio => {
+    audio.currentTime = 20;
+    audio.dispatchEvent(new Event("timeupdate"));
+  });
+  await moonlight.getByRole("button", { name: "20초 미리듣기" }).waitFor();
+  const beforeFreeBgm = state.account.balance;
+  await moonlight.getByRole("button", { name: "첫 곡 무료 소장" }).click();
+  await moonlight.getByRole("button", { name: "장착 중" }).waitFor();
+  assert.equal(state.account.balance, beforeFreeBgm);
+  const starlight = page
+    .locator(".bgm-product")
+    .filter({ hasText: "별빛 산책" });
+  await starlight.getByRole("button", { name: "300P로 영구 소장" }).click();
+  await starlight.getByRole("button", { name: "장착하기" }).waitFor();
+  assert.equal(state.account.balance, beforeFreeBgm - 300);
+  await starlight.getByRole("button", { name: "장착하기" }).click();
+  await starlight.getByRole("button", { name: "장착 중" }).waitFor();
+  assert.equal(bgm.equipped, "starlight-walk");
+  await page.getByRole("button", { name: "배경 음악 켜기" }).click();
+  assert.equal(
+    await page.evaluate(() =>
+      localStorage.getItem("haemil-avatar-bgm-enabled")
+    ),
+    "on"
+  );
+  const player = page.locator(".avatar-bgm-player audio");
+  await page.waitForTimeout(350);
+  const timeBeforeMenu = await player.evaluate(audio => audio.currentTime);
+  await page.getByRole("button", { name: "포인트", exact: true }).click();
+  await page.waitForTimeout(350);
+  const timeAfterMenu = await player.evaluate(audio => audio.currentTime);
+  assert.ok(timeAfterMenu >= timeBeforeMenu);
   await page.locator(".reward-dialog").evaluate(el => el.scrollTo(0, 0));
   await page.waitForTimeout(4200);
   await page.screenshot({ path: path.join(qaRoot, "fantasy-shop.png") });

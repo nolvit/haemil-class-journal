@@ -157,6 +157,18 @@ describe("reward integration boundaries", () => {
       caller.submit({ token: "valid-token", studentId: 2, order: input })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     for (const request of [
+      caller.shopCatalog({ token: "valid-token", studentId: 2 }),
+      caller.bgmState({ token: "valid-token", studentId: 2 }),
+      caller.purchaseBgm({
+        token: "valid-token",
+        studentId: 2,
+        trackId: "moonlight-library",
+      }),
+      caller.equipBgm({
+        token: "valid-token",
+        studentId: 2,
+        trackId: "moonlight-library",
+      }),
       caller.wardrobe({ token: "valid-token", studentId: 2 }),
       caller.gallery({ token: "valid-token", studentId: 2, page: 0 }),
       caller.purchaseFrame({

@@ -1,11 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
-import { Heart, LockKeyhole, ShoppingBag, Sparkles } from "lucide-react";
+import {
+  Heart,
+  LockKeyhole,
+  Music2,
+  ShoppingBag,
+  Sparkles,
+} from "lucide-react";
 import {
   galleryPageSize,
-  frames,
-  backgrounds,
   type Wardrobe,
   type FrameId,
   type BackgroundId,
@@ -18,6 +22,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { AvatarBgmShop } from "./AvatarBgm";
 type Identity = { token: string; studentId: number };
 export function AvatarShop({
   identity,
@@ -36,7 +41,21 @@ export function AvatarShop({
   onRefresh: () => void;
   onOpen: (a: Artwork) => void;
 }) {
-  const [category, setCategory] = useState<"frames" | "backgrounds">("frames");
+  const [category, setCategory] = useState<"frames" | "backgrounds" | "bgm">(
+    "frames"
+  );
+  const catalog = trpc.avatarRewards.shopCatalog.useQuery(
+    {
+      ...identity,
+      category:
+        category === "frames"
+          ? "card_frame"
+          : category === "backgrounds"
+            ? "card_background"
+            : "bgm",
+    },
+    { retry: false }
+  );
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
   const card = cards.find(c => c.id === cardId) ?? cards[0];
   const style = card
@@ -65,7 +84,10 @@ export function AvatarShop({
     equipBg = trpc.avatarRewards.equipBackground.useMutation(options);
   const busy =
     buy.isPending || equip.isPending || buyBg.isPending || equipBg.isPending;
-  const products = category === "frames" ? frames : backgrounds;
+  const products = (catalog.data ?? []).map(item => ({
+    ...item,
+    rank: item.rank,
+  }));
   return (
     <section className="universe-shop">
       <div className="av-section-intro">
@@ -89,8 +111,21 @@ export function AvatarShop({
           <ShoppingBag size={16} />
           카드 배경
         </button>
+        <button
+          aria-pressed={category === "bgm"}
+          onClick={() => setCategory("bgm")}
+        >
+          <Music2 size={16} />
+          BGM
+        </button>
       </div>
-      {cards.length ? (
+      {category === "bgm" ? (
+        <AvatarBgmShop
+          identity={identity}
+          balance={balance}
+          onRefresh={onRefresh}
+        />
+      ) : cards.length ? (
         <label className="av-card-target">
           꾸밀 카드
           <select value={card?.id} onChange={e => setCardId(e.target.value)}>
@@ -104,88 +139,90 @@ export function AvatarShop({
       ) : (
         <p>먼저 스페셜 아바타 카드를 만들어 주세요.</p>
       )}
-      <div className="universe-grid">
-        {products.map(item => {
-          const owned = !card
-            ? false
-            : item.price === 0 ||
-              (category === "frames"
-                ? (wardrobe.cardFrames[card.id] ?? [])
-                : (wardrobe.cardBackgrounds[card.id] ?? [])
-              ).includes(item.id);
-          const equipped =
-            item.id ===
-            (category === "frames" ? style.frame : style.background);
-          return (
-            <div key={item.id}>
-              <FantasyCard
-                url={card?.url ?? image}
-                title={item.name}
-                frame={
-                  category === "frames" ? (item.id as FrameId) : style.frame
-                }
-                background={
-                  category === "backgrounds"
-                    ? (item.id as BackgroundId)
-                    : style.background
-                }
-                onOpen={() =>
-                  onOpen({
-                    url: card?.url ?? image,
-                    title: item.name + " · 미리보기",
-                    frame:
-                      category === "frames"
-                        ? (item.id as FrameId)
-                        : style.frame,
-                    background:
-                      category === "backgrounds"
-                        ? (item.id as BackgroundId)
-                        : style.background,
-                  })
-                }
-              >
-                <span className="av-rank">
-                  {item.rank} ·{" "}
-                  {item.price
-                    ? item.price.toLocaleString() + " P"
-                    : "기본 제공"}
-                </span>
-                <p>{item.description}</p>
-                <button
-                  disabled={
-                    busy || equipped || (!owned && balance < item.price)
+      {category !== "bgm" && (
+        <div className="universe-grid">
+          {products.map(item => {
+            const owned = !card
+              ? false
+              : item.price === 0 ||
+                (category === "frames"
+                  ? (wardrobe.cardFrames[card.id] ?? [])
+                  : (wardrobe.cardBackgrounds[card.id] ?? [])
+                ).includes(item.id);
+            const equipped =
+              item.id ===
+              (category === "frames" ? style.frame : style.background);
+            return (
+              <div key={item.id}>
+                <FantasyCard
+                  url={card?.url ?? image}
+                  title={item.name}
+                  frame={
+                    category === "frames" ? (item.id as FrameId) : style.frame
                   }
-                  onClick={() => {
-                    if (!card) return;
-                    if (owned) {
-                      if (category === "frames")
-                        equip.mutate({
-                          ...identity,
-                          cardId: card.id,
-                          frameId: item.id as FrameId,
-                        });
-                      else
-                        equipBg.mutate({
-                          ...identity,
-                          cardId: card.id,
-                          backgroundId: item.id as BackgroundId,
-                        });
-                    } else setPurchase({ ...item, category });
-                  }}
+                  background={
+                    category === "backgrounds"
+                      ? (item.id as BackgroundId)
+                      : style.background
+                  }
+                  onOpen={() =>
+                    onOpen({
+                      url: card?.url ?? image,
+                      title: item.name + " · 미리보기",
+                      frame:
+                        category === "frames"
+                          ? (item.id as FrameId)
+                          : style.frame,
+                      background:
+                        category === "backgrounds"
+                          ? (item.id as BackgroundId)
+                          : style.background,
+                    })
+                  }
                 >
-                  {equipped
-                    ? "장착 중"
-                    : owned
-                      ? "장착하기"
-                      : balance < item.price
-                        ? "포인트 부족"
-                        : item.price.toLocaleString() + "P로 소장"}
-                </button>
-              </FantasyCard>
-            </div>
-          );
-        })}
-      </div>
+                  <span className="av-rank">
+                    {item.rank} ·{" "}
+                    {item.price
+                      ? item.price.toLocaleString() + " P"
+                      : "기본 제공"}
+                  </span>
+                  <p>{item.description}</p>
+                  <button
+                    disabled={
+                      busy || equipped || (!owned && balance < item.price)
+                    }
+                    onClick={() => {
+                      if (!card) return;
+                      if (owned) {
+                        if (category === "frames")
+                          equip.mutate({
+                            ...identity,
+                            cardId: card.id,
+                            frameId: item.id as FrameId,
+                          });
+                        else
+                          equipBg.mutate({
+                            ...identity,
+                            cardId: card.id,
+                            backgroundId: item.id as BackgroundId,
+                          });
+                      } else setPurchase({ ...item, category });
+                    }}
+                  >
+                    {equipped
+                      ? "장착 중"
+                      : owned
+                        ? "장착하기"
+                        : balance < item.price
+                          ? "포인트 부족"
+                          : item.price.toLocaleString() + "P로 소장"}
+                  </button>
+                </FantasyCard>
+              </div>
+            );
+          })}
+        </div>
+      )}
       <Dialog
         open={!!purchase}
         onOpenChange={v => {

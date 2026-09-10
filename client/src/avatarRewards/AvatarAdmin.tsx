@@ -12,6 +12,7 @@ import {
   OfficialCharacterManager,
   OfficialCharacterPromptBuilder,
 } from "./OfficialCharacterAdmin";
+import { AvatarShopAdmin } from "./AvatarShopAdmin";
 function PointAdjustment({
   studentId,
   balance,
@@ -282,8 +283,34 @@ export default function AvatarAdmin() {
           새 주문 {total}건 · 학생의 꾸준한 배움을 특별한 모습으로 남겨 주세요.
         </p>
       </header>
-      <OfficialCharacterManager />
-      <OfficialCharacterPromptBuilder />
+      <div className="admin-workspaces">
+        <details>
+          <summary>
+            <b>공식 캐릭터</b>
+            <span>등록·공개·프로필 조정</span>
+          </summary>
+          <OfficialCharacterManager />
+        </details>
+        <details open>
+          <summary>
+            <b>상점 관리</b>
+            <span>상품 등록·수정·삭제</span>
+          </summary>
+          <AvatarShopAdmin />
+        </details>
+        <details>
+          <summary>
+            <b>제작 프롬프트</b>
+            <span>대표 캐릭터·시즌 에셋</span>
+          </summary>
+          <OfficialCharacterPromptBuilder />
+          <SeasonalPrompts />
+        </details>
+      </div>
+      <div className="admin-student-heading">
+        <p className="eyebrow">STUDENT PRODUCTION</p>
+        <h2>학생별 제작·포인트 관리</h2>
+      </div>
       {list.error && <p role="alert">{list.error.message}</p>}
       <label>
         학생 선택
@@ -551,7 +578,6 @@ export default function AvatarAdmin() {
           </section>
         </>
       )}
-      <SeasonalPrompts />
       <ArtworkPortal art={art} onClose={() => setArt(null)} />
     </main>
   );
