@@ -70,7 +70,7 @@ let state = {
     cropY: 0,
     cropX: 50,
   },
-  nextPrice: 500,
+  nextPrice: 50,
   orders: [],
   cards: [],
   ledger: [],
@@ -82,6 +82,9 @@ const wardrobe = {
   ownedBackgrounds: ["classic"],
   cropZoom: 300,
   sharing: [],
+  cardStyles: {},
+  cardFrames: {},
+  cardBackgrounds: {},
 };
 let liked = false;
 const errors = [];
@@ -101,23 +104,38 @@ await page.route("**/api/trpc/**", async route => {
     const input = payload?.[i]?.json ?? {};
     let value;
     if (method.endsWith("wardrobe")) value = wardrobe;
-    else if (method.endsWith("purchaseFrame")) {
-      if (!wardrobe.owned.includes(input.frameId)) {
-        state.account.balance -= 300;
-        wardrobe.owned.push(input.frameId);
+    else if (method.endsWith("randomCharge")) {
+      state.account.balance -= input.all ? 10 : 1;
+      value = { price: input.all ? 10 : 1, balance: state.account.balance };
+    } else if (method.endsWith("purchaseFrame")) {
+      const owned = (wardrobe.cardFrames[input.cardId] ??= []);
+      if (!owned.includes(input.frameId)) {
+        state.account.balance -= 150;
+        owned.push(input.frameId);
       }
       value = null;
     } else if (method.endsWith("equipFrame")) {
-      wardrobe.equipped = input.frameId;
+      (wardrobe.cardStyles[input.cardId] ??= {
+        frame: "lunar",
+        background: "classic",
+      }).frame = input.frameId;
+      const card = state.cards.find(c => c.id === input.cardId);
+      if (card) card.frame = input.frameId;
       value = null;
     } else if (method.endsWith("purchaseBackground")) {
-      if (!wardrobe.ownedBackgrounds.includes(input.backgroundId)) {
-        state.account.balance -= 300;
-        wardrobe.ownedBackgrounds.push(input.backgroundId);
+      const owned = (wardrobe.cardBackgrounds[input.cardId] ??= []);
+      if (!owned.includes(input.backgroundId)) {
+        state.account.balance -= 150;
+        owned.push(input.backgroundId);
       }
       value = null;
     } else if (method.endsWith("equipBackground")) {
-      wardrobe.background = input.backgroundId;
+      (wardrobe.cardStyles[input.cardId] ??= {
+        frame: "lunar",
+        background: "classic",
+      }).background = input.backgroundId;
+      const card = state.cards.find(c => c.id === input.cardId);
+      if (card) card.background = input.backgroundId;
       value = null;
     } else if (method.endsWith("cropZoom")) {
       wardrobe.cropZoom = input.zoom;
@@ -177,17 +195,17 @@ await page.route("**/api/trpc/**", async route => {
       });
       value = { balance: state.account.balance };
     } else if (method.endsWith("submit")) {
-      assert.equal(input.order.hair, "갈색 쉼표머리");
+      assert.equal(input.order.selectedParts.length, 8);
       assert.ok(input.order.pet);
       assert.ok(input.order.pose);
       assert.ok(input.order.extra);
-      state.account.balance -= 500;
+      state.account.balance -= 135;
       state.orders = [
         {
           id: orderId,
           studentId: 1,
           status: "submitted",
-          price: 500,
+          price: 135,
           input: input.order,
           prompt: "HAEMIL_JOURNAL_AVATAR_V2",
           masterUrl: image,
@@ -210,13 +228,15 @@ await page.route("**/api/trpc/**", async route => {
     } else if (method.endsWith("select")) {
       state.orders[0].status = "completed";
       state.account.completedOrders++;
-      state.nextPrice = 1000;
+      state.nextPrice = 100;
       state.cards = [
         {
           id: candidateId,
           url: image,
           mode: "original",
           createdAt: "2026-09-09 12:00:00",
+          frame: "lunar",
+          background: "classic",
         },
       ];
       value = null;
@@ -314,32 +334,28 @@ try {
   }
   await page.setViewportSize({ width: 1200, height: 900 });
   await page.getByRole("button", { name: "스페셜 아바타 만들기" }).click();
-  for (const [label, value] of [
-    ["상의", "후드티"],
-    ["하의", "청바지"],
-    ["신발", "운동화"],
-    ["헤어", "갈색 쉼표머리"],
-    ["배경", "도시 옥상"],
-  ])
+  for (const [key, label, value] of [
+    ["top", "상의", "후드티"],
+    ["bottom", "하의", "청바지"],
+    ["shoes", "신발", "운동화"],
+    ["hair", "헤어", "갈색 쉼표머리"],
+    ["background", "배경", "도시 옥상"],
+  ]) {
+    await page.locator(`label[for="reward-${key}"] input`).check();
     await page.getByLabel(label, { exact: true }).fill(value);
-  await page.getByRole("button", { name: "펫 랜덤", exact: true }).click();
+  }
+  page.once("dialog", d => d.accept());
+  await page.getByRole("button", { name: /펫 랜덤/ }).click();
   const petBefore = await page.getByLabel("펫", { exact: true }).inputValue();
-  await page.getByRole("button", { name: "펫 랜덤", exact: true }).click();
-  assert.notEqual(
-    await page.getByLabel("펫", { exact: true }).inputValue(),
-    petBefore
-  );
-  await page.getByRole("button", { name: "빈칸만 랜덤으로 채우기" }).click();
-  assert.equal(
-    await page.getByLabel("헤어", { exact: true }).inputValue(),
-    "갈색 쉼표머리"
-  );
+  await page.getByRole("button", { name: /펫 랜덤/ }).click();
+  assert.ok(petBefore);
+  assert.ok(await page.getByLabel("펫", { exact: true }).inputValue());
+  await page.getByRole("button", { name: /전체 랜덤/ }).click();
   await page.getByRole("radio", { name: /워너비/ }).check();
-  await page.getByRole("button", { name: "600P로 주문 보내기" }).waitFor();
+  await page.getByRole("button", { name: "235P로 주문 보내기" }).waitFor();
   await page.getByRole("radio", { name: /슈퍼스타/ }).check();
-  await page.getByRole("button", { name: "700P로 주문 보내기" }).waitFor();
+  await page.getByRole("button", { name: "335P로 주문 보내기" }).waitFor();
   await page.getByRole("radio", { name: /오리지널/ }).check();
-  await page.getByRole("button", { name: "장신구 추가" }).click();
   await page.getByLabel("장신구 1", { exact: true }).fill("은색 별 목걸이");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(350);
@@ -349,7 +365,7 @@ try {
     JSON.stringify(bounds)
   );
   await page.screenshot({ path: path.join(qaRoot, "mobile-order.png") });
-  await page.getByRole("button", { name: "500P로 주문 보내기" }).click();
+  await page.getByRole("button", { name: "135P로 주문 보내기" }).click();
   await page
     .getByText("창조의 여정이 진행 중이에요.", { exact: false })
     .waitFor();
@@ -503,19 +519,19 @@ try {
   await page.reload();
   await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
   await page.getByRole("button", { name: "상점", exact: true }).click();
-  await page.getByRole("button", { name: "300P로 소장", exact: true }).click();
+  await page.getByRole("button", { name: "150P로 소장", exact: true }).click();
   await page.getByRole("button", { name: "구매 확정", exact: true }).click();
   await Promise.all([
     page.waitForResponse(r => r.url().includes("equipFrame")),
     page.getByRole("button", { name: "장착하기", exact: true }).click(),
   ]);
-  assert.equal(wardrobe.equipped, "aurora");
+  assert.equal(wardrobe.cardStyles[candidateId].frame, "aurora");
   await page.getByRole("button", { name: "카드 배경", exact: true }).click();
-  await page.getByRole("button", { name: "300P로 소장", exact: true }).click();
+  await page.getByRole("button", { name: "150P로 소장", exact: true }).click();
   await page.getByRole("button", { name: "구매 확정", exact: true }).click();
   await page.getByRole("button", { name: "장착하기", exact: true }).click();
   await page.waitForTimeout(450);
-  assert.equal(wardrobe.background, "library");
+  assert.equal(wardrobe.cardStyles[candidateId].background, "library");
   await page.locator(".reward-dialog").evaluate(el => el.scrollTo(0, 0));
   await page.waitForTimeout(4200);
   await page.screenshot({ path: path.join(qaRoot, "fantasy-shop.png") });

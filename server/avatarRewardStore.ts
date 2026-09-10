@@ -16,7 +16,11 @@ import {
 import mysql, { type PoolConnection, type RowDataPacket } from "mysql2/promise";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { avatarPrice, avatarOrderPrice } from "../shared/avatarRewardRules";
+import {
+  avatarPrice,
+  avatarOrderPrice,
+  randomPrice,
+} from "../shared/avatarRewardRules";
 import type {
   RewardAccount,
   RewardOrder,
@@ -228,7 +232,9 @@ export async function rewardSnapshot(
     orders: await orders(c, studentId),
     cards: await rows(
       c,
-      "SELECT id,url,mode,createdAt FROM avatar_collection WHERE studentId=? ORDER BY createdAt DESC",
+      `SELECT ac.id,ac.url,ac.mode,ac.createdAt,COALESCE(cs.frameId,'lunar') frame,COALESCE(cs.backgroundId,'classic') background
+       FROM avatar_collection ac LEFT JOIN avatar_card_style cs ON cs.cardId=ac.id
+       WHERE ac.studentId=? ORDER BY ac.createdAt DESC`,
       [studentId]
     ),
     ledger: await rows(
@@ -254,7 +260,12 @@ export async function submitRewardOrder(
       ).length
     )
       reject("진행 중인 주문이 있어요.");
-    const price = avatarOrderPrice(a.completedOrders, input.mode);
+    const price = avatarOrderPrice(
+      a.completedOrders,
+      input.mode,
+      (input.selectedParts ?? []).length,
+      input.accessories.length
+    );
     if (a.balance < price) reject("사용 가능 포인트가 부족해요.");
     const id = randomUUID();
     await c.query(
@@ -271,6 +282,29 @@ export async function submitRewardOrder(
     a.balance -= price;
     await ledger(c, studentId, -price, "스페셜 아바타 주문");
     return { id };
+  });
+}
+export async function chargeRewardRandom(
+  studentId: number,
+  all: boolean,
+  requestId: string
+) {
+  return transaction(studentId, async (c, a) => {
+    const [existing] = await rows<{ delta: number }>(
+      c,
+      "SELECT delta FROM reward_ledger WHERE requestId=?",
+      [requestId]
+    );
+    if (existing)
+      return { price: -existing.delta, balance: a.balance, duplicate: true };
+    const price = randomPrice(a.completedOrders, all);
+    if (a.balance < price) reject("랜덤 사용에 필요한 포인트가 부족해요.");
+    a.balance -= price;
+    await c.query(
+      "INSERT INTO reward_ledger(studentId,delta,reason,requestId) VALUES(?,?,?,?)",
+      [studentId, -price, all ? "전체 랜덤 사용" : "부위 랜덤 사용", requestId]
+    );
+    return { price, balance: a.balance, duplicate: false };
   });
 }
 export async function cancelRewardOrder(studentId: number, orderId: string) {
@@ -463,6 +497,28 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
       "SELECT sh.cardId,sh.visible,sh.showName,sh.showGrade FROM avatar_sharing sh JOIN avatar_collection ac ON ac.id=sh.cardId WHERE ac.studentId=?",
       [studentId]
     );
+    const styles = await rows<{
+      cardId: string;
+      frameId: FrameId;
+      backgroundId: BackgroundId;
+    }>(
+      c,
+      "SELECT cs.cardId,cs.frameId,cs.backgroundId FROM avatar_card_style cs JOIN avatar_collection ac ON ac.id=cs.cardId WHERE ac.studentId=?",
+      [studentId]
+    );
+    const cardFrames = await rows<{ cardId: string; frameId: string }>(
+      c,
+      "SELECT f.cardId,f.frameId FROM avatar_card_frames f JOIN avatar_collection ac ON ac.id=f.cardId WHERE ac.studentId=?",
+      [studentId]
+    );
+    const cardBackgrounds = await rows<{
+      cardId: string;
+      backgroundId: string;
+    }>(
+      c,
+      "SELECT b.cardId,b.backgroundId FROM avatar_card_backgrounds b JOIN avatar_collection ac ON ac.id=b.cardId WHERE ac.studentId=?",
+      [studentId]
+    );
     return {
       background: w?.background ?? "classic",
       ownedBackgrounds: ["classic", ...bg.map(x => x.backgroundId)],
@@ -475,29 +531,61 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
         showName: !!x.showName,
         showGrade: !!x.showGrade,
       })),
+      cardStyles: Object.fromEntries(
+        styles.map(x => [
+          x.cardId,
+          { frame: x.frameId, background: x.backgroundId },
+        ])
+      ),
+      cardFrames: cardFrames.reduce<Record<string, string[]>>(
+        (all, x) => ((all[x.cardId] ??= []).push(x.frameId), all),
+        {}
+      ),
+      cardBackgrounds: cardBackgrounds.reduce<Record<string, string[]>>(
+        (all, x) => ((all[x.cardId] ??= []).push(x.backgroundId), all),
+        {}
+      ),
     };
   });
 }
-export async function purchaseFrame(studentId: number, id: FrameId) {
+export async function purchaseFrame(
+  studentId: number,
+  cardId: string,
+  id: FrameId
+) {
   const f = frames.find(x => x.id === frameId.parse(id))!;
   return transaction(studentId, async (c, a) => {
+    if (
+      !(
+        await rows(
+          c,
+          "SELECT id FROM avatar_collection WHERE id=? AND studentId=?",
+          [cardId, studentId]
+        )
+      ).length
+    )
+      reject("내 카드를 선택해 주세요.");
     if (f.price === 0) return;
     const owned = await rows(
       c,
-      "SELECT frameId FROM avatar_frame_inventory WHERE studentId=? AND frameId=?",
-      [studentId, id]
+      "SELECT frameId FROM avatar_card_frames WHERE cardId=? AND frameId=?",
+      [cardId, id]
     );
     if (owned.length) return; // Retry-safe: never charge an owned frame twice.
     if (a.balance < f.price) reject("사용 가능 포인트가 부족해요.");
     await c.query(
-      "INSERT INTO avatar_frame_inventory(studentId,frameId) VALUES(?,?)",
-      [studentId, id]
+      "INSERT INTO avatar_card_frames(cardId,frameId) VALUES(?,?)",
+      [cardId, id]
     );
     a.balance -= f.price;
     await ledger(c, studentId, -f.price, "프레임 구매 · " + f.name);
   });
 }
-export async function equipFrame(studentId: number, id: FrameId) {
+export async function equipFrame(
+  studentId: number,
+  cardId: string,
+  id: FrameId
+) {
   frameId.parse(id);
   return transaction(studentId, async c => {
     if (
@@ -505,15 +593,15 @@ export async function equipFrame(studentId: number, id: FrameId) {
       !(
         await rows(
           c,
-          "SELECT frameId FROM avatar_frame_inventory WHERE studentId=? AND frameId=?",
-          [studentId, id]
+          "SELECT frameId FROM avatar_card_frames WHERE cardId=? AND frameId=?",
+          [cardId, id]
         )
       ).length
     )
       reject("보유한 프레임만 장착할 수 있어요.");
     await c.query(
-      "INSERT INTO avatar_wardrobe(studentId,equipped) VALUES(?,?) ON DUPLICATE KEY UPDATE equipped=VALUES(equipped)",
-      [studentId, id]
+      "INSERT INTO avatar_card_style(cardId,frameId) VALUES(?,?) ON DUPLICATE KEY UPDATE frameId=VALUES(frameId)",
+      [cardId, id]
     );
   });
 }
@@ -553,7 +641,7 @@ export async function gallery(
   await ensureRewardSchema();
   const [result] = await database().query<RowDataPacket[]>(
     `
- SELECT ac.id,ac.url,ac.mode,COALESCE(w.equipped,'lunar') AS frame,COALESCE(w.background,'classic') AS background,
+ SELECT ac.id,ac.url,ac.mode,COALESCE(cs.frameId,'lunar') AS frame,COALESCE(cs.backgroundId,'classic') AS background,
  CASE WHEN a.representativeId=ac.id THEN a.cropX ELSE 50 END AS cropX,
  CASE WHEN a.representativeId=ac.id THEN a.cropY ELSE 0 END AS cropY,
  CASE WHEN a.representativeId=ac.id THEN COALESCE(w.cropZoom,300) ELSE 300 END AS cropZoom,
@@ -565,16 +653,53 @@ export async function gallery(
  FROM avatar_collection ac JOIN avatar_sharing sh ON sh.cardId=ac.id AND sh.visible=1
  JOIN students s ON s.id=ac.studentId AND s.active=1
  LEFT JOIN avatar_wardrobe w ON w.studentId=ac.studentId
+ LEFT JOIN avatar_card_style cs ON cs.cardId=ac.id
  LEFT JOIN reward_accounts a ON a.studentId=ac.studentId
  ORDER BY sh.updatedAt DESC,ac.id DESC LIMIT ? OFFSET ?`,
     [studentId, studentId, galleryPageSize, page * galleryPageSize]
   );
-  return result.map(x => ({
+  const cards = result.map(x => ({
     ...x,
     likes: Number(x.likes),
     liked: !!x.liked,
     mine: !!x.mine,
   })) as GalleryCard[];
+  if (page === 0)
+    cards.unshift(
+      {
+        id: "00000000-0000-4000-8000-0000000000a1",
+        url: "/avatar-rewards/avatars/official/haena_special_fantasy.png",
+        mode: "superstar",
+        frame: "astral",
+        background: "nebula",
+        name: "해나",
+        grade: "중3",
+        cropX: 50,
+        cropY: 20,
+        cropZoom: 190,
+        likes: 0,
+        liked: false,
+        mine: false,
+        official: true,
+      },
+      {
+        id: "00000000-0000-4000-8000-0000000000b2",
+        url: "/avatar-rewards/avatars/official/mir_special_joseon.png",
+        mode: "superstar",
+        frame: "solar",
+        background: "library",
+        name: "미르",
+        grade: "중3",
+        cropX: 50,
+        cropY: 18,
+        cropZoom: 190,
+        likes: 0,
+        liked: false,
+        mine: false,
+        official: true,
+      }
+    );
+  return cards;
 }
 
 export async function likeCard(
@@ -635,30 +760,48 @@ export async function likeCard(
       ]);
   });
 }
-export async function purchaseBackground(studentId: number, id: BackgroundId) {
+export async function purchaseBackground(
+  studentId: number,
+  cardId: string,
+  id: BackgroundId
+) {
   const item = backgrounds.find(x => x.id === backgroundId.parse(id))!;
   return transaction(studentId, async (c, a) => {
+    if (
+      !(
+        await rows(
+          c,
+          "SELECT id FROM avatar_collection WHERE id=? AND studentId=?",
+          [cardId, studentId]
+        )
+      ).length
+    )
+      reject("내 카드를 선택해 주세요.");
     if (
       !item.price ||
       (
         await rows(
           c,
-          "SELECT backgroundId FROM avatar_background_inventory WHERE studentId=? AND backgroundId=?",
-          [studentId, id]
+          "SELECT backgroundId FROM avatar_card_backgrounds WHERE cardId=? AND backgroundId=?",
+          [cardId, id]
         )
       ).length
     )
       return;
     if (a.balance < item.price) reject("사용 가능 포인트가 부족해요.");
     await c.query(
-      "INSERT INTO avatar_background_inventory(studentId,backgroundId) VALUES(?,?)",
-      [studentId, id]
+      "INSERT INTO avatar_card_backgrounds(cardId,backgroundId) VALUES(?,?)",
+      [cardId, id]
     );
     a.balance -= item.price;
     await ledger(c, studentId, -item.price, "배경 구매 · " + item.name);
   });
 }
-export async function equipBackground(studentId: number, id: BackgroundId) {
+export async function equipBackground(
+  studentId: number,
+  cardId: string,
+  id: BackgroundId
+) {
   backgroundId.parse(id);
   return transaction(studentId, async c => {
     if (
@@ -666,15 +809,15 @@ export async function equipBackground(studentId: number, id: BackgroundId) {
       !(
         await rows(
           c,
-          "SELECT backgroundId FROM avatar_background_inventory WHERE studentId=? AND backgroundId=?",
-          [studentId, id]
+          "SELECT backgroundId FROM avatar_card_backgrounds WHERE cardId=? AND backgroundId=?",
+          [cardId, id]
         )
       ).length
     )
       reject("보유한 배경만 장착할 수 있어요.");
     await c.query(
-      "INSERT INTO avatar_wardrobe(studentId,background) VALUES(?,?) ON DUPLICATE KEY UPDATE background=VALUES(background)",
-      [studentId, id]
+      "INSERT INTO avatar_card_style(cardId,backgroundId) VALUES(?,?) ON DUPLICATE KEY UPDATE backgroundId=VALUES(backgroundId)",
+      [cardId, id]
     );
   });
 }

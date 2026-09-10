@@ -11,6 +11,7 @@ import {
   type BackgroundId,
 } from "@shared/avatarCollection";
 import { FantasyCard, type Artwork } from "./FantasyCard";
+import type { RewardCard } from "@shared/avatarRewards";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +24,7 @@ export function AvatarShop({
   wardrobe,
   balance,
   image,
+  cards,
   onRefresh,
   onOpen,
 }: {
@@ -30,10 +32,19 @@ export function AvatarShop({
   wardrobe: Wardrobe;
   balance: number;
   image: string;
+  cards: RewardCard[];
   onRefresh: () => void;
   onOpen: (a: Artwork) => void;
 }) {
   const [category, setCategory] = useState<"frames" | "backgrounds">("frames");
+  const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+  const card = cards.find(c => c.id === cardId) ?? cards[0];
+  const style = card
+    ? (wardrobe.cardStyles[card.id] ?? {
+        frame: card.frame,
+        background: card.background,
+      })
+    : { frame: "lunar" as FrameId, background: "classic" as BackgroundId };
   const [purchase, setPurchase] = useState<{
     id: string;
     name: string;
@@ -60,7 +71,7 @@ export function AvatarShop({
       <div className="av-section-intro">
         <span className="av-kicker">THE ATELIER</span>
         <h3>한 장의 세계를 완성하는 장식</h3>
-        <p>구매한 장식은 영구 소장하며 자유롭게 바꿀 수 있어요.</p>
+        <p>장식은 선택한 카드에 귀속되며 카드마다 다르게 꾸밀 수 있어요.</p>
         <b>{balance.toLocaleString()} P</b>
       </div>
       <div className="av-tabs" role="group" aria-label="상점 카테고리">
@@ -79,41 +90,57 @@ export function AvatarShop({
           카드 배경
         </button>
       </div>
+      {cards.length ? (
+        <label className="av-card-target">
+          꾸밀 카드
+          <select value={card?.id} onChange={e => setCardId(e.target.value)}>
+            {cards.map((c, i) => (
+              <option key={c.id} value={c.id}>
+                컬렉션 카드 {i + 1}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <p>먼저 스페셜 아바타 카드를 만들어 주세요.</p>
+      )}
       <div className="universe-grid">
         {products.map(item => {
-          const owned = (
-            category === "frames" ? wardrobe.owned : wardrobe.ownedBackgrounds
-          ).includes(item.id);
+          const owned = !card
+            ? false
+            : item.price === 0 ||
+              (category === "frames"
+                ? (wardrobe.cardFrames[card.id] ?? [])
+                : (wardrobe.cardBackgrounds[card.id] ?? [])
+              ).includes(item.id);
           const equipped =
             item.id ===
-            (category === "frames" ? wardrobe.equipped : wardrobe.background);
+            (category === "frames" ? style.frame : style.background);
           return (
             <div key={item.id}>
               <FantasyCard
-                url={image}
+                url={card?.url ?? image}
                 title={item.name}
                 frame={
-                  category === "frames"
-                    ? (item.id as FrameId)
-                    : wardrobe.equipped
+                  category === "frames" ? (item.id as FrameId) : style.frame
                 }
                 background={
                   category === "backgrounds"
                     ? (item.id as BackgroundId)
-                    : wardrobe.background
+                    : style.background
                 }
                 onOpen={() =>
                   onOpen({
-                    url: image,
+                    url: card?.url ?? image,
                     title: item.name + " · 미리보기",
                     frame:
                       category === "frames"
                         ? (item.id as FrameId)
-                        : wardrobe.equipped,
+                        : style.frame,
                     background:
                       category === "backgrounds"
                         ? (item.id as BackgroundId)
-                        : wardrobe.background,
+                        : style.background,
                   })
                 }
               >
@@ -129,15 +156,18 @@ export function AvatarShop({
                     busy || equipped || (!owned && balance < item.price)
                   }
                   onClick={() => {
+                    if (!card) return;
                     if (owned) {
                       if (category === "frames")
                         equip.mutate({
                           ...identity,
+                          cardId: card.id,
                           frameId: item.id as FrameId,
                         });
                       else
                         equipBg.mutate({
                           ...identity,
+                          cardId: card.id,
                           backgroundId: item.id as BackgroundId,
                         });
                     } else setPurchase({ ...item, category });
@@ -165,8 +195,8 @@ export function AvatarShop({
         <DialogContent className="avatar-theme av-confirm">
           <DialogTitle>{purchase?.name} 소장</DialogTitle>
           <DialogDescription>
-            {purchase?.price.toLocaleString()}P를 사용해 영구 소장합니다. 장착은
-            언제든 바꿀 수 있어요.
+            {purchase?.price.toLocaleString()}P를 사용해 선택한 카드에
+            귀속합니다. 같은 카드에서는 언제든 바꿀 수 있어요.
           </DialogDescription>
           <p>
             구매 후 잔액 {(balance - (purchase?.price ?? 0)).toLocaleString()}P
@@ -175,11 +205,17 @@ export function AvatarShop({
             disabled={busy}
             onClick={() => {
               if (!purchase) return;
+              if (!card) return;
               if (purchase.category === "frames")
-                buy.mutate({ ...identity, frameId: purchase.id as FrameId });
+                buy.mutate({
+                  ...identity,
+                  cardId: card.id,
+                  frameId: purchase.id as FrameId,
+                });
               else
                 buyBg.mutate({
                   ...identity,
+                  cardId: card.id,
                   backgroundId: purchase.id as BackgroundId,
                 });
             }}
@@ -328,7 +364,7 @@ export function AvatarGallery({
               type="button"
               className="av-like"
               aria-pressed={c.liked}
-              disabled={like.isPending || c.mine}
+              disabled={like.isPending || c.mine || c.official}
               aria-label={c.name + " 카드 좋아요"}
               onClick={() =>
                 like.mutate({ ...identity, cardId: c.id, liked: !c.liked })
@@ -336,7 +372,7 @@ export function AvatarGallery({
             >
               <Heart size={14} fill={c.liked ? "currentColor" : "none"} />
               {c.likes}
-              {c.mine ? " · 내 카드" : ""}
+              {c.official ? " · 오피셜" : c.mine ? " · 내 카드" : ""}
             </button>
           </article>
         ))}

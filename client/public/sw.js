@@ -3,7 +3,7 @@
 // controllerchange 리스너가 열려 있는 앱을 자동으로 새로고침해 준다.
 // 이 값을 그대로 두면 코드를 배포해도 이미 설치된 앱에는 반영되지
 // 않을 수 있다.
-const CACHE_NAME = "haemil-shell-v11-navigation";
+const CACHE_NAME = "haemil-shell-v12-avatar-economy";
 const APP_SHELL = ["/", "/check-in", "/admin.webmanifest", "/check-in.webmanifest", "/parent.webmanifest", "/icons/haemil-logo-192.png", "/icons/haemil-logo-512.png", "/icons/notification-badge.png"];
 
 self.addEventListener("install", event => {

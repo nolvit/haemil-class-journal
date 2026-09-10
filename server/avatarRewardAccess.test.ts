@@ -72,7 +72,7 @@ describe("reward integration boundaries", () => {
     expect(prompt).toContain("별빛 아기 용");
     expect(prompt).toContain("작은 달 받치기");
     expect(prompt).toContain("나비 모양 그림자");
-    expect(prompt).toContain("follow the requested pose in BOTH");
+    expect(prompt).toContain("Both images must clearly differ at first glance");
     expect(prompt).toContain("갈색 쉼표머리");
     expect(prompt).toContain("도시 옥상");
     expect(prompt).toContain("Preserve the facial identity");
@@ -81,9 +81,9 @@ describe("reward integration boundaries", () => {
       "dramatic star styling"
     );
   });
-  it("rejects missing hair, old modes and excessive accessories", () => {
+  it("allows optional parts and rejects old modes and excessive accessories", () => {
     expect(rewardOrderInput.safeParse({ ...input, hair: "" }).success).toBe(
-      false
+      true
     );
     expect(
       rewardOrderInput.safeParse({ ...input, mode: "likeness" }).success

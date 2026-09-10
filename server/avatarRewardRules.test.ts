@@ -3,6 +3,7 @@ import {
   attendancePoints,
   avatarPrice,
   avatarOrderPrice,
+  randomPrice,
 } from "../shared/avatarRewardRules";
 describe("journal avatar rewards", () => {
   it("adds a fixed mode surcharge after each base tier", () => {
@@ -37,7 +38,16 @@ describe("journal avatar rewards", () => {
   });
   it("uses completed orders and remains fixed from the fourth", () => {
     expect([0, 1, 2, 3, 4, 100].map(avatarPrice)).toEqual([
-      500, 1000, 1500, 2250, 2250, 2250,
+      50, 100, 150, 200, 200, 200,
+    ]);
+  });
+  it("prices selected parts, accessories and random actions by attempt", () => {
+    expect(
+      [0, 1, 2, 3].map(x => avatarOrderPrice(x, "original", 2, 1))
+    ).toEqual([75, 140, 205, 275]);
+    expect([0, 1, 2, 3].map(x => randomPrice(x))).toEqual([1, 2, 3, 5]);
+    expect([0, 1, 2, 3].map(x => randomPrice(x, true))).toEqual([
+      10, 20, 30, 50,
     ]);
   });
 });

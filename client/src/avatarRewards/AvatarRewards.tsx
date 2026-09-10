@@ -1,4 +1,8 @@
-import { modeSurcharge } from "@shared/avatarRewardRules";
+import {
+  avatarOrderPrice,
+  modeSurcharge,
+  randomPrice,
+} from "@shared/avatarRewardRules";
 import {
   useAvatarBackGuard,
   AvatarNavigationContext,
@@ -38,6 +42,11 @@ import {
   imaginationFields,
   randomSuggestion,
 } from "@shared/avatarImagination";
+import {
+  avatarThemes,
+  chooseThemePreset,
+  type AvatarTheme,
+} from "@shared/avatarThemes";
 import "./rewards.css";
 import "./avatar-theme.css";
 import { FantasyCard, ArtworkPortal, type Artwork } from "./FantasyCard";
@@ -45,6 +54,7 @@ import { AvatarShop, AvatarGallery, CardSharing } from "./AvatarUniverse";
 import type { Wardrobe } from "@shared/avatarCollection";
 
 const emptyOrder: RewardOrderInput = {
+  selectedParts: [],
   top: "",
   bottom: "",
   shoes: "",
@@ -69,6 +79,8 @@ export function AvatarRewards({
     "home" | "order" | "collection" | "ledger" | "guide" | "shop" | "gallery"
   >("home");
   const [order, setOrder] = useState<RewardOrderInput>(emptyOrder);
+  const [randomTheme, setRandomTheme] = useState<AvatarTheme>("판타지");
+  const randomConfirmed = useRef(false);
   const [cropY, setCropY] = useState<number | null>(null);
   const [cropX, setCropX] = useState<number | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<string | null>(
@@ -88,6 +100,9 @@ export function AvatarRewards({
     ownedBackgrounds: ["classic"],
     cropZoom: 300,
     sharing: [],
+    cardStyles: {},
+    cardFrames: {},
+    cardBackgrounds: {},
   };
   const [art, setArt] = useState<Artwork | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
@@ -105,6 +120,7 @@ export function AvatarRewards({
     return query.refetch();
   };
   const onError = (e: { message: string }) => toast.error(e.message);
+  const randomCharge = trpc.avatarRewards.randomCharge.useMutation({ onError });
   const submit = trpc.avatarRewards.submit.useMutation({
     onError,
     onSuccess: () => {
@@ -145,6 +161,21 @@ export function AvatarRewards({
   const busy = submit.isPending || select.isPending || representative.isPending;
   const position = cropY ?? account?.cropY ?? 0;
   const horizontal = cropX ?? account?.cropX ?? 50;
+  const cropDirty = cropY !== null || cropX !== null || zoom !== null;
+  const navigate = (next: typeof page) => {
+    if (
+      page === "collection" &&
+      cropDirty &&
+      !window.confirm(
+        "저장하지 않은 원형 사진 조정이 있어요. 이동하면 변경 내용이 사라집니다. 이동할까요?"
+      )
+    )
+      return;
+    setCropY(null);
+    setCropX(null);
+    setZoom(null);
+    setPage(next);
+  };
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeAvatar = () => {
     setOpen(false);
@@ -154,7 +185,38 @@ export function AvatarRewards({
   useLayoutEffect(() => {
     if (open) dialogRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [page]);
-  const totalPrice = (data?.nextPrice ?? 0) + modeSurcharge[order.mode];
+  const totalPrice = avatarOrderPrice(
+    account?.completedOrders ?? 0,
+    order.mode,
+    order.selectedParts.length,
+    order.accessories.length
+  );
+  const currentRandomPrice = randomPrice(account?.completedOrders ?? 0);
+  const currentAllRandomPrice = randomPrice(
+    account?.completedOrders ?? 0,
+    true
+  );
+  const useRandom = async (all: boolean, apply: () => void) => {
+    const price = all ? currentAllRandomPrice : currentRandomPrice;
+    if (!randomConfirmed.current) {
+      if (
+        !window.confirm(
+          `랜덤은 누르는 즉시 ${price}P가 차감됩니다. 계속할까요?`
+        )
+      )
+        return;
+      randomConfirmed.current = true;
+    }
+    try {
+      await randomCharge.mutateAsync({
+        ...identity,
+        all,
+        requestId: crypto.randomUUID(),
+      });
+      apply();
+      void query.refetch();
+    } catch {}
+  };
   const openArt = (value: Artwork) =>
     setArt({
       ...value,
@@ -200,7 +262,7 @@ export function AvatarRewards({
             {page !== "home" && (
               <button
                 aria-label="아바타 홈으로"
-                onClick={() => setPage("home")}
+                onClick={() => navigate("home")}
               >
                 <ArrowLeft size={20} />
               </button>
@@ -274,7 +336,7 @@ export function AvatarRewards({
                     <Button
                       variant="outline"
                       className="reward-ledger-button"
-                      onClick={() => setPage("ledger")}
+                      onClick={() => navigate("ledger")}
                     >
                       내 포인트 적립·사용 내역 보기
                     </Button>
@@ -353,7 +415,7 @@ export function AvatarRewards({
                     account.masterUrl && (
                       <Button
                         className="reward-primary"
-                        onClick={() => setPage("order")}
+                        onClick={() => navigate("order")}
                       >
                         <Sparkles size={16} />
                         스페셜 아바타 만들기
@@ -384,28 +446,23 @@ export function AvatarRewards({
                   </p>
                   <h3>스페셜 아바타 제작 포인트</h3>
                   <p>
-                    오리지널은 추가 요금이 없어요.{" "}
-                    <b>워너비 +100P · 슈퍼스타 +200P</b>가 기본 제작 포인트에
-                    더해져요. 첫 제작은 각각 500P / 600P / 700P예요.
+                    생성 시도가 거듭될수록 더 많은 포인트가 필요해요.{" "}
+                    <b>4회차부터 비용은 고정됩니다.</b>
                   </p>
                   <ol>
                     {[
-                      "첫 번째 · 500P",
-                      "두 번째 · 1,000P",
-                      "세 번째 · 1,500P",
-                      "네 번째부터 · 2,250P",
+                      "기본 생성 · 50 / 100 / 150 / 200P",
+                      "선택한 부위마다 · 10 / 15 / 20 / 30P",
+                      "장신구마다 · 5 / 10 / 15 / 15P",
                     ].map(t => (
                       <li key={t}>{t}</li>
                     ))}
                   </ol>
                   <p>
-                    처음에는 빠르게 경험해 보고, 그다음에는 꾸준히 수업하며 다음
-                    아바타를 준비해요.
-                  </p>
-                  <p>
-                    <b>150P × 주 5일 × 3주 = 2,250P</b>
-                    <br />
-                    매일 최대 포인트를 모으면 15일 수업으로 만들 수 있어요.
+                    오리지널은 추가 요금이 없고{" "}
+                    <b>워너비 +100P · 슈퍼스타 +200P</b>는 회차와 관계없이
+                    같아요. 부위 랜덤은 1/2/3/5P, 전체 랜덤은 10/20/30/50P가
+                    버튼을 누르는 즉시 차감돼요.
                   </p>
                   <p>
                     주문할 때 포인트를 사용하며, 취소가 필요하면 학원에 문의해
@@ -484,13 +541,18 @@ export function AvatarRewards({
                         key={c.id}
                         url={c.url}
                         title={`${modeLabels[c.mode as keyof typeof modeLabels]} · ${c.createdAt.slice(0, 10)}`}
-                        frame={wardrobe.equipped}
-                        background={wardrobe.background}
+                        frame={c.frame}
+                        background={c.background}
                         representative={account.representativeId === c.id}
                         selected={selectedCard === c.id}
                         onOpen={() => {
                           setSelectedCard(c.id);
-                          openArt({ url: c.url, title: "내 컬렉션" });
+                          openArt({
+                            url: c.url,
+                            title: "내 컬렉션",
+                            frame: c.frame,
+                            background: c.background,
+                          });
                         }}
                       >
                         <button
@@ -617,57 +679,110 @@ export function AvatarRewards({
                 >
                   <div className="reward-note">
                     이번 제작은 <b>{totalPrice.toLocaleString()}P</b>예요. 기본{" "}
-                    {data.nextPrice.toLocaleString()}P + 변신 추가{" "}
-                    {modeSurcharge[order.mode]}P. 주문을 보내면 합계 포인트가
-                    차감돼요.
+                    {data.nextPrice.toLocaleString()}P
+                    {order.selectedParts.length > 0 &&
+                      ` + 선택 부위 ${order.selectedParts.length}개`}
+                    {order.accessories.length > 0 &&
+                      ` + 장신구 ${order.accessories.length}개`}
+                    {modeSurcharge[order.mode] > 0 &&
+                      ` + 변신 ${modeSurcharge[order.mode]}P`}
+                    .
                   </div>
-                  <div className="reward-note">
-                    마법 같은 옷과 친구를 상상해 보세요. 랜덤 문구도 마음대로
-                    고쳐도 좋아요!
+                  <div className="reward-random-warning" role="alert">
+                    <b>랜덤은 누르는 즉시 결제됩니다</b>
+                    <span>
+                      부위 {currentRandomPrice}P · 전체 {currentAllRandomPrice}P
+                    </span>
+                  </div>
+                  <div className="reward-note reward-theme-picker">
+                    <label>
+                      랜덤 테마
+                      <select
+                        value={randomTheme}
+                        onChange={e =>
+                          setRandomTheme(e.target.value as AvatarTheme)
+                        }
+                      >
+                        {avatarThemes.map(theme => (
+                          <option key={theme}>{theme}</option>
+                        ))}
+                      </select>
+                    </label>
                     <Button
                       type="button"
                       variant="outline"
+                      disabled={randomCharge.isPending}
                       onClick={() =>
-                        setOrder(current => {
-                          const next = { ...current };
-                          for (const [key] of imaginationFields)
-                            if (!next[key].trim())
-                              next[key] = randomSuggestion(key);
-                          return next;
+                        void useRandom(true, () => {
+                          const preset = chooseThemePreset(randomTheme);
+                          setOrder(current => ({
+                            ...current,
+                            ...Object.fromEntries(
+                              imaginationFields.map(([key]) => [
+                                key,
+                                preset[key],
+                              ])
+                            ),
+                            selectedParts: imaginationFields.map(
+                              ([key]) => key
+                            ),
+                            accessories: [preset.accessory],
+                          }));
                         })
                       }
                     >
-                      빈칸만 랜덤으로 채우기
+                      전체 랜덤 · {currentAllRandomPrice}P
                     </Button>
                   </div>
                   {imaginationFields.map(([key, label]) => (
                     <div className="reward-field" key={key}>
                       <div className="reward-field-heading">
                         <label htmlFor={"reward-" + key}>
-                          {label}
-                          {["pet", "pose", "extra"].includes(key) && (
-                            <small>선택</small>
-                          )}
+                          <input
+                            type="checkbox"
+                            checked={order.selectedParts.includes(key)}
+                            onChange={e =>
+                              setOrder(current => ({
+                                ...current,
+                                selectedParts: e.target.checked
+                                  ? [...current.selectedParts, key]
+                                  : current.selectedParts.filter(
+                                      x => x !== key
+                                    ),
+                                [key]: e.target.checked ? current[key] : "",
+                              }))
+                            }
+                          />
+                          {label} <small>선택</small>
                         </label>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
                           aria-label={label + " 랜덤"}
+                          disabled={randomCharge.isPending}
                           onClick={() =>
-                            setOrder(current => ({
-                              ...current,
-                              [key]: randomSuggestion(key, current[key]),
-                            }))
+                            void useRandom(false, () =>
+                              setOrder(current => ({
+                                ...current,
+                                selectedParts: current.selectedParts.includes(
+                                  key
+                                )
+                                  ? current.selectedParts
+                                  : [...current.selectedParts, key],
+                                [key]: randomSuggestion(key, current[key]),
+                              }))
+                            )
                           }
                         >
-                          랜덤
+                          랜덤 · {currentRandomPrice}P
                         </Button>
                       </div>
                       <Input
                         id={"reward-" + key}
                         aria-label={label}
-                        required={!["pet", "pose", "extra"].includes(key)}
+                        disabled={!order.selectedParts.includes(key)}
+                        required={order.selectedParts.includes(key)}
                         maxLength={key === "extra" ? 600 : 300}
                         placeholder={"예: " + imagination[key][0]}
                         aria-describedby={"example-" + key}
@@ -706,16 +821,19 @@ export function AvatarRewards({
                         variant="outline"
                         size="sm"
                         aria-label={`장신구 ${i + 1} 랜덤`}
+                        disabled={randomCharge.isPending}
                         onClick={() =>
-                          setOrder(current => ({
-                            ...current,
-                            accessories: current.accessories.map((a, j) =>
-                              i === j ? randomSuggestion("accessory", a) : a
-                            ),
-                          }))
+                          void useRandom(false, () =>
+                            setOrder(current => ({
+                              ...current,
+                              accessories: current.accessories.map((a, j) =>
+                                i === j ? randomSuggestion("accessory", a) : a
+                              ),
+                            }))
+                          )
                         }
                       >
-                        랜덤
+                        랜덤 · {currentRandomPrice}P
                       </Button>
                       <button
                         type="button"
@@ -804,6 +922,7 @@ export function AvatarRewards({
                 <AvatarShop
                   identity={identity}
                   wardrobe={wardrobe}
+                  cards={data.cards}
                   balance={account.balance}
                   image={
                     image ??
@@ -830,7 +949,7 @@ export function AvatarRewards({
                     type="button"
                     key={id}
                     aria-current={page === id ? "page" : undefined}
-                    onClick={() => setPage(id)}
+                    onClick={() => navigate(id)}
                   >
                     <Icon size={18} />
                     {label}

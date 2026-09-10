@@ -11,21 +11,21 @@ export const frames = [
     id: "aurora",
     name: "오로라의 정원",
     rank: "레어",
-    price: 300,
+    price: 150,
     description: "청록빛 궤도 위로 번지는 은은한 오로라",
   },
   {
     id: "astral",
     name: "별자리의 왕관",
     rank: "에픽",
-    price: 750,
+    price: 375,
     description: "보랏빛 성운과 겹겹의 별자리 장식",
   },
   {
     id: "solar",
     name: "태양의 성역",
     rank: "레전더리",
-    price: 1500,
+    price: 750,
     description: "찬란한 황금빛과 태양 문장으로 완성하는 한 장",
   },
 ] as const;
@@ -50,6 +50,9 @@ export type Wardrobe = {
     showName: boolean;
     showGrade: boolean;
   }[];
+  cardStyles: Record<string, { frame: FrameId; background: BackgroundId }>;
+  cardFrames: Record<string, string[]>;
+  cardBackgrounds: Record<string, string[]>;
 };
 export type GalleryCard = {
   cropX: number;
@@ -65,6 +68,7 @@ export type GalleryCard = {
   likes: number;
   liked: boolean;
   mine: boolean;
+  official?: boolean;
 };
 
 export const backgrounds = [
@@ -79,21 +83,21 @@ export const backgrounds = [
     id: "library",
     name: "달빛 서고",
     rank: "레어",
-    price: 300,
+    price: 150,
     description: "달빛이 스며드는 아치와 고요한 서가의 실루엣",
   },
   {
     id: "nebula",
     name: "성운의 회랑",
     rank: "에픽",
-    price: 750,
+    price: 375,
     description: "보랏빛 성운과 겹쳐진 천체 궤도",
   },
   {
     id: "palace",
     name: "태양의 궁전",
     rank: "레전더리",
-    price: 1500,
+    price: 750,
     description: "황금빛 대칭 문양과 빛나는 궁전의 아치",
   },
 ] as const;

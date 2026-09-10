@@ -19,6 +19,7 @@ vi.mock("mysql2/promise", () => {
     if (
       sql.startsWith("CREATE") ||
       sql.startsWith("ALTER") ||
+      sql.startsWith("INSERT IGNORE INTO avatar_card") ||
       sql.startsWith("SET ")
     )
       return [[], []];
@@ -118,9 +119,9 @@ beforeEach(() => {
 });
 describe("server surcharge transaction boundary", () => {
   it.each([
-    ["original", 500],
-    ["wannabe", 600],
-    ["superstar", 700],
+    ["original", 50],
+    ["wannabe", 150],
+    ["superstar", 250],
   ] as const)(
     "charges and refunds the stored %s total",
     async (mode, price) => {
@@ -134,11 +135,11 @@ describe("server surcharge transaction boundary", () => {
     }
   );
   it("rejects a base-affordable order whose surcharge exceeds the balance", async () => {
-    fake.account.balance = 650;
+    fake.account.balance = 249;
     await expect(
       submitRewardOrder(1, { ...input, mode: "superstar" })
     ).rejects.toThrow("부족");
-    expect(fake.account.balance).toBe(650);
+    expect(fake.account.balance).toBe(249);
     expect(fake.orders).toHaveLength(0);
     expect(fake.ledger).toHaveLength(0);
   });

@@ -73,26 +73,32 @@ async function saveImage(image: z.infer<typeof imageInput>) {
 }
 export const avatarRewardsRouter = router({
   purchaseBackground: studentProcedure
-    .input(z.object({ backgroundId }))
+    .input(z.object({ cardId: z.string().uuid(), backgroundId }))
     .mutation(({ input }) =>
-      store.purchaseBackground(input.studentId, input.backgroundId)
+      store.purchaseBackground(
+        input.studentId,
+        input.cardId,
+        input.backgroundId
+      )
     ),
   equipBackground: studentProcedure
-    .input(z.object({ backgroundId }))
+    .input(z.object({ cardId: z.string().uuid(), backgroundId }))
     .mutation(({ input }) =>
-      store.equipBackground(input.studentId, input.backgroundId)
+      store.equipBackground(input.studentId, input.cardId, input.backgroundId)
     ),
   wardrobe: studentProcedure.query(({ input }) =>
     store.wardrobe(input.studentId)
   ),
   purchaseFrame: studentProcedure
-    .input(z.object({ frameId }))
+    .input(z.object({ cardId: z.string().uuid(), frameId }))
     .mutation(({ input }) =>
-      store.purchaseFrame(input.studentId, input.frameId)
+      store.purchaseFrame(input.studentId, input.cardId, input.frameId)
     ),
   equipFrame: studentProcedure
-    .input(z.object({ frameId }))
-    .mutation(({ input }) => store.equipFrame(input.studentId, input.frameId)),
+    .input(z.object({ cardId: z.string().uuid(), frameId }))
+    .mutation(({ input }) =>
+      store.equipFrame(input.studentId, input.cardId, input.frameId)
+    ),
   cropZoom: studentProcedure
     .input(z.object({ zoom: z.number().int().min(100).max(500) }))
     .mutation(({ input }) => store.setCropZoom(input.studentId, input.zoom)),
@@ -115,6 +121,11 @@ export const avatarRewardsRouter = router({
     .input(z.object({ order: rewardOrderInput }))
     .mutation(({ input }) =>
       store.submitRewardOrder(input.studentId, input.order)
+    ),
+  randomCharge: studentProcedure
+    .input(z.object({ all: z.boolean(), requestId: z.string().uuid() }))
+    .mutation(({ input }) =>
+      store.chargeRewardRandom(input.studentId, input.all, input.requestId)
     ),
   select: studentProcedure
     .input(

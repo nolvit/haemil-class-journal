@@ -1,10 +1,24 @@
 import { z } from "zod";
 export const rewardOrderInput = z.object({
-  top: z.string().trim().min(1).max(300),
-  bottom: z.string().trim().min(1).max(300),
-  shoes: z.string().trim().min(1).max(300),
-  hair: z.string().trim().min(1).max(300),
-  background: z.string().trim().min(1).max(300),
+  selectedParts: z
+    .array(
+      z.enum([
+        "top",
+        "bottom",
+        "shoes",
+        "hair",
+        "background",
+        "pet",
+        "pose",
+        "extra",
+      ])
+    )
+    .default([]),
+  top: z.string().trim().max(300).default(""),
+  bottom: z.string().trim().max(300).default(""),
+  shoes: z.string().trim().max(300).default(""),
+  hair: z.string().trim().max(300).default(""),
+  background: z.string().trim().max(300).default(""),
   pet: z.string().trim().max(300).default(""),
   pose: z.string().trim().max(300).default(""),
   extra: z.string().trim().max(600).default(""),
@@ -48,6 +62,8 @@ export type RewardCard = {
   url: string;
   mode: string;
   createdAt: string;
+  frame: import("./avatarCollection").FrameId;
+  background: import("./avatarCollection").BackgroundId;
 };
 export type RewardSnapshot = {
   account: RewardAccount;

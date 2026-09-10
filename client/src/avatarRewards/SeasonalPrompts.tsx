@@ -5,11 +5,18 @@ import {
   seasonalAssets,
   seasonalPrompt,
 } from "@shared/avatarSeasonPrompts";
+import {
+  avatarThemes,
+  avatarThemePrompt,
+  type AvatarTheme,
+} from "@shared/avatarThemes";
 export function SeasonalPrompts() {
   const [season, setSeason] = useState<keyof typeof seasons>("chuseok");
   const [asset, setAsset] = useState<keyof typeof seasonalAssets>("frame");
   const [rank, setRank] = useState<"rare" | "epic" | "legendary">("rare");
   const prompt = seasonalPrompt(season, asset, rank);
+  const [avatarTheme, setAvatarTheme] = useState<AvatarTheme>("판타지");
+  const creationPrompt = avatarThemePrompt(avatarTheme);
   return (
     <section className="seasonal-prompts">
       <h2>시즌 상점 에셋 제작 프롬프트</h2>
@@ -81,6 +88,38 @@ export function SeasonalPrompts() {
         크기·투명도·중앙 안전 영역을 검사하고 PNG 메타데이터를 제거한 뒤
         사용합니다.
       </small>
+      <hr />
+      <h2>스페셜 아바타 테마 프롬프트</h2>
+      <p>
+        두 후보가 확실히 다르게 나오도록 구성한 5개 시대·25개 완성형 테마입니다.
+      </p>
+      <label>
+        아바타 테마
+        <select
+          aria-label="아바타 테마"
+          value={avatarTheme}
+          onChange={e => setAvatarTheme(e.target.value as AvatarTheme)}
+        >
+          {avatarThemes.map(x => (
+            <option key={x}>{x}</option>
+          ))}
+        </select>
+      </label>
+      <textarea
+        aria-label="아바타 테마 제작 프롬프트"
+        readOnly
+        value={creationPrompt}
+      />
+      <button
+        type="button"
+        onClick={() =>
+          void navigator.clipboard
+            .writeText(creationPrompt)
+            .then(() => toast.success("아바타 프롬프트를 복사했습니다."))
+        }
+      >
+        아바타 프롬프트 복사
+      </button>
     </section>
   );
 }
