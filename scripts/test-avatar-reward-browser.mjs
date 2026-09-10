@@ -494,8 +494,8 @@ try {
     offset += length + 12;
   }
   assert.ok(!chunks.some(x => ["eXIf", "tEXt", "iTXt", "zTXt"].includes(x)));
-  assert.equal(png.readUInt32BE(16), 900);
-  assert.equal(png.readUInt32BE(20), 1200);
+  assert.equal(png.readUInt32BE(16), 1800);
+  assert.equal(png.readUInt32BE(20), 2400);
   await page.getByRole("button", { name: "카드 전체 화면으로 보기" }).click();
   const fullscreen = page.getByRole("dialog", { name: "전체 화면 카드" });
   await fullscreen.waitFor();
@@ -540,6 +540,20 @@ try {
   });
   await page.getByRole("button", { name: "전체 화면 닫기" }).click();
   assert.ok(await page.locator(".reward-dialog").isVisible());
+  await page.getByRole("button", { name: "그림 확대 닫기" }).click();
+  await page.getByRole("button", { name: /오리지널 .* 확대 보기/ }).click();
+  const [newCardDownload] = await Promise.all([
+    page.waitForEvent("download"),
+    page
+      .getByRole("button", { name: "프레임 포함 이미지 저장", exact: true })
+      .click(),
+  ]);
+  await newCardDownload.saveAs(path.join(qaRoot, "exported-new-card.png"));
+  const newCardPng = await fs.readFile(
+    path.join(qaRoot, "exported-new-card.png")
+  );
+  assert.equal(newCardPng.readUInt32BE(16), 1800);
+  assert.equal(newCardPng.readUInt32BE(20), 2400);
   await page.getByRole("button", { name: "그림 확대 닫기" }).click();
   await page.getByRole("slider", { name: "얼굴 확대 비율" }).fill("240");
   await page

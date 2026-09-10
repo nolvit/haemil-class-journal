@@ -1,4 +1,11 @@
 import type { FrameId, BackgroundId } from "@shared/avatarCollection";
+export const CARD_RENDER_SCALE = 2;
+export const CARD_RENDER_WIDTH = 900 * CARD_RENDER_SCALE;
+export const CARD_RENDER_HEIGHT = 1200 * CARD_RENDER_SCALE;
+export const CARD_ART_WIDTH = 760 * CARD_RENDER_SCALE;
+export const CARD_ART_HEIGHT = 920 * CARD_RENDER_SCALE;
+const CARD_ART_LOGICAL_WIDTH = CARD_ART_WIDTH / CARD_RENDER_SCALE;
+const CARD_ART_LOGICAL_HEIGHT = CARD_ART_HEIGHT / CARD_RENDER_SCALE;
 const palettes = {
   lunar: ["#bca36f", "#eadbb1"],
   aurora: ["#6ec4b8", "#c5ffee"],
@@ -17,10 +24,13 @@ export async function renderCollectionCard(
   const bitmap = await createImageBitmap(await response.blob());
   try {
     const canvas = document.createElement("canvas");
-    canvas.width = 900;
-    canvas.height = 1200;
+    canvas.width = CARD_RENDER_WIDTH;
+    canvas.height = CARD_RENDER_HEIGHT;
     const c = canvas.getContext("2d");
     if (!c) throw new Error("이미지 저장을 지원하지 않는 브라우저예요.");
+    c.scale(CARD_RENDER_SCALE, CARD_RENDER_SCALE);
+    c.imageSmoothingEnabled = true;
+    c.imageSmoothingQuality = "high";
     const [gold, light] = palettes[frame];
     const rounded = (
       x: number,
@@ -98,8 +108,8 @@ export async function renderCollectionCard(
     // Artwork is contained, never cropped. Margins are reserved for decoration.
     const x = 70,
       y = 125,
-      w = 760,
-      h = 920,
+      w = CARD_ART_LOGICAL_WIDTH,
+      h = CARD_ART_LOGICAL_HEIGHT,
       ratio = Math.min(w / bitmap.width, h / bitmap.height);
     c.drawImage(
       bitmap,
