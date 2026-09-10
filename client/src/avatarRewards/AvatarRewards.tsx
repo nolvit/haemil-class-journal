@@ -264,6 +264,7 @@ export function AvatarRewards({
             {active?.status === "ready" && <span className="reward-dot" />}
           </button>
         </DialogTrigger>
+        {open && <AvatarBgmPlayer identity={identity} open={open} />}
         <DialogContent
           ref={dialogRef}
           className="reward-dialog avatar-theme"
@@ -296,7 +297,6 @@ export function AvatarRewards({
                 꾸준히 쌓은 배움, 나다운 모습으로.
               </DialogDescription>
             </div>
-            <AvatarBgmPlayer identity={identity} open={open} />
             <div className="avatar-brand">
               haemil<small>THE COLLECTION</small>
             </div>

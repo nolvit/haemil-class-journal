@@ -852,6 +852,20 @@ try {
   await page.screenshot({ path: path.join(qaRoot, "fantasy-gallery.png") });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(450);
+  const bgmBox = await page.locator(".avatar-bgm-player").boundingBox();
+  assert.ok(bgmBox);
+  assert.ok(bgmBox.x + bgmBox.width <= 379);
+  assert.ok(bgmBox.x >= 220 && bgmBox.y <= 4 && bgmBox.height <= 30);
+  assert.equal(
+    await page
+      .locator(".avatar-bgm-player")
+      .evaluate(el => getComputedStyle(el).position),
+    "fixed"
+  );
+  assert.equal(
+    await page.locator(".reward-heading .avatar-bgm-player").count(),
+    0
+  );
   const navButtons = await page
     .locator(".reward-links button")
     .allTextContents();

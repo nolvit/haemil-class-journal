@@ -10,6 +10,8 @@ export const shopCategories = [
 ] as const;
 export const shopCategory = z.enum(shopCategories);
 export type ShopCategory = z.infer<typeof shopCategory>;
+export const shopRanks = ["기본", "레어", "에픽", "레전더리", "뮤직"] as const;
+export const shopRank = z.enum(shopRanks);
 export const shopCategoryLabels: Record<ShopCategory, string> = {
   card_frame: "카드 프레임",
   card_background: "카드 배경",
@@ -24,7 +26,7 @@ export const shopItemInput = z.object({
   category: shopCategory,
   name: z.string().trim().min(1).max(80),
   description: z.string().trim().max(300).default(""),
-  rank: z.string().trim().min(1).max(30),
+  rank: shopRank,
   price: z.number().int().min(0).max(100000),
   season: z.string().trim().max(30).default("상시"),
   assetUrl: z.string().trim().max(1000).nullable().default(null),
@@ -38,28 +40,28 @@ export type ShopItem = ShopItemInput & {
 };
 
 export const defaultShopItems: ShopItemInput[] = [
-  ...frames.map(x => ({
+  ...(frames.map(x => ({
     ...x,
     category: "card_frame" as const,
     season: "상시",
     assetUrl: null,
     durationSeconds: null,
     active: true,
-  })),
-  ...backgrounds.map(x => ({
+  })) as ShopItemInput[]),
+  ...(backgrounds.map(x => ({
     ...x,
     category: "card_background" as const,
     season: "상시",
     assetUrl: null,
     durationSeconds: null,
     active: true,
-  })),
+  })) as ShopItemInput[]),
   ...avatarBgmTracks.map(x => ({
     id: x.id,
     category: "bgm" as const,
     name: x.title,
     description: x.description,
-    rank: "뮤직",
+    rank: "뮤직" as const,
     price: x.price,
     season: "상시",
     assetUrl: x.url,

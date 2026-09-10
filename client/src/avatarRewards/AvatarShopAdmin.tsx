@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import {
   shopCategories,
   shopCategoryLabels,
+  shopRanks,
   type ShopItem,
   type ShopCategory,
 } from "@shared/avatarShop";
@@ -124,12 +125,22 @@ export function AvatarShopAdmin() {
         </label>
         <label>
           등급
-          <input
+          <select
             required
             value={draft.rank}
-            placeholder="기본 / 레어 / 에픽"
-            onChange={e => setDraft({ ...draft, rank: e.target.value })}
-          />
+            onChange={e =>
+              setDraft({
+                ...draft,
+                rank: e.target.value as ShopItem["rank"],
+              })
+            }
+          >
+            {shopRanks.map(rank => (
+              <option key={rank} value={rank}>
+                {rank}
+              </option>
+            ))}
+          </select>
         </label>
         <label>
           가격(P)

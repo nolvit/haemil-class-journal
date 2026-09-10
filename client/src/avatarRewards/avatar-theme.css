@@ -293,12 +293,16 @@
   color: #a28f67;
 }
 .avatar-bgm-player {
+  position: fixed;
+  z-index: 70;
+  top: max(12px, env(safe-area-inset-top));
+  right: 22px;
   display: grid;
   grid-template-columns: auto minmax(82px, 1fr) auto;
   align-items: center;
   gap: 8px;
   width: min(225px, 34vw);
-  margin-left: auto;
+  margin: 0;
   padding: 7px 9px;
   border: 1px solid #b99d6259;
   border-radius: 13px;
@@ -1119,12 +1123,29 @@
     letter-spacing: 1px;
   }
   .avatar-theme .reward-heading {
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
   .avatar-bgm-player {
-    order: 3;
-    width: min(235px, 78vw);
-    margin: -4px 0 0 auto;
+    top: max(2px, env(safe-area-inset-top));
+    right: 12px;
+    grid-template-columns: auto minmax(66px, 1fr) auto;
+    gap: 4px;
+    width: 154px;
+    height: 28px;
+    padding: 2px 5px;
+    border-radius: 9px;
+  }
+  .avatar-bgm-player > button {
+    gap: 2px;
+    padding: 2px 4px;
+    font-size: 8px;
+    line-height: 1;
+  }
+  .avatar-bgm-now > span {
+    font-size: 8px;
+  }
+  .avatar-bgm-now > div {
+    margin-top: 2px;
   }
   .bgm-product-grid {
     grid-template-columns: 1fr;

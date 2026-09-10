@@ -41,5 +41,9 @@ describe("avatar BGM catalog and purchase policy", () => {
     expect(
       defaultShopItems.every(item => shopItemInput.safeParse(item).success)
     ).toBe(true);
+    expect(
+      shopItemInput.safeParse({ ...defaultShopItems[0], rank: "직접 입력" })
+        .success
+    ).toBe(false);
   });
 });
