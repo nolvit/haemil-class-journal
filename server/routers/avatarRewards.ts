@@ -174,7 +174,12 @@ export const avatarRewardsRouter = router({
   publish: adminProcedure
     .input(order.extend({ images: z.tuple([imageInput, imageInput]) }))
     .mutation(async ({ input }) => {
-      input.images.forEach(validateRewardImage);
+      const bytes = input.images.map(validateRewardImage);
+      if (bytes[0].equals(bytes[1]))
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "서로 다른 후보 이미지 두 장을 등록해 주세요.",
+        });
       const urls = await Promise.all(input.images.map(saveImage));
       await store.publishRewardCandidates(
         input.studentId,

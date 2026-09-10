@@ -129,6 +129,28 @@ async function readImage(file: File) {
   });
   return { data, mime: file.type as "image/png" | "image/jpeg" | "image/webp" };
 }
+async function candidateSimilarity(a: File, b: File) {
+  const sample = async (file: File) => {
+    const bitmap = await createImageBitmap(file);
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 24;
+      const context = canvas.getContext("2d", { willReadFrequently: true })!;
+      context.drawImage(bitmap, 0, 0, 24, 24);
+      return context.getImageData(0, 0, 24, 24).data;
+    } finally {
+      bitmap.close();
+    }
+  };
+  const [x, y] = await Promise.all([sample(a), sample(b)]);
+  let difference = 0;
+  for (let i = 0; i < x.length; i += 4)
+    difference +=
+      Math.abs(x[i] - y[i]) +
+      Math.abs(x[i + 1] - y[i + 1]) +
+      Math.abs(x[i + 2] - y[i + 2]);
+  return 1 - difference / ((x.length / 4) * 3 * 255);
+}
 export default function AvatarAdmin() {
   const [art, setArt] = useState<Artwork | null>(null);
   const [studentId, setStudentId] = useState(0),
@@ -366,6 +388,14 @@ export default function AvatarAdmin() {
                     onClick={async () => {
                       setUploading(true);
                       try {
+                        const similarity = await candidateSimilarity(
+                          images[0],
+                          images[1]
+                        );
+                        if (similarity >= 0.93)
+                          throw new Error(
+                            "두 후보가 너무 비슷해요. 자세·구도·표정·배경이 확실히 다른 두 장을 선택해 주세요."
+                          );
                         const pair = await Promise.all(images.map(readImage));
                         await publish.mutateAsync({
                           studentId,
