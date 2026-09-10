@@ -186,6 +186,14 @@ describe("reward integration boundaries", () => {
     await expect(caller.adminList()).rejects.toMatchObject({
       code: "FORBIDDEN",
     });
+    await expect(caller.officialCharacters()).rejects.toMatchObject({
+      code: "FORBIDDEN",
+    });
+    await expect(
+      caller.deleteOfficialCharacter({
+        id: "11111111-1111-4111-8111-111111111111",
+      })
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
       caller.adjust({
         studentId: 1,

@@ -14,6 +14,7 @@ import {
 } from "../../shared/avatarRewards";
 import * as store from "../avatarRewardStore";
 import { storagePut } from "../storage";
+import { officialCharacterInput } from "../../shared/avatarOfficial";
 const identity = z.object({
   token: z.string().min(8).max(64),
   studentId: z.number().int().positive(),
@@ -155,6 +156,31 @@ export const avatarRewardsRouter = router({
       )
     ),
   adminList: adminProcedure.query(() => store.rewardAdminList()),
+  officialCharacters: adminProcedure.query(() => store.officialCharacters()),
+  createOfficialCharacter: adminProcedure
+    .input(officialCharacterInput.extend({ image: imageInput }))
+    .mutation(async ({ input }) => {
+      const { image, ...character } = input;
+      return store.createOfficialCharacter(character, await saveImage(image));
+    }),
+  updateOfficialCharacter: adminProcedure
+    .input(
+      officialCharacterInput.extend({
+        id: z.string().uuid(),
+        image: imageInput.optional(),
+      })
+    )
+    .mutation(async ({ input }) => {
+      const { id, image, ...character } = input;
+      return store.updateOfficialCharacter(
+        id,
+        character,
+        image ? await saveImage(image) : undefined
+      );
+    }),
+  deleteOfficialCharacter: adminProcedure
+    .input(z.object({ id: z.string().uuid() }))
+    .mutation(({ input }) => store.deleteOfficialCharacter(input.id)),
   adjust: adminProcedure
     .input(rewardAdjustmentInput)
     .mutation(({ input, ctx }) => store.adjustRewardPoints(input, ctx.user.id)),

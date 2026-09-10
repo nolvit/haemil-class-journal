@@ -323,6 +323,100 @@
   width: 100%;
   font-size: 13px;
 }
+.official-character-admin,
+.official-prompt-builder {
+  overflow: hidden;
+}
+.official-character-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.official-character-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid #d9e0d6;
+  border-radius: 16px;
+  background: linear-gradient(145deg, #fbfcf8, #f1f5ef);
+}
+.official-character-card.is-new {
+  background: linear-gradient(145deg, #f4f9f4, #fffaf0);
+}
+.official-character-fields {
+  display: grid;
+  gap: 12px;
+}
+.official-character-fields > label,
+.official-character-card > label,
+.official-prompt-options label {
+  display: grid;
+  gap: 7px;
+  font-size: 13px;
+}
+.official-character-fields input[type="text"],
+.official-character-fields input:not([type]) {
+  padding: 11px;
+  border: 1px solid #d8dfd4;
+  border-radius: 10px;
+  background: white;
+}
+.official-character-fields .official-visible {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.official-character-fields input[type="range"] {
+  width: 100%;
+  accent-color: #315b57;
+}
+.official-gallery-preview {
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  padding: 16px;
+  border-radius: 14px;
+  color: #eadbb1;
+  background: radial-gradient(circle at 50% 20%, #294951, #0b151c 72%);
+}
+.official-gallery-preview .constellation-orbit {
+  width: 112px;
+  height: 112px;
+}
+.official-gallery-preview small {
+  color: #aebdc0;
+}
+.official-prompt-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+.official-random-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.official-random-result {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 14px;
+  border-radius: 12px;
+  background: #f5f7f2;
+}
+.official-random-result div {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 10px;
+}
+.official-random-result dt {
+  font-weight: 700;
+  color: #315b57;
+}
+.official-random-result dd {
+  margin: 0;
+  line-height: 1.55;
+}
 .reward-admin-actions {
   display: flex;
   flex-wrap: wrap;
@@ -357,6 +451,10 @@
   }
   .reward-admin section {
     padding: 16px;
+  }
+  .official-character-list,
+  .official-prompt-options {
+    grid-template-columns: 1fr;
   }
   .reward-profile {
     width: 48px;

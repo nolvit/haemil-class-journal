@@ -87,6 +87,7 @@ const wardrobe = {
   cardBackgrounds: {},
 };
 let liked = false;
+let officials = [];
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
 page.on("pageerror", e => errors.push(e.message));
@@ -104,7 +105,35 @@ await page.route("**/api/trpc/**", async route => {
     const input = payload?.[i]?.json ?? {};
     let value;
     if (method.endsWith("wardrobe")) value = wardrobe;
-    else if (method.endsWith("randomCharge")) {
+    else if (method.endsWith("officialCharacters")) value = officials;
+    else if (method.endsWith("createOfficialCharacter")) {
+      officials.unshift({
+        id: "55555555-5555-4555-8555-555555555555",
+        name: input.name,
+        url: image,
+        visible: input.visible,
+        cropX: input.cropX,
+        cropY: input.cropY,
+        cropZoom: input.cropZoom,
+        createdAt: "2026-09-10 12:00:00",
+        updatedAt: "2026-09-10 12:00:00",
+      });
+      value = { id: officials[0].id };
+    } else if (method.endsWith("updateOfficialCharacter")) {
+      const character = officials.find(item => item.id === input.id);
+      if (character)
+        Object.assign(character, {
+          name: input.name,
+          visible: input.visible,
+          cropX: input.cropX,
+          cropY: input.cropY,
+          cropZoom: input.cropZoom,
+        });
+      value = null;
+    } else if (method.endsWith("deleteOfficialCharacter")) {
+      officials = officials.filter(item => item.id !== input.id);
+      value = null;
+    } else if (method.endsWith("randomCharge")) {
       state.account.balance -= input.all ? 10 : 1;
       value = { price: input.all ? 10 : 1, balance: state.account.balance };
     } else if (method.endsWith("purchaseFrame")) {
@@ -155,6 +184,19 @@ await page.route("**/api/trpc/**", async route => {
       value = null;
     } else if (method.endsWith("gallery"))
       value = [
+        ...officials
+          .filter(item => item.visible)
+          .map(item => ({
+            ...item,
+            mode: "official",
+            frame: "lunar",
+            background: "classic",
+            grade: "해밀 공식",
+            likes: 0,
+            liked: false,
+            mine: false,
+            official: true,
+          })),
         {
           id: "44444444-4444-4444-8444-444444444444",
           url: image,
@@ -388,6 +430,43 @@ try {
   await page.waitForFunction(() => !history.state?.haemilAvatarOverlay);
   await page.goto("http://127.0.0.1:5186/?admin");
   await page.getByText("새 아바타 주문 1건", { exact: true }).first().waitFor();
+  await page.getByLabel("공식 캐릭터 이름").first().fill("테스트 공식 캐릭터");
+  await page
+    .getByLabel("공식 캐릭터 이미지")
+    .setInputFiles(
+      path.join(
+        repo,
+        "client/public/avatar-rewards/avatars/official/official_female_avatar.png"
+      )
+    );
+  await page
+    .getByRole("slider", { name: "공식 캐릭터 좌우 위치" })
+    .first()
+    .fill("62");
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("createOfficialCharacter")),
+    page.getByRole("button", { name: "공식 캐릭터 등록" }).click(),
+  ]);
+  assert.equal(officials[0].cropX, 62);
+  const officialEditor = page.locator(".official-character-card:not(.is-new)");
+  await officialEditor.getByLabel("공식 캐릭터 이름").fill("테스트 오피셜");
+  await officialEditor
+    .getByRole("slider", { name: "공식 캐릭터 확대 비율" })
+    .fill("230");
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("updateOfficialCharacter")),
+    officialEditor.getByRole("button", { name: "수정 저장" }).click(),
+  ]);
+  assert.equal(officials[0].name, "테스트 오피셜");
+  assert.equal(officials[0].cropZoom, 230);
+  await page.getByLabel("대표 캐릭터 테마").selectOption("조선시대");
+  await page.getByLabel("대표 캐릭터 변신 단계").selectOption("superstar");
+  await page.getByRole("button", { name: "전체 랜덤" }).click();
+  assert.ok(
+    (await page.getByLabel("대표 캐릭터 최종 프롬프트").inputValue()).includes(
+      "조선시대 · SUPERSTAR"
+    )
+  );
   await page.getByLabel("시즌", { exact: true }).selectOption("christmas");
   await page.getByLabel("에셋 종류").selectOption("thumb");
   assert.ok(
@@ -613,6 +692,13 @@ try {
   await page.waitForTimeout(4200);
   await page.screenshot({ path: path.join(qaRoot, "fantasy-shop.png") });
   await page.getByRole("button", { name: "광장", exact: true }).click();
+  await page.getByRole("button", { name: "테스트 오피셜 카드 열기" }).waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "테스트 오피셜 카드 좋아요" })
+      .isDisabled(),
+    true
+  );
   await page.getByRole("button", { name: "박00 카드 좋아요" }).click();
   await page.waitForTimeout(250);
   assert.equal(liked, true);
@@ -667,6 +753,13 @@ try {
     page.getByRole("button", { name: "광장 프로필 저장" }).click(),
   ]);
   assert.equal(state.cards[0].galleryCropX, 64);
+  const savedOfficial = page.locator(".official-character-card:not(.is-new)");
+  page.once("dialog", dialog => dialog.accept());
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("deleteOfficialCharacter")),
+    savedOfficial.getByRole("button", { name: "삭제" }).click(),
+  ]);
+  assert.equal(officials.length, 0);
   assert.deepEqual(errors, []);
   console.log(
     "PASS desktop/mobile order, administrator upload, candidate selection, collection, representative crop, no horizontal overflow or JS errors"

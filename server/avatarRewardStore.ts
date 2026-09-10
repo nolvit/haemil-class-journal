@@ -38,6 +38,10 @@ import {
 } from "../shared/avatarRewards";
 import type { z } from "zod";
 import { buildRewardPrompt } from "./avatarRewardPrompt";
+import type {
+  OfficialCharacter,
+  OfficialCharacterInput,
+} from "../shared/avatarOfficial";
 
 let pool: mysql.Pool | undefined;
 let initialized: Promise<void> | undefined;
@@ -696,42 +700,100 @@ export async function gallery(
     liked: !!x.liked,
     mine: !!x.mine,
   })) as GalleryCard[];
-  if (page === 0)
+  if (page === 0) {
+    const official = await officialCharacters(true);
     cards.unshift(
-      {
-        id: "00000000-0000-4000-8000-0000000000a1",
-        url: "/avatar-rewards/avatars/official/haena_special_fantasy.png",
-        mode: "superstar",
-        frame: "astral",
-        background: "nebula",
-        name: "해나",
-        grade: "중3",
-        cropX: 50,
-        cropY: 20,
-        cropZoom: 190,
+      ...official.map(character => ({
+        id: character.id,
+        url: character.url,
+        mode: "official",
+        frame: "lunar" as const,
+        background: "classic" as const,
+        name: character.name,
+        grade: "해밀 공식",
+        cropX: character.cropX,
+        cropY: character.cropY,
+        cropZoom: character.cropZoom,
         likes: 0,
         liked: false,
         mine: false,
         official: true,
-      },
-      {
-        id: "00000000-0000-4000-8000-0000000000b2",
-        url: "/avatar-rewards/avatars/official/mir_special_joseon.png",
-        mode: "superstar",
-        frame: "solar",
-        background: "library",
-        name: "미르",
-        grade: "중3",
-        cropX: 50,
-        cropY: 18,
-        cropZoom: 190,
-        likes: 0,
-        liked: false,
-        mine: false,
-        official: true,
-      }
+      }))
     );
+  }
   return cards;
+}
+
+export async function officialCharacters(visibleOnly = false) {
+  await ensureRewardSchema();
+  const where = visibleOnly ? " WHERE visible=1" : "";
+  const [result] = await database().query<RowDataPacket[]>(
+    `SELECT id,name,url,visible,cropX,cropY,cropZoom,createdAt,updatedAt FROM official_avatar_characters${where} ORDER BY updatedAt DESC,id DESC`
+  );
+  return result.map(row => ({
+    ...row,
+    visible: !!row.visible,
+  })) as OfficialCharacter[];
+}
+
+export async function createOfficialCharacter(
+  input: OfficialCharacterInput,
+  url: string
+) {
+  await ensureRewardSchema();
+  const id = randomUUID();
+  await database().query(
+    "INSERT INTO official_avatar_characters(id,name,url,visible,cropX,cropY,cropZoom) VALUES(?,?,?,?,?,?,?)",
+    [
+      id,
+      input.name,
+      url,
+      input.visible,
+      input.cropX,
+      input.cropY,
+      input.cropZoom,
+    ]
+  );
+  return { id };
+}
+
+export async function updateOfficialCharacter(
+  id: string,
+  input: OfficialCharacterInput,
+  url?: string
+) {
+  await ensureRewardSchema();
+  const [result] = await database().query<ResultSetHeader>(
+    `UPDATE official_avatar_characters SET name=?,visible=?,cropX=?,cropY=?,cropZoom=?${url ? ",url=?" : ""} WHERE id=?`,
+    url
+      ? [
+          input.name,
+          input.visible,
+          input.cropX,
+          input.cropY,
+          input.cropZoom,
+          url,
+          id,
+        ]
+      : [
+          input.name,
+          input.visible,
+          input.cropX,
+          input.cropY,
+          input.cropZoom,
+          id,
+        ]
+  );
+  if (!result.affectedRows) reject("공식 캐릭터를 찾을 수 없습니다.");
+}
+
+export async function deleteOfficialCharacter(id: string) {
+  await ensureRewardSchema();
+  const [result] = await database().query<ResultSetHeader>(
+    "DELETE FROM official_avatar_characters WHERE id=?",
+    [id]
+  );
+  if (!result.affectedRows) reject("공식 캐릭터를 찾을 수 없습니다.");
 }
 
 export async function likeCard(

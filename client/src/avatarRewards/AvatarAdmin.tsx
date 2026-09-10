@@ -8,6 +8,10 @@ import { modeLabels, type RewardCard } from "@shared/avatarRewards";
 import "./rewards.css";
 import "./avatar-theme.css";
 import { ArtworkPortal, type Artwork } from "./FantasyCard";
+import {
+  OfficialCharacterManager,
+  OfficialCharacterPromptBuilder,
+} from "./OfficialCharacterAdmin";
 function PointAdjustment({
   studentId,
   balance,
@@ -278,6 +282,8 @@ export default function AvatarAdmin() {
           새 주문 {total}건 · 학생의 꾸준한 배움을 특별한 모습으로 남겨 주세요.
         </p>
       </header>
+      <OfficialCharacterManager />
+      <OfficialCharacterPromptBuilder />
       {list.error && <p role="alert">{list.error.message}</p>}
       <label>
         학생 선택
