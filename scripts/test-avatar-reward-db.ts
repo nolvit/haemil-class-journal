@@ -275,6 +275,56 @@ try {
   assert.equal((await store.gallery(2)).length, 0);
   await assert.rejects(() => store.likeCard(2, cardId, true));
   passed++;
+
+  await store.setRewardMaster(
+    2,
+    "/avatar-rewards/avatars/official/official_male_avatar.png"
+  );
+  await store.adjustRewardPoints(
+    {
+      studentId: 2,
+      delta: 650,
+      reason: "QA surcharge",
+      requestId: crypto.randomUUID(),
+    },
+    9
+  );
+  const wannabeOrder = await store.submitRewardOrder(2, {
+    ...input,
+    mode: "wannabe",
+  });
+  let modeSnap = await store.rewardSnapshot(2);
+  assert.equal(modeSnap.orders[0].price, 600);
+  assert.equal(modeSnap.account.balance, 50);
+  passed++;
+  await store.cancelRewardOrder(2, wannabeOrder.id);
+  assert.equal((await store.rewardSnapshot(2)).account.balance, 650);
+  await assert.rejects(() =>
+    store.submitRewardOrder(2, { ...input, mode: "superstar" })
+  );
+  passed++;
+  await store.adjustRewardPoints(
+    {
+      studentId: 2,
+      delta: 50,
+      reason: "QA difference",
+      requestId: crypto.randomUUID(),
+    },
+    9
+  );
+  const superstarOrder = await store.submitRewardOrder(2, {
+    ...input,
+    mode: "superstar",
+  });
+  assert.equal(
+    (await store.rewardSnapshot(2)).orders.find(x => x.id === superstarOrder.id)
+      ?.price,
+    700
+  );
+  assert.equal((await store.rewardSnapshot(2)).account.balance, 0);
+  await store.cancelRewardOrder(2, superstarOrder.id);
+  assert.equal((await store.rewardSnapshot(2)).account.balance, 700);
+  passed++;
   await c.end();
   console.log(`PASS ${passed} real MySQL integration scenarios`);
 } finally {

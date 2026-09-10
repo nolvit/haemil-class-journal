@@ -1,3 +1,4 @@
+import { SeasonalPrompts } from "./SeasonalPrompts";
 import { useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
@@ -420,6 +421,7 @@ export default function AvatarAdmin() {
           </section>
         </>
       )}
+      <SeasonalPrompts />
       <ArtworkPortal art={art} onClose={() => setArt(null)} />
     </main>
   );

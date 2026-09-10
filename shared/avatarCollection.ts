@@ -52,6 +52,9 @@ export type Wardrobe = {
   }[];
 };
 export type GalleryCard = {
+  cropX: number;
+  cropY: number;
+  cropZoom: number;
   id: string;
   url: string;
   mode: string;
@@ -96,3 +99,5 @@ export const backgrounds = [
 ] as const;
 export const backgroundId = z.enum(["classic", "library", "nebula", "palace"]);
 export type BackgroundId = z.infer<typeof backgroundId>;
+
+export const galleryPageSize = 36;

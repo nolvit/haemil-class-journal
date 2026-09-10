@@ -1,4 +1,18 @@
-import { useState, type ReactNode } from "react";
+import { toast } from "sonner";
+import { renderCollectionCard, downloadCollectionCard } from "./cardExport";
+import {
+  useAvatarBackGuard,
+  useBoundedImagePan,
+  AvatarNavigationContext,
+} from "./avatarNavigation";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useContext,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { Crown, Expand, Moon, Sparkles, X, Minus, Plus } from "lucide-react";
 import {
   Dialog,
@@ -8,7 +22,13 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import type { FrameId, BackgroundId } from "@shared/avatarCollection";
-export type Artwork = { url: string; title: string };
+export type Artwork = {
+  url: string;
+  title: string;
+  frame?: FrameId;
+  background?: BackgroundId;
+  origin?: { x: number; y: number; width: number; height: number };
+};
 export function ArtworkPortal({
   art,
   onClose,
@@ -17,6 +37,42 @@ export function ArtworkPortal({
   onClose: () => void;
 }) {
   const [zoom, setZoom] = useState(100);
+  const viewport = useRef<HTMLDivElement>(null);
+  const [rendered, setRendered] = useState<{ blob: Blob; url: string } | null>(
+    null
+  );
+  const [error, setError] = useState(false);
+  const inherited = useContext(AvatarNavigationContext);
+  useAvatarBackGuard(!!art, onClose, !inherited);
+  useBoundedImagePan(viewport, !!art);
+  useEffect(() => {
+    setZoom(100);
+    setError(false);
+    setRendered(null);
+    if (!art) return;
+    let disposed = false,
+      objectUrl = "";
+    renderCollectionCard(art.url, art.frame, art.background)
+      .then(blob => {
+        if (disposed) return;
+        objectUrl = URL.createObjectURL(blob);
+        setRendered({ blob, url: objectUrl });
+      })
+      .catch(() => {
+        if (!disposed) setError(true);
+      });
+    return () => {
+      disposed = true;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [art?.url, art?.frame, art?.background]);
+  const origin = art?.origin;
+  const originStyle = origin
+    ? ({
+        "--origin-x": origin.x + origin.width / 2 - innerWidth / 2 + "px",
+        "--origin-y": origin.y + origin.height / 2 - innerHeight / 2 + "px",
+      } as CSSProperties)
+    : undefined;
   return (
     <Dialog
       open={!!art}
@@ -28,7 +84,8 @@ export function ArtworkPortal({
       }}
     >
       <DialogContent
-        className="avatar-theme art-portal"
+        className={"avatar-theme art-portal" + (origin ? " from-orbit" : "")}
+        style={originStyle}
         showCloseButton={false}
       >
         <header>
@@ -44,12 +101,22 @@ export function ArtworkPortal({
           </DialogClose>
         </header>
         <div
+          ref={viewport}
           className="art-viewport"
           tabIndex={0}
           aria-label="확대 이미지 스크롤 영역"
         >
           <div style={{ width: zoom + "%", height: zoom + "%" }}>
-            {art && <img src={art.url} alt={art.title} />}
+            {art &&
+              (rendered ? (
+                <img draggable={false} src={rendered.url} alt={art.title} />
+              ) : (
+                <div className="card-render-placeholder" role="status">
+                  {error
+                    ? "이미지를 불러오지 못했어요. 닫은 뒤 다시 열어 주세요."
+                    : "카드를 펼치는 중…"}
+                </div>
+              ))}
           </div>
         </div>
         <div className="art-tools">
@@ -83,6 +150,26 @@ export function ArtworkPortal({
             원래 크기
           </button>
         </div>
+        <button
+          type="button"
+          className="card-download"
+          disabled={!rendered}
+          onClick={() => {
+            if (rendered) {
+              downloadCollectionCard(rendered.blob);
+              toast.success("프레임 포함 카드를 저장했어요.");
+            }
+          }}
+        >
+          {error
+            ? "이미지를 다시 열어 주세요"
+            : rendered
+              ? "프레임 포함 이미지 저장"
+              : "카드를 준비하는 중…"}
+        </button>
+        <p className="av-subtle">
+          이름·학년·좋아요·식별자와 원본 메타데이터 없이 카드 그림만 저장해요.
+        </p>
         <p className="av-subtle">
           확대 후 스크롤하거나 손가락으로 밀어 감상하세요.
         </p>

@@ -822,7 +822,7 @@
     top: 0 !important;
     left: 0 !important;
     translate: none !important;
-    transform: none !important;
+    transform: none;
     border-radius: 0 !important;
     padding: 16px 10px calc(14px + env(safe-area-inset-bottom)) !important;
   }
@@ -915,4 +915,198 @@
 .avatar-theme .stylebook-dismiss button {
   background: #19292f;
   color: #e7d9b2;
+}
+
+/* One bottom sheet entry/exit; content page switches have no animation. */
+.avatar-theme.reward-dialog {
+  top: auto !important;
+  bottom: 0;
+  left: 50% !important;
+  translate: -50% 0 !important;
+  transform: translateY(0);
+  border-radius: 24px 24px 0 0 !important;
+  max-height: 94dvh;
+  will-change: auto;
+  scroll-behavior: auto;
+}
+.avatar-theme.reward-dialog[data-state="open"] {
+  animation: avatar-sheet-in 260ms cubic-bezier(0.22, 0.75, 0.25, 1) !important;
+}
+.avatar-theme.reward-dialog[data-state="closed"] {
+  animation: avatar-sheet-out 200ms ease-in !important;
+  pointer-events: none;
+}
+@keyframes avatar-sheet-in {
+  from {
+    transform: translateY(100dvh);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes avatar-sheet-out {
+  from {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateY(100dvh);
+    opacity: 0.8;
+  }
+}
+.avatar-theme.art-portal,
+.avatar-theme.av-confirm,
+.stylebook-dialog,
+.stylebook-viewer {
+  animation: none !important;
+}
+.art-viewport,
+.stylebook-viewer-viewport {
+  touch-action: none;
+  overscroll-behavior: none;
+  scroll-behavior: auto;
+  cursor: grab;
+}
+.art-viewport:active,
+.stylebook-viewer-viewport:active {
+  cursor: grabbing;
+}
+.art-viewport img,
+.stylebook-viewer-viewport img {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.card-download {
+  flex-shrink: 0;
+  min-height: 42px;
+  border: 1px solid #b9a06a;
+  border-radius: 8px;
+  background: linear-gradient(#304d4b, #172c32);
+  color: #f0dfb2;
+}
+.art-portal.from-orbit[data-state="open"] {
+  animation: avatar-orbit-in 260ms cubic-bezier(0.22, 0.75, 0.25, 1) !important;
+}
+@keyframes avatar-orbit-in {
+  from {
+    transform: translate(var(--origin-x, 0px), var(--origin-y, 0px)) scale(0.15);
+    opacity: 0.3;
+    border-radius: 50%;
+  }
+  to {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+}
+.constellation-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 25px 16px;
+}
+.constellation-person {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  text-align: center;
+}
+.constellation-orbit {
+  --frame: #bca36f;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 2px solid var(--frame);
+  background: #20313a;
+  overflow: hidden;
+  box-shadow:
+    0 0 0 4px #172831,
+    0 0 18px #bca36f15;
+  padding: 0;
+  cursor: pointer;
+}
+.constellation-orbit img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.constellation-name {
+  font-size: 12px;
+  color: #e0e9df;
+}
+.constellation-person > small {
+  font-size: 10px;
+  color: #99aea7;
+}
+.constellation-person .av-like {
+  font-size: 11px;
+  min-height: 32px;
+  color: #e1c3c5;
+  border: 0;
+  padding: 4px 8px;
+}
+.seasonal-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.seasonal-options label {
+  display: grid;
+  gap: 8px;
+  flex: 1;
+  min-width: 140px;
+}
+.seasonal-prompts button {
+  border: 1px solid #8c9e94;
+  border-radius: 8px;
+  padding: 12px;
+  background: #ecf0e9;
+}
+@media (max-width: 600px) {
+  .avatar-theme.reward-dialog {
+    left: 0 !important;
+    translate: none !important;
+    max-height: 96dvh;
+  }
+  .constellation-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px 16px;
+  }
+  .avatar-theme.art-portal {
+    transform: none;
+  }
+  .art-portal.from-orbit[data-state="open"] {
+    animation-name: avatar-orbit-in !important;
+  }
+}
+@keyframes avatar-orbit-mobile {
+  from {
+    scale: 0.15;
+    opacity: 0.3;
+    transform-origin: 50% 50%;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .avatar-theme.reward-dialog[data-state="open"],
+  .avatar-theme.reward-dialog[data-state="closed"],
+  .art-portal.from-orbit[data-state="open"] {
+    animation: none !important;
+  }
+}
+.card-render-placeholder {
+  width: 75%;
+  height: 85%;
+  border: 2px solid #bca36f;
+  border-radius: 24px;
+  display: grid;
+  place-items: center;
+  color: #cfc093;
+  background: #17272e;
 }

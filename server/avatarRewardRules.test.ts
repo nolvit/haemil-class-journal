@@ -1,6 +1,19 @@
 import { describe, expect, it } from "vitest";
-import { attendancePoints, avatarPrice } from "../shared/avatarRewardRules";
+import {
+  attendancePoints,
+  avatarPrice,
+  avatarOrderPrice,
+} from "../shared/avatarRewardRules";
 describe("journal avatar rewards", () => {
+  it("adds a fixed mode surcharge after each base tier", () => {
+    for (const count of [0, 1, 2, 3, 20]) {
+      expect(avatarOrderPrice(count, "original")).toBe(avatarPrice(count));
+      expect(avatarOrderPrice(count, "wannabe")).toBe(avatarPrice(count) + 100);
+      expect(avatarOrderPrice(count, "superstar")).toBe(
+        avatarPrice(count) + 200
+      );
+    }
+  });
   it("requires every departure and caps daily attendance", () => {
     expect(attendancePoints([{ arrival: 0, departure: null }])).toBe(0);
     expect(attendancePoints([{ arrival: 0, departure: 200 * 60000 }])).toBe(

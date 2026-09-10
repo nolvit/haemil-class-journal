@@ -1,4 +1,9 @@
-import { useState } from "react";
+import { modeSurcharge } from "@shared/avatarRewardRules";
+import {
+  useAvatarBackGuard,
+  AvatarNavigationContext,
+} from "./avatarNavigation";
+import { useState, useRef, useLayoutEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import {
   Dialog,
@@ -140,671 +145,703 @@ export function AvatarRewards({
   const busy = submit.isPending || select.isPending || representative.isPending;
   const position = cropY ?? account?.cropY ?? 0;
   const horizontal = cropX ?? account?.cropX ?? 50;
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeAvatar = () => {
+    setOpen(false);
+    setArt(null);
+  };
+  useAvatarBackGuard(open, closeAvatar);
+  useLayoutEffect(() => {
+    if (open) dialogRef.current?.scrollTo({ top: 0, behavior: "instant" });
+  }, [page]);
+  const totalPrice = (data?.nextPrice ?? 0) + modeSurcharge[order.mode];
+  const openArt = (value: Artwork) =>
+    setArt({
+      ...value,
+      frame: value.frame ?? wardrobe.equipped,
+      background: value.background ?? wardrobe.background,
+    });
   return (
-    <Dialog
-      open={open}
-      onOpenChange={v => {
-        setOpen(v);
-        if (!v) {
-          setPage("home");
-          setSelectedCandidate(null);
-        }
-      }}
-    >
-      <DialogTrigger asChild>
-        <button
-          className="reward-profile"
-          aria-label="내 아바타와 출석 포인트"
-          title="내 아바타와 출석 포인트"
-        >
-          {image ? (
-            <img
-              src={image}
-              alt="대표 아바타"
-              style={{
-                objectPosition: `${horizontal}% ${position}%`,
-                transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
-                transformOrigin: `${horizontal}% ${position}%`,
-              }}
-            />
-          ) : (
-            <UserRound size={25} />
-          )}
-          {active?.status === "ready" && <span className="reward-dot" />}
-        </button>
-      </DialogTrigger>
-      <DialogContent className="reward-dialog avatar-theme">
-        <div className="reward-heading">
-          {page !== "home" && (
-            <button aria-label="아바타 홈으로" onClick={() => setPage("home")}>
-              <ArrowLeft size={20} />
-            </button>
-          )}
-          <div>
-            <DialogTitle>
-              {
+    <AvatarNavigationContext.Provider value={true}>
+      <Dialog
+        open={open}
+        onOpenChange={v => {
+          setOpen(v);
+          if (!v) {
+            setArt(null);
+            setSelectedCandidate(null);
+          } else setPage("home");
+        }}
+      >
+        <DialogTrigger asChild>
+          <button
+            className="reward-profile"
+            aria-label="내 아바타와 출석 포인트"
+            title="내 아바타와 출석 포인트"
+          >
+            {image ? (
+              <img
+                src={image}
+                alt="대표 아바타"
+                style={{
+                  objectPosition: `${horizontal}% ${position}%`,
+                  transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
+                  transformOrigin: `${horizontal}% ${position}%`,
+                }}
+              />
+            ) : (
+              <UserRound size={25} />
+            )}
+            {active?.status === "ready" && <span className="reward-dot" />}
+          </button>
+        </DialogTrigger>
+        <DialogContent ref={dialogRef} className="reward-dialog avatar-theme">
+          <div className="reward-heading">
+            {page !== "home" && (
+              <button
+                aria-label="아바타 홈으로"
+                onClick={() => setPage("home")}
+              >
+                <ArrowLeft size={20} />
+              </button>
+            )}
+            <div>
+              <DialogTitle>
                 {
-                  home: "나의 아바타",
-                  order: "스페셜 아바타 주문",
-                  collection: "내 컬렉션",
-                  ledger: "포인트 내역",
-                  guide: "포인트는 이렇게 모아요",
-                  shop: "별빛 상점",
-                  gallery: "별빛 광장",
-                }[page]
-              }
-            </DialogTitle>
-            <DialogDescription>
-              꾸준히 쌓은 배움, 나다운 모습으로.
-            </DialogDescription>
+                  {
+                    home: "나의 아바타",
+                    order: "스페셜 아바타 주문",
+                    collection: "내 컬렉션",
+                    ledger: "포인트 내역",
+                    guide: "포인트는 이렇게 모아요",
+                    shop: "별빛 상점",
+                    gallery: "별빛 광장",
+                  }[page]
+                }
+              </DialogTitle>
+              <DialogDescription>
+                꾸준히 쌓은 배움, 나다운 모습으로.
+              </DialogDescription>
+            </div>
+            <div className="avatar-brand">
+              haemil<small>THE COLLECTION</small>
+            </div>
           </div>
-          <div className="avatar-brand">
-            haemil<small>THE COLLECTION</small>
-          </div>
-        </div>
-        {query.isLoading && <p role="status">아바타를 불러오는 중이에요…</p>}
-        {query.error && (
-          <div role="alert">
-            <p>아바타 정보를 불러오지 못했어요.</p>
-            <Button onClick={() => void refresh()}>다시 시도</Button>
-          </div>
-        )}
-        {data && account && (
-          <>
-            {page === "home" && (
-              <>
-                <div className="reward-portrait">
-                  {image ? (
-                    <FantasyCard
-                      url={image}
-                      title="나의 아바타"
-                      frame={wardrobe.equipped}
-                      background={wardrobe.background}
-                      representative
-                      onOpen={() =>
-                        setArt({ url: image, title: "나의 아바타" })
-                      }
+          {query.isLoading && <p role="status">아바타를 불러오는 중이에요…</p>}
+          {query.error && (
+            <div role="alert">
+              <p>아바타 정보를 불러오지 못했어요.</p>
+              <Button onClick={() => void refresh()}>다시 시도</Button>
+            </div>
+          )}
+          {data && account && (
+            <>
+              {page === "home" && (
+                <>
+                  <div className="reward-portrait">
+                    {image ? (
+                      <FantasyCard
+                        url={image}
+                        title="나의 아바타"
+                        frame={wardrobe.equipped}
+                        background={wardrobe.background}
+                        representative
+                        onOpen={() =>
+                          openArt({ url: image, title: "나의 아바타" })
+                        }
+                      />
+                    ) : (
+                      <div className="reward-empty">
+                        <UserRound size={52} />
+                        <p>아직 깨어나지 않은 첫 번째 카드예요.</p>
+                        <small>포인트는 수업한 만큼 먼저 쌓여요.</small>
+                      </div>
+                    )}
+                  </div>
+                  <div className="reward-points">
+                    <div>
+                      <small>사용 가능 포인트</small>
+                      <strong>
+                        {account.balance.toLocaleString()} <span>P</span>
+                      </strong>
+                    </div>
+                    <div>
+                      <small>누적 획득</small>
+                      <b>{account.lifetime.toLocaleString()} P</b>
+                    </div>
+                  </div>
+                  <div className="reward-progress">
+                    <Button
+                      variant="outline"
+                      className="reward-ledger-button"
+                      onClick={() => setPage("ledger")}
+                    >
+                      내 포인트 적립·사용 내역 보기
+                    </Button>
+                    <div>
+                      <span>다음 스페셜 아바타</span>
+                      <b>{data.nextPrice.toLocaleString()} P</b>
+                    </div>
+                    <progress
+                      value={Math.max(0, account.balance)}
+                      max={data.nextPrice}
                     />
-                  ) : (
-                    <div className="reward-empty">
-                      <UserRound size={52} />
-                      <p>아직 깨어나지 않은 첫 번째 카드예요.</p>
-                      <small>포인트는 수업한 만큼 먼저 쌓여요.</small>
+                    <small>
+                      {Math.max(
+                        0,
+                        data.nextPrice - account.balance
+                      ).toLocaleString()}
+                      P 더 모으면 만들 수 있어요.
+                    </small>
+                  </div>
+                  {active?.status === "submitted" && (
+                    <div className="reward-note">
+                      창조의 여정이 진행 중이에요. 두 장의 카드가 완성되면 빛을
+                      발할 거예요.
                     </div>
                   )}
-                </div>
-                <div className="reward-points">
-                  <div>
-                    <small>사용 가능 포인트</small>
-                    <strong>
-                      {account.balance.toLocaleString()} <span>P</span>
-                    </strong>
+                  {active?.status === "ready" && (
+                    <section className="reward-arrival">
+                      <h3>선택할 아바타가 도착했어요!</h3>
+                      <p>마음에 드는 한 장을 골라 주세요.</p>
+                      <div className="universe-grid">
+                        {active.candidates.map((c, i) => (
+                          <FantasyCard
+                            key={c.id}
+                            url={c.url}
+                            title={`후보 ${i + 1}`}
+                            frame={wardrobe.equipped}
+                            background={wardrobe.background}
+                            selected={selectedCandidate === c.id}
+                            onOpen={() =>
+                              openArt({ url: c.url, title: `후보 ${i + 1}` })
+                            }
+                          >
+                            <button
+                              type="button"
+                              aria-label={`후보 ${i + 1}`}
+                              aria-pressed={selectedCandidate === c.id}
+                              onClick={() => setSelectedCandidate(c.id)}
+                            >
+                              {selectedCandidate === c.id
+                                ? "선택됨"
+                                : "이 카드 선택"}
+                            </button>
+                          </FantasyCard>
+                        ))}
+                      </div>
+                      <Button
+                        disabled={!selectedCandidate || busy}
+                        onClick={() =>
+                          select.mutate({
+                            ...identity,
+                            orderId: active.id,
+                            candidateId: selectedCandidate!,
+                          })
+                        }
+                      >
+                        이 아바타로 확정
+                      </Button>
+                      <small>
+                        확정한 한 장이 컬렉션에 저장되며 선택은 변경할 수
+                        없어요.
+                      </small>
+                    </section>
+                  )}
+                  {!active &&
+                    account.balance >= data.nextPrice &&
+                    account.masterUrl && (
+                      <Button
+                        className="reward-primary"
+                        onClick={() => setPage("order")}
+                      >
+                        <Sparkles size={16} />
+                        스페셜 아바타 만들기
+                      </Button>
+                    )}
+                  <Stylebook />
+                </>
+              )}
+              {page === "guide" && (
+                <div className="reward-guide">
+                  <h3>수업한 만큼 포인트가 쌓여요!</h3>
+                  <p>
+                    실제 수업시간 <b>1분마다 1P</b>, 하루 최대 <b>150P</b>가
+                    자동으로 적립돼요.
+                  </p>
+                  <div className="reward-note">
+                    <b>하원 기록까지 꼭 완료해 주세요.</b>
+                    <p>
+                      하원 기록이 없으면 그날은 0P예요. 출결 기록이 수정되면
+                      포인트도 다시 계산돼요.
+                    </p>
                   </div>
-                  <div>
-                    <small>누적 획득</small>
-                    <b>{account.lifetime.toLocaleString()} P</b>
-                  </div>
-                </div>
-                <div className="reward-progress">
-                  <Button
-                    variant="outline"
-                    className="reward-ledger-button"
-                    onClick={() => setPage("ledger")}
-                  >
-                    내 포인트 적립·사용 내역 보기
-                  </Button>
-                  <div>
-                    <span>다음 스페셜 아바타</span>
-                    <b>{data.nextPrice.toLocaleString()} P</b>
-                  </div>
-                  <progress
-                    value={Math.max(0, account.balance)}
-                    max={data.nextPrice}
-                  />
+                  <h3>좋아요 보상 · 10P</h3>
+                  <p>
+                    공개한 카드에 다른 학생이 처음 좋아요를 보내면 10P를 받아요.
+                    같은 학생이 같은 카드의 좋아요를 취소해도 이미 받은 보상은
+                    유지되며, 다시 눌러도 추가 지급되지 않아요.
+                  </p>
+                  <h3>스페셜 아바타 제작 포인트</h3>
+                  <p>
+                    오리지널은 추가 요금이 없어요.{" "}
+                    <b>워너비 +100P · 슈퍼스타 +200P</b>가 기본 제작 포인트에
+                    더해져요. 첫 제작은 각각 500P / 600P / 700P예요.
+                  </p>
+                  <ol>
+                    {[
+                      "첫 번째 · 500P",
+                      "두 번째 · 1,000P",
+                      "세 번째 · 1,500P",
+                      "네 번째부터 · 2,250P",
+                    ].map(t => (
+                      <li key={t}>{t}</li>
+                    ))}
+                  </ol>
+                  <p>
+                    처음에는 빠르게 경험해 보고, 그다음에는 꾸준히 수업하며 다음
+                    아바타를 준비해요.
+                  </p>
+                  <p>
+                    <b>150P × 주 5일 × 3주 = 2,250P</b>
+                    <br />
+                    매일 최대 포인트를 모으면 15일 수업으로 만들 수 있어요.
+                  </p>
+                  <p>
+                    주문할 때 포인트를 사용하며, 취소가 필요하면 학원에 문의해
+                    주세요. 대표 이미지 변경은 무료예요. 누적 획득 포인트는
+                    사용해도 줄지 않지만, 출결 정정은 반영돼요. 추가로 획득한
+                    보너스는 누적 획득에도 포함되며, 관리자 차감은 사용 가능
+                    포인트만 줄어요.
+                  </p>
                   <small>
-                    {Math.max(
-                      0,
-                      data.nextPrice - account.balance
-                    ).toLocaleString()}
-                    P 더 모으면 만들 수 있어요.
+                    새 포인트 적립은 2026년 9월 9일 수업부터 적용돼요. 출결
+                    정정으로 잔액이 음수가 되면 이후 적립으로 보충돼요.
                   </small>
                 </div>
-                {active?.status === "submitted" && (
-                  <div className="reward-note">
-                    창조의 여정이 진행 중이에요. 두 장의 카드가 완성되면 빛을
-                    발할 거예요.
-                  </div>
-                )}
-                {active?.status === "ready" && (
-                  <section className="reward-arrival">
-                    <h3>선택할 아바타가 도착했어요!</h3>
-                    <p>마음에 드는 한 장을 골라 주세요.</p>
-                    <div className="universe-grid">
-                      {active.candidates.map((c, i) => (
-                        <FantasyCard
-                          key={c.id}
-                          url={c.url}
-                          title={`후보 ${i + 1}`}
-                          frame={wardrobe.equipped}
-                          background={wardrobe.background}
-                          selected={selectedCandidate === c.id}
-                          onOpen={() =>
-                            setArt({ url: c.url, title: `후보 ${i + 1}` })
+              )}
+              {page === "ledger" && (
+                <div className="reward-ledger">
+                  {data.ledger.length ? (
+                    data.ledger.map(l => (
+                      <div key={l.id}>
+                        <span>
+                          {l.reason}
+                          <small>{l.createdAt}</small>
+                        </span>
+                        <b className={l.delta > 0 ? "positive" : ""}>
+                          {l.delta > 0 ? "+" : ""}
+                          {l.delta.toLocaleString()} P
+                        </b>
+                      </div>
+                    ))
+                  ) : (
+                    <p>아직 포인트 내역이 없어요.</p>
+                  )}
+                  <small>최근 500개 내역을 표시해요.</small>
+                </div>
+              )}
+              {page === "collection" && (
+                <>
+                  <p>마음에 드는 카드를 대표로 설정해 보세요.</p>
+                  <div className="universe-grid">
+                    {account.masterUrl && (
+                      <FantasyCard
+                        url={account.masterUrl}
+                        title="MASTER"
+                        frame={wardrobe.equipped}
+                        background={wardrobe.background}
+                        representative={!account.representativeId}
+                        selected={selectedCard === "master"}
+                        onOpen={() => {
+                          setSelectedCard("master");
+                          openArt({
+                            url: account.masterUrl!,
+                            title: "마스터 아바타",
+                          });
+                        }}
+                      >
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            representative.mutate({
+                              ...identity,
+                              cardId: null,
+                              cropY: 0,
+                              cropX: 50,
+                            })
                           }
                         >
-                          <button
-                            type="button"
-                            aria-label={`후보 ${i + 1}`}
-                            aria-pressed={selectedCandidate === c.id}
-                            onClick={() => setSelectedCandidate(c.id)}
-                          >
-                            {selectedCandidate === c.id
-                              ? "선택됨"
-                              : "이 카드 선택"}
-                          </button>
-                        </FantasyCard>
-                      ))}
-                    </div>
-                    <Button
-                      disabled={!selectedCandidate || busy}
-                      onClick={() =>
-                        select.mutate({
-                          ...identity,
-                          orderId: active.id,
-                          candidateId: selectedCandidate!,
-                        })
-                      }
-                    >
-                      이 아바타로 확정
-                    </Button>
-                    <small>
-                      확정한 한 장이 컬렉션에 저장되며 선택은 변경할 수 없어요.
-                    </small>
-                  </section>
-                )}
-                {!active &&
-                  account.balance >= data.nextPrice &&
-                  account.masterUrl && (
-                    <Button
-                      className="reward-primary"
-                      onClick={() => setPage("order")}
-                    >
-                      <Sparkles size={16} />
-                      스페셜 아바타 만들기
-                    </Button>
-                  )}
-                <Stylebook />
-              </>
-            )}
-            {page === "guide" && (
-              <div className="reward-guide">
-                <h3>수업한 만큼 포인트가 쌓여요!</h3>
-                <p>
-                  실제 수업시간 <b>1분마다 1P</b>, 하루 최대 <b>150P</b>가
-                  자동으로 적립돼요.
-                </p>
-                <div className="reward-note">
-                  <b>하원 기록까지 꼭 완료해 주세요.</b>
-                  <p>
-                    하원 기록이 없으면 그날은 0P예요. 출결 기록이 수정되면
-                    포인트도 다시 계산돼요.
-                  </p>
-                </div>
-                <h3>좋아요 보상 · 10P</h3>
-                <p>
-                  공개한 카드에 다른 학생이 처음 좋아요를 보내면 10P를 받아요.
-                  같은 학생이 같은 카드의 좋아요를 취소해도 이미 받은 보상은
-                  유지되며, 다시 눌러도 추가 지급되지 않아요.
-                </p>
-                <h3>스페셜 아바타 제작 포인트</h3>
-                <ol>
-                  {[
-                    "첫 번째 · 500P",
-                    "두 번째 · 1,000P",
-                    "세 번째 · 1,500P",
-                    "네 번째부터 · 2,250P",
-                  ].map(t => (
-                    <li key={t}>{t}</li>
-                  ))}
-                </ol>
-                <p>
-                  처음에는 빠르게 경험해 보고, 그다음에는 꾸준히 수업하며 다음
-                  아바타를 준비해요.
-                </p>
-                <p>
-                  <b>150P × 주 5일 × 3주 = 2,250P</b>
-                  <br />
-                  매일 최대 포인트를 모으면 15일 수업으로 만들 수 있어요.
-                </p>
-                <p>
-                  주문할 때 포인트를 사용하며, 취소가 필요하면 학원에 문의해
-                  주세요. 대표 이미지 변경은 무료예요. 누적 획득 포인트는
-                  사용해도 줄지 않지만, 출결 정정은 반영돼요. 추가로 획득한
-                  보너스는 누적 획득에도 포함되며, 관리자 차감은 사용 가능
-                  포인트만 줄어요.
-                </p>
-                <small>
-                  새 포인트 적립은 2026년 9월 9일 수업부터 적용돼요. 출결
-                  정정으로 잔액이 음수가 되면 이후 적립으로 보충돼요.
-                </small>
-              </div>
-            )}
-            {page === "ledger" && (
-              <div className="reward-ledger">
-                {data.ledger.length ? (
-                  data.ledger.map(l => (
-                    <div key={l.id}>
-                      <span>
-                        {l.reason}
-                        <small>{l.createdAt}</small>
-                      </span>
-                      <b className={l.delta > 0 ? "positive" : ""}>
-                        {l.delta > 0 ? "+" : ""}
-                        {l.delta.toLocaleString()} P
-                      </b>
-                    </div>
-                  ))
-                ) : (
-                  <p>아직 포인트 내역이 없어요.</p>
-                )}
-                <small>최근 500개 내역을 표시해요.</small>
-              </div>
-            )}
-            {page === "collection" && (
-              <>
-                <p>마음에 드는 카드를 대표로 설정해 보세요.</p>
-                <div className="universe-grid">
-                  {account.masterUrl && (
-                    <FantasyCard
-                      url={account.masterUrl}
-                      title="MASTER"
-                      frame={wardrobe.equipped}
-                      background={wardrobe.background}
-                      representative={!account.representativeId}
-                      selected={selectedCard === "master"}
-                      onOpen={() => {
-                        setSelectedCard("master");
-                        setArt({
-                          url: account.masterUrl!,
-                          title: "마스터 아바타",
-                        });
-                      }}
-                    >
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          representative.mutate({
-                            ...identity,
-                            cardId: null,
-                            cropY: 0,
-                            cropX: 50,
-                          })
-                        }
-                      >
-                        {!account.representativeId
-                          ? "대표 · 마스터"
-                          : "마스터로 설정"}
-                      </button>
-                    </FantasyCard>
-                  )}
-                  {data.cards.map(c => (
-                    <FantasyCard
-                      key={c.id}
-                      url={c.url}
-                      title={`${modeLabels[c.mode as keyof typeof modeLabels]} · ${c.createdAt.slice(0, 10)}`}
-                      frame={wardrobe.equipped}
-                      background={wardrobe.background}
-                      representative={account.representativeId === c.id}
-                      selected={selectedCard === c.id}
-                      onOpen={() => {
-                        setSelectedCard(c.id);
-                        setArt({ url: c.url, title: "내 컬렉션" });
-                      }}
-                    >
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          representative.mutate({
-                            ...identity,
-                            cardId: c.id,
-                            cropY: 0,
-                            cropX: 50,
-                          })
-                        }
-                      >
-                        {account.representativeId === c.id
-                          ? "현재 대표"
-                          : "대표로 설정"}
-                      </button>
-                      {wardrobeQuery.data && (
-                        <CardSharing
-                          key={JSON.stringify(
-                            wardrobe.sharing.find(x => x.cardId === c.id)
-                          )}
-                          identity={identity}
-                          cardId={c.id}
-                          wardrobe={wardrobe}
-                          onRefresh={() => void refresh()}
-                        />
-                      )}
-                    </FantasyCard>
-                  ))}
-                </div>
-                {image && (
-                  <div className="reward-crop">
-                    <h3>원형 사진 위치 조정</h3>
-                    <button
-                      type="button"
-                      className="reward-profile preview"
-                      aria-label="원형 사진 크게 보기"
-                      onClick={() =>
-                        setArt({ url: image, title: "원형 사진 원본" })
-                      }
-                    >
-                      <img
-                        src={image}
-                        alt="원형 사진 미리보기"
-                        style={{
-                          objectPosition: `${horizontal}% ${position}%`,
-                          transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
-                          transformOrigin: `${horizontal}% ${position}%`,
+                          {!account.representativeId
+                            ? "대표 · 마스터"
+                            : "마스터로 설정"}
+                        </button>
+                      </FantasyCard>
+                    )}
+                    {data.cards.map(c => (
+                      <FantasyCard
+                        key={c.id}
+                        url={c.url}
+                        title={`${modeLabels[c.mode as keyof typeof modeLabels]} · ${c.createdAt.slice(0, 10)}`}
+                        frame={wardrobe.equipped}
+                        background={wardrobe.background}
+                        representative={account.representativeId === c.id}
+                        selected={selectedCard === c.id}
+                        onOpen={() => {
+                          setSelectedCard(c.id);
+                          openArt({ url: c.url, title: "내 컬렉션" });
                         }}
-                      />
-                    </button>
-                    <label>
-                      얼굴 위치
-                      <input
-                        aria-label="얼굴 위치"
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={position}
-                        onChange={e => setCropY(Number(e.target.value))}
-                      />
-                    </label>
-                    <label>
-                      좌우 위치
-                      <input
-                        aria-label="얼굴 좌우 위치"
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={horizontal}
-                        onChange={e => setCropX(Number(e.target.value))}
-                      />
-                    </label>
-                    <label>
-                      얼굴 확대·축소
-                      <input
-                        aria-label="얼굴 확대 비율"
-                        type="range"
-                        min="100"
-                        max="500"
-                        step="10"
-                        value={zoom ?? wardrobe.cropZoom}
-                        onChange={e => setZoom(Number(e.target.value))}
-                      />
-                      <output>{zoom ?? wardrobe.cropZoom}%</output>
-                    </label>
+                      >
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            representative.mutate({
+                              ...identity,
+                              cardId: c.id,
+                              cropY: 0,
+                              cropX: 50,
+                            })
+                          }
+                        >
+                          {account.representativeId === c.id
+                            ? "현재 대표"
+                            : "대표로 설정"}
+                        </button>
+                        {wardrobeQuery.data && (
+                          <CardSharing
+                            key={JSON.stringify(
+                              wardrobe.sharing.find(x => x.cardId === c.id)
+                            )}
+                            identity={identity}
+                            cardId={c.id}
+                            wardrobe={wardrobe}
+                            onRefresh={() => void refresh()}
+                          />
+                        )}
+                      </FantasyCard>
+                    ))}
+                  </div>
+                  {image && (
+                    <div className="reward-crop">
+                      <h3>원형 사진 위치 조정</h3>
+                      <button
+                        type="button"
+                        className="reward-profile preview"
+                        aria-label="원형 사진 크게 보기"
+                        onClick={() =>
+                          openArt({ url: image, title: "원형 사진 원본" })
+                        }
+                      >
+                        <img
+                          src={image}
+                          alt="원형 사진 미리보기"
+                          style={{
+                            objectPosition: `${horizontal}% ${position}%`,
+                            transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
+                            transformOrigin: `${horizontal}% ${position}%`,
+                          }}
+                        />
+                      </button>
+                      <label>
+                        얼굴 위치
+                        <input
+                          aria-label="얼굴 위치"
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={position}
+                          onChange={e => setCropY(Number(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        좌우 위치
+                        <input
+                          aria-label="얼굴 좌우 위치"
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={horizontal}
+                          onChange={e => setCropX(Number(e.target.value))}
+                        />
+                      </label>
+                      <label>
+                        얼굴 확대·축소
+                        <input
+                          aria-label="얼굴 확대 비율"
+                          type="range"
+                          min="100"
+                          max="500"
+                          step="10"
+                          value={zoom ?? wardrobe.cropZoom}
+                          onChange={e => setZoom(Number(e.target.value))}
+                        />
+                        <output>{zoom ?? wardrobe.cropZoom}%</output>
+                      </label>
+                      <Button
+                        disabled={zoomMutation.isPending}
+                        onClick={() =>
+                          zoomMutation.mutate({
+                            ...identity,
+                            zoom: zoom ?? wardrobe.cropZoom,
+                          })
+                        }
+                      >
+                        확대 비율 저장
+                      </Button>
+                      <Button
+                        disabled={busy}
+                        onClick={() =>
+                          representative.mutate({
+                            ...identity,
+                            cardId: account.representativeId,
+                            cropY: position,
+                            cropX: horizontal,
+                          })
+                        }
+                      >
+                        위치 저장
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+              {page === "order" && (
+                <form
+                  className="reward-order"
+                  onSubmit={e => {
+                    e.preventDefault();
+                    submit.mutate({ ...identity, order });
+                  }}
+                >
+                  <div className="reward-note">
+                    이번 제작은 <b>{totalPrice.toLocaleString()}P</b>예요. 기본{" "}
+                    {data.nextPrice.toLocaleString()}P + 변신 추가{" "}
+                    {modeSurcharge[order.mode]}P. 주문을 보내면 합계 포인트가
+                    차감돼요.
+                  </div>
+                  <div className="reward-note">
+                    마법 같은 옷과 친구를 상상해 보세요. 랜덤 문구도 마음대로
+                    고쳐도 좋아요!
                     <Button
-                      disabled={zoomMutation.isPending}
+                      type="button"
+                      variant="outline"
                       onClick={() =>
-                        zoomMutation.mutate({
-                          ...identity,
-                          zoom: zoom ?? wardrobe.cropZoom,
+                        setOrder(current => {
+                          const next = { ...current };
+                          for (const [key] of imaginationFields)
+                            if (!next[key].trim())
+                              next[key] = randomSuggestion(key);
+                          return next;
                         })
                       }
                     >
-                      확대 비율 저장
-                    </Button>
-                    <Button
-                      disabled={busy}
-                      onClick={() =>
-                        representative.mutate({
-                          ...identity,
-                          cardId: account.representativeId,
-                          cropY: position,
-                          cropX: horizontal,
-                        })
-                      }
-                    >
-                      위치 저장
+                      빈칸만 랜덤으로 채우기
                     </Button>
                   </div>
-                )}
-              </>
-            )}
-            {page === "order" && (
-              <form
-                className="reward-order"
-                onSubmit={e => {
-                  e.preventDefault();
-                  submit.mutate({ ...identity, order });
-                }}
-              >
-                <div className="reward-note">
-                  이번 제작은 <b>{data.nextPrice.toLocaleString()}P</b>예요.
-                  주문을 보내면 포인트가 차감돼요.
-                </div>
-                <div className="reward-note">
-                  마법 같은 옷과 친구를 상상해 보세요. 랜덤 문구도 마음대로
-                  고쳐도 좋아요!
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() =>
-                      setOrder(current => {
-                        const next = { ...current };
-                        for (const [key] of imaginationFields)
-                          if (!next[key].trim())
-                            next[key] = randomSuggestion(key);
-                        return next;
-                      })
-                    }
-                  >
-                    빈칸만 랜덤으로 채우기
-                  </Button>
-                </div>
-                {imaginationFields.map(([key, label]) => (
-                  <div className="reward-field" key={key}>
-                    <div className="reward-field-heading">
-                      <label htmlFor={"reward-" + key}>
-                        {label}
-                        {["pet", "pose", "extra"].includes(key) && (
-                          <small>선택</small>
-                        )}
-                      </label>
+                  {imaginationFields.map(([key, label]) => (
+                    <div className="reward-field" key={key}>
+                      <div className="reward-field-heading">
+                        <label htmlFor={"reward-" + key}>
+                          {label}
+                          {["pet", "pose", "extra"].includes(key) && (
+                            <small>선택</small>
+                          )}
+                        </label>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          aria-label={label + " 랜덤"}
+                          onClick={() =>
+                            setOrder(current => ({
+                              ...current,
+                              [key]: randomSuggestion(key, current[key]),
+                            }))
+                          }
+                        >
+                          랜덤
+                        </Button>
+                      </div>
+                      <Input
+                        id={"reward-" + key}
+                        aria-label={label}
+                        required={!["pet", "pose", "extra"].includes(key)}
+                        maxLength={key === "extra" ? 600 : 300}
+                        placeholder={"예: " + imagination[key][0]}
+                        aria-describedby={"example-" + key}
+                        value={order[key]}
+                        onChange={e =>
+                          setOrder({ ...order, [key]: e.target.value })
+                        }
+                      />
+                      <small id={"example-" + key}>
+                        예: {imagination[key][0]}
+                      </small>
+                    </div>
+                  ))}
+                  <label>
+                    장신구 <small>선택 · 최대 8개</small>
+                  </label>
+                  {order.accessories.map((v, i) => (
+                    <div className="reward-accessory" key={i}>
+                      <Input
+                        aria-label={`장신구 ${i + 1}`}
+                        required
+                        maxLength={200}
+                        placeholder={"예: " + imagination.accessory[0]}
+                        value={v}
+                        onChange={e =>
+                          setOrder({
+                            ...order,
+                            accessories: order.accessories.map((x, j) =>
+                              i === j ? e.target.value : x
+                            ),
+                          })
+                        }
+                      />
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        aria-label={label + " 랜덤"}
+                        aria-label={`장신구 ${i + 1} 랜덤`}
                         onClick={() =>
                           setOrder(current => ({
                             ...current,
-                            [key]: randomSuggestion(key, current[key]),
+                            accessories: current.accessories.map((a, j) =>
+                              i === j ? randomSuggestion("accessory", a) : a
+                            ),
                           }))
                         }
                       >
                         랜덤
                       </Button>
-                    </div>
-                    <Input
-                      id={"reward-" + key}
-                      aria-label={label}
-                      required={!["pet", "pose", "extra"].includes(key)}
-                      maxLength={key === "extra" ? 600 : 300}
-                      placeholder={"예: " + imagination[key][0]}
-                      aria-describedby={"example-" + key}
-                      value={order[key]}
-                      onChange={e =>
-                        setOrder({ ...order, [key]: e.target.value })
-                      }
-                    />
-                    <small id={"example-" + key}>
-                      예: {imagination[key][0]}
-                    </small>
-                  </div>
-                ))}
-                <label>
-                  장신구 <small>선택 · 최대 8개</small>
-                </label>
-                {order.accessories.map((v, i) => (
-                  <div className="reward-accessory" key={i}>
-                    <Input
-                      aria-label={`장신구 ${i + 1}`}
-                      required
-                      maxLength={200}
-                      placeholder={"예: " + imagination.accessory[0]}
-                      value={v}
-                      onChange={e =>
-                        setOrder({
-                          ...order,
-                          accessories: order.accessories.map((x, j) =>
-                            i === j ? e.target.value : x
-                          ),
-                        })
-                      }
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      aria-label={`장신구 ${i + 1} 랜덤`}
-                      onClick={() =>
-                        setOrder(current => ({
-                          ...current,
-                          accessories: current.accessories.map((a, j) =>
-                            i === j ? randomSuggestion("accessory", a) : a
-                          ),
-                        }))
-                      }
-                    >
-                      랜덤
-                    </Button>
-                    <button
-                      type="button"
-                      aria-label={`장신구 ${i + 1} 삭제`}
-                      onClick={() =>
-                        setOrder({
-                          ...order,
-                          accessories: order.accessories.filter(
-                            (_, j) => i !== j
-                          ),
-                        })
-                      }
-                    >
-                      <X size={18} />
-                    </button>
-                  </div>
-                ))}
-                <Button
-                  variant="outline"
-                  type="button"
-                  disabled={order.accessories.length >= 8}
-                  onClick={() =>
-                    setOrder({
-                      ...order,
-                      accessories: [...order.accessories, ""],
-                    })
-                  }
-                >
-                  <Plus size={16} />
-                  장신구 추가
-                </Button>
-                <fieldset>
-                  <legend>변신 정도</legend>
-                  {Object.entries(modeLabels).map(([mode, label]) => (
-                    <label className="reward-mode" key={mode}>
-                      <input
-                        type="radio"
-                        name="mode"
-                        value={mode}
-                        checked={order.mode === mode}
-                        onChange={() =>
+                      <button
+                        type="button"
+                        aria-label={`장신구 ${i + 1} 삭제`}
+                        onClick={() =>
                           setOrder({
                             ...order,
-                            mode: mode as RewardOrderInput["mode"],
+                            accessories: order.accessories.filter(
+                              (_, j) => i !== j
+                            ),
                           })
                         }
-                      />
-                      <span>
-                        <b>{label}</b>
-                        <small>
-                          {
-                            modeDescriptions[
-                              mode as keyof typeof modeDescriptions
-                            ]
-                          }
-                        </small>
-                      </span>
-                    </label>
+                      >
+                        <X size={18} />
+                      </button>
+                    </div>
                   ))}
-                </fieldset>
-                <Stylebook />
-                <Button
-                  type="submit"
-                  className="reward-primary"
-                  disabled={busy}
-                >
-                  {submit.isPending
-                    ? "보내는 중…"
-                    : `${data.nextPrice.toLocaleString()}P로 주문 보내기`}
-                </Button>
-              </form>
-            )}
-            {(page === "shop" || page === "collection") &&
-              wardrobeQuery.error && (
-                <button onClick={() => void wardrobeQuery.refetch()}>
-                  장식·공개 설정 다시 불러오기
-                </button>
+                  <Button
+                    variant="outline"
+                    type="button"
+                    disabled={order.accessories.length >= 8}
+                    onClick={() =>
+                      setOrder({
+                        ...order,
+                        accessories: [...order.accessories, ""],
+                      })
+                    }
+                  >
+                    <Plus size={16} />
+                    장신구 추가
+                  </Button>
+                  <fieldset>
+                    <legend>변신 정도</legend>
+                    {Object.entries(modeLabels).map(([mode, label]) => (
+                      <label className="reward-mode" key={mode}>
+                        <input
+                          type="radio"
+                          name="mode"
+                          value={mode}
+                          checked={order.mode === mode}
+                          onChange={() =>
+                            setOrder({
+                              ...order,
+                              mode: mode as RewardOrderInput["mode"],
+                            })
+                          }
+                        />
+                        <span>
+                          <b>
+                            {label} · 추가{" "}
+                            {modeSurcharge[mode as keyof typeof modeSurcharge]}P
+                          </b>
+                          <small>
+                            {
+                              modeDescriptions[
+                                mode as keyof typeof modeDescriptions
+                              ]
+                            }
+                          </small>
+                        </span>
+                      </label>
+                    ))}
+                  </fieldset>
+                  <Stylebook />
+                  <Button
+                    type="submit"
+                    className="reward-primary"
+                    disabled={busy || account.balance < totalPrice}
+                  >
+                    {submit.isPending
+                      ? "보내는 중…"
+                      : `${totalPrice.toLocaleString()}P로 주문 보내기`}
+                  </Button>
+                </form>
               )}
-            {page === "shop" && wardrobeQuery.isLoading && (
-              <p role="status">상점을 불러오는 중…</p>
-            )}
-            {page === "shop" && wardrobeQuery.data && (
-              <AvatarShop
-                identity={identity}
-                wardrobe={wardrobe}
-                balance={account.balance}
-                image={
-                  image ??
-                  "/avatar-rewards/avatars/official/official_female_avatar.png"
-                }
-                onRefresh={() => void refresh()}
-                onOpen={setArt}
-              />
-            )}
-            {page === "gallery" && (
-              <AvatarGallery identity={identity} onOpen={setArt} />
-            )}
-            <nav className="reward-links" aria-label="아바타 메뉴">
-              {(
-                [
-                  ["collection", "컬렉션", Layers],
-                  ["ledger", "포인트", ScrollText],
-                  ["guide", "안내", CircleHelp],
-                  ["shop", "상점", Store],
-                  ["gallery", "광장", Heart],
-                ] as const
-              ).map(([id, label, Icon]) => (
-                <button
-                  type="button"
-                  key={id}
-                  aria-current={page === id ? "page" : undefined}
-                  onClick={() => setPage(id)}
-                >
-                  <Icon size={18} />
-                  {label}
-                </button>
-              ))}
-            </nav>
-            <ArtworkPortal art={art} onClose={() => setArt(null)} />
-          </>
-        )}
-      </DialogContent>
-    </Dialog>
+              {(page === "shop" || page === "collection") &&
+                wardrobeQuery.error && (
+                  <button onClick={() => void wardrobeQuery.refetch()}>
+                    장식·공개 설정 다시 불러오기
+                  </button>
+                )}
+              {page === "shop" && wardrobeQuery.isLoading && (
+                <p role="status">상점을 불러오는 중…</p>
+              )}
+              {page === "shop" && wardrobeQuery.data && (
+                <AvatarShop
+                  identity={identity}
+                  wardrobe={wardrobe}
+                  balance={account.balance}
+                  image={
+                    image ??
+                    "/avatar-rewards/avatars/official/official_female_avatar.png"
+                  }
+                  onRefresh={() => void refresh()}
+                  onOpen={openArt}
+                />
+              )}
+              {page === "gallery" && (
+                <AvatarGallery identity={identity} onOpen={openArt} />
+              )}
+              <nav className="reward-links" aria-label="아바타 메뉴">
+                {(
+                  [
+                    ["collection", "컬렉션", Layers],
+                    ["ledger", "포인트", ScrollText],
+                    ["guide", "안내", CircleHelp],
+                    ["shop", "상점", Store],
+                    ["gallery", "광장", Heart],
+                  ] as const
+                ).map(([id, label, Icon]) => (
+                  <button
+                    type="button"
+                    key={id}
+                    aria-current={page === id ? "page" : undefined}
+                    onClick={() => setPage(id)}
+                  >
+                    <Icon size={18} />
+                    {label}
+                  </button>
+                ))}
+              </nav>
+              <ArtworkPortal art={art} onClose={() => setArt(null)} />
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </AvatarNavigationContext.Provider>
   );
 }

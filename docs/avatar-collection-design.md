@@ -9,3 +9,9 @@
 - One non-self first like per student/card pays its owner 10P, atomically with a permanent reward marker. Unlike changes the social count only; re-like does not earn again. Rewards appear in the ledger and lifetime.
 - Use neutral fantasy creation language, without falsely claiming the backend generates images automatically.
 - Source image pixels are preserved. Purchased backgrounds decorate card surroundings, not the artwork itself.
+- Creation charges use the server-authoritative base tier plus Original 0P / Wannabe 100P / Superstar 200P. Refund the stored order charge, including legacy orders.
+- Avatar entry/exit uses a bottom sheet. Internal pages switch without animation. The plaza circle-to-framed-card reveal is the deliberate exception. Browser back closes the avatar layer without leaving the journal.
+- Zoom surfaces consume bounded pointer/wheel movement and suppress overscroll navigation. Restore document overscroll settings after closing.
+- Plaza pages contain up to 36 circular previews. Enlarged previews and downloads include the equipped frame/background. Downloads are freshly encoded 900x1200 PNGs without UI identity fields or source metadata; original artwork pixels are retained.
+- Seasonal administrator prompts cover Chuseok, Halloween and Christmas shell backgrounds, transparent frames, card backgrounds, slider tracks/fills/thumbs with explicit dimensions and safe regions.
+- 2026-09-10 validation: 83 local unit/transaction tests and desktop/mobile browser regression passed. The user chose local-only validation; no new remote isolated-database QA payload was sent or executed.

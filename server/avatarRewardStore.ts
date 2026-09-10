@@ -1,3 +1,4 @@
+import { galleryPageSize } from "../shared/avatarCollection";
 import {
   backgrounds,
   backgroundId,
@@ -15,7 +16,7 @@ import {
 import mysql, { type PoolConnection, type RowDataPacket } from "mysql2/promise";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
-import { avatarPrice } from "../shared/avatarRewardRules";
+import { avatarPrice, avatarOrderPrice } from "../shared/avatarRewardRules";
 import type {
   RewardAccount,
   RewardOrder,
@@ -253,7 +254,7 @@ export async function submitRewardOrder(
       ).length
     )
       reject("진행 중인 주문이 있어요.");
-    const price = avatarPrice(a.completedOrders);
+    const price = avatarOrderPrice(a.completedOrders, input.mode);
     if (a.balance < price) reject("사용 가능 포인트가 부족해요.");
     const id = randomUUID();
     await c.query(
@@ -553,6 +554,9 @@ export async function gallery(
   const [result] = await database().query<RowDataPacket[]>(
     `
  SELECT ac.id,ac.url,ac.mode,COALESCE(w.equipped,'lunar') AS frame,COALESCE(w.background,'classic') AS background,
+ CASE WHEN a.representativeId=ac.id THEN a.cropX ELSE 50 END AS cropX,
+ CASE WHEN a.representativeId=ac.id THEN a.cropY ELSE 0 END AS cropY,
+ CASE WHEN a.representativeId=ac.id THEN COALESCE(w.cropZoom,300) ELSE 300 END AS cropZoom,
  CASE WHEN sh.showName=1 THEN s.name ELSE '박00' END AS name,
  CASE WHEN sh.showGrade=1 THEN s.grade ELSE '중0학년' END AS grade,
  (SELECT COUNT(*) FROM avatar_likes l WHERE l.cardId=ac.id) AS likes,
@@ -561,8 +565,9 @@ export async function gallery(
  FROM avatar_collection ac JOIN avatar_sharing sh ON sh.cardId=ac.id AND sh.visible=1
  JOIN students s ON s.id=ac.studentId AND s.active=1
  LEFT JOIN avatar_wardrobe w ON w.studentId=ac.studentId
- ORDER BY sh.updatedAt DESC,ac.id DESC LIMIT 24 OFFSET ?`,
-    [studentId, studentId, page * 24]
+ LEFT JOIN reward_accounts a ON a.studentId=ac.studentId
+ ORDER BY sh.updatedAt DESC,ac.id DESC LIMIT ? OFFSET ?`,
+    [studentId, studentId, galleryPageSize, page * galleryPageSize]
   );
   return result.map(x => ({
     ...x,

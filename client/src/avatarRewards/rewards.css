@@ -345,7 +345,7 @@
     top: auto !important;
     bottom: 0;
     left: 0 !important;
-    transform: none !important;
+    transform: none;
     border-radius: 24px 24px 0 0 !important;
     padding: 24px 20px calc(24px + env(safe-area-inset-bottom)) !important;
   }

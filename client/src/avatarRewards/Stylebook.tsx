@@ -1,3 +1,4 @@
+import { useBoundedImagePan } from "./avatarNavigation";
 import { useRef, useState } from "react";
 import {
   ArrowUpRight,
@@ -80,6 +81,7 @@ export function Stylebook() {
   } | null>(null);
   const [zoom, setZoom] = useState(1);
   const viewport = useRef<HTMLDivElement>(null);
+  useBoundedImagePan(viewport, !!viewer);
   const current = viewer?.pictures[viewer.index];
   const filtered = catalog.filter(a => a.category === category);
   const open = (pictures: Picture[], index: number) => {

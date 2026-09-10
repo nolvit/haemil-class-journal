@@ -28,4 +28,17 @@ export function avatarPrice(completedOrders: number) {
   return [500, 1000, 1500, 2250][Math.min(completedOrders, 3)];
 }
 export const avatarModes = ["original", "wannabe", "superstar"] as const;
-export const rewardGuide = `수업한 만큼 포인트가 쌓여요! 실제 수업시간 1분마다 1P, 하루 최대 150P가 적립돼요. 하원 기록이 없으면 그날은 0P예요. 첫 번째 스페셜 아바타는 500P, 두 번째는 1,000P, 세 번째는 1,500P, 네 번째부터는 2,250P예요. 하루 150P씩 주 5일 수업하면 3주(15일)에 2,250P를 모을 수 있어요. 사용 가능 포인트와 지금까지 모은 누적 포인트는 따로 표시돼요.`;
+export const rewardGuide = `수업한 만큼 포인트가 쌓여요! 실제 수업시간 1분마다 1P, 하루 최대 150P가 적립돼요. 하원 기록이 없으면 그날은 0P예요. 첫 번째 스페셜 아바타는 500P, 두 번째는 1,000P, 세 번째는 1,500P, 네 번째부터는 2,250P예요. 하루 150P씩 주 5일 수업하면 3주(15일)에 2,250P를 모을 수 있어요. 워너비는 기본 제작비에 100P, 슈퍼스타는 200P가 추가돼요. 오리지널은 추가 요금이 없어요. 사용 가능 포인트와 지금까지 모은 누적 포인트는 따로 표시돼요.`;
+
+export const modeSurcharge = {
+  original: 0,
+  wannabe: 100,
+  superstar: 200,
+} as const;
+export function avatarOrderPrice(
+  completedOrders: number,
+  mode: keyof typeof modeSurcharge
+) {
+  if (!(mode in modeSurcharge)) throw new Error("Invalid avatar mode");
+  return avatarPrice(completedOrders) + modeSurcharge[mode];
+}

@@ -3,6 +3,7 @@ import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import { Heart, LockKeyhole, ShoppingBag, Sparkles } from "lucide-react";
 import {
+  galleryPageSize,
   frames,
   backgrounds,
   type Wardrobe,
@@ -102,7 +103,18 @@ export function AvatarShop({
                     : wardrobe.background
                 }
                 onOpen={() =>
-                  onOpen({ url: image, title: item.name + " · 미리보기" })
+                  onOpen({
+                    url: image,
+                    title: item.name + " · 미리보기",
+                    frame:
+                      category === "frames"
+                        ? (item.id as FrameId)
+                        : wardrobe.equipped,
+                    background:
+                      category === "backgrounds"
+                        ? (item.id as BackgroundId)
+                        : wardrobe.background,
+                  })
                 }
               >
                 <span className="av-rank">
@@ -281,17 +293,39 @@ export function AvatarGallery({
       {query.error && (
         <button onClick={() => void query.refetch()}>다시 불러오기</button>
       )}
-      <div className="universe-grid">
+      <div className="constellation-grid">
         {query.data?.map(c => (
-          <FantasyCard
-            key={c.id}
-            url={c.url}
-            title={c.name + " · " + c.grade}
-            frame={c.frame}
-            background={c.background}
-            onOpen={() => onOpen({ url: c.url, title: c.name + "의 컬렉션" })}
-          >
+          <article className="constellation-person" key={c.id}>
             <button
+              type="button"
+              className={`constellation-orbit frame-${c.frame}`}
+              aria-label={c.name + " 카드 열기"}
+              onClick={e => {
+                const b = e.currentTarget.getBoundingClientRect();
+                onOpen({
+                  url: c.url,
+                  title: c.name + "의 컬렉션",
+                  frame: c.frame,
+                  background: c.background,
+                  origin: { x: b.x, y: b.y, width: b.width, height: b.height },
+                });
+              }}
+            >
+              <img
+                loading="lazy"
+                src={c.url}
+                alt={c.name + " 원형 아바타"}
+                style={{
+                  objectPosition: `${c.cropX}% ${c.cropY}%`,
+                  transform: `scale(${c.cropZoom / 100})`,
+                  transformOrigin: `${c.cropX}% ${c.cropY}%`,
+                }}
+              />
+            </button>
+            <span className="constellation-name">{c.name}</span>
+            <small>{c.grade}</small>
+            <button
+              type="button"
               className="av-like"
               aria-pressed={c.liked}
               disabled={like.isPending || c.mine}
@@ -300,11 +334,11 @@ export function AvatarGallery({
                 like.mutate({ ...identity, cardId: c.id, liked: !c.liked })
               }
             >
-              <Heart size={17} fill={c.liked ? "currentColor" : "none"} />
+              <Heart size={14} fill={c.liked ? "currentColor" : "none"} />
               {c.likes}
               {c.mine ? " · 내 카드" : ""}
             </button>
-          </FantasyCard>
+          </article>
         ))}
       </div>
       {query.data?.length === 0 && (
@@ -318,7 +352,7 @@ export function AvatarGallery({
         </button>
         <span>{page + 1}</span>
         <button
-          disabled={(query.data?.length ?? 0) < 24}
+          disabled={(query.data?.length ?? 0) < galleryPageSize}
           onClick={() => setPage(p => p + 1)}
         >
           다음

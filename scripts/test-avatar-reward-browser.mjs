@@ -138,6 +138,9 @@ await page.route("**/api/trpc/**", async route => {
           id: "44444444-4444-4444-8444-444444444444",
           url: image,
           mode: "superstar",
+          cropX: 50,
+          cropY: 0,
+          cropZoom: 300,
           frame: "astral",
           background: "nebula",
           name: "박00",
@@ -331,6 +334,11 @@ try {
     await page.getByLabel("헤어", { exact: true }).inputValue(),
     "갈색 쉼표머리"
   );
+  await page.getByRole("radio", { name: /워너비/ }).check();
+  await page.getByRole("button", { name: "600P로 주문 보내기" }).waitFor();
+  await page.getByRole("radio", { name: /슈퍼스타/ }).check();
+  await page.getByRole("button", { name: "700P로 주문 보내기" }).waitFor();
+  await page.getByRole("radio", { name: /오리지널/ }).check();
   await page.getByRole("button", { name: "장신구 추가" }).click();
   await page.getByLabel("장신구 1", { exact: true }).fill("은색 별 목걸이");
   await page.setViewportSize({ width: 390, height: 844 });
@@ -346,7 +354,16 @@ try {
     .getByText("창조의 여정이 진행 중이에요.", { exact: false })
     .waitFor();
   await page.keyboard.press("Escape");
+  await page.locator(".reward-dialog").waitFor({ state: "hidden" });
+  await page.waitForFunction(() => !history.state?.haemilAvatarOverlay);
   await page.goto("http://127.0.0.1:5186/?admin");
+  await page.getByLabel("시즌", { exact: true }).selectOption("christmas");
+  await page.getByLabel("에셋 종류").selectOption("thumb");
+  assert.ok(
+    (await page.getByLabel("시즌 에셋 제작 프롬프트").inputValue()).includes(
+      "96 x 96"
+    )
+  );
   await page.getByLabel("학생 선택").selectOption("1");
   await page.getByLabel("포인트", { exact: true }).fill("50");
   await page
@@ -421,6 +438,38 @@ try {
   await page.locator(".art-portal").waitFor();
   await page.getByRole("slider", { name: "그림 확대 비율" }).fill("200");
   assert.equal(await page.locator(".art-portal output").textContent(), "200%");
+  await page
+    .getByRole("button", { name: "프레임 포함 이미지 저장", exact: true })
+    .waitFor();
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page
+      .getByRole("button", { name: "프레임 포함 이미지 저장", exact: true })
+      .click(),
+  ]);
+  assert.equal(download.suggestedFilename(), "haemil-collection.png");
+  await download.saveAs(path.join(qaRoot, "exported-card.png"));
+  const png = await fs.readFile(path.join(qaRoot, "exported-card.png"));
+  const chunks = [];
+  for (let offset = 8; offset < png.length; ) {
+    const length = png.readUInt32BE(offset);
+    chunks.push(png.toString("ascii", offset + 4, offset + 8));
+    offset += length + 12;
+  }
+  assert.ok(!chunks.some(x => ["eXIf", "tEXt", "iTXt", "zTXt"].includes(x)));
+  assert.equal(png.readUInt32BE(16), 900);
+  assert.equal(png.readUInt32BE(20), 1200);
+  const vp = page.locator(".art-viewport");
+  await vp.evaluate(el => {
+    el.scrollLeft = 20;
+  });
+  const vb = await vp.boundingBox();
+  await page.mouse.move(vb.x + vb.width / 2, vb.y + 100);
+  await page.mouse.down();
+  await page.mouse.move(vb.x + vb.width / 2 + 160, vb.y + 100, { steps: 8 });
+  await page.mouse.up();
+  assert.equal(await vp.evaluate(el => el.scrollLeft), 0);
+  assert.ok(await page.locator(".reward-dialog").isVisible());
   await page.getByRole("button", { name: "그림 확대 닫기" }).click();
   await page.getByRole("slider", { name: "얼굴 확대 비율" }).fill("240");
   await page
@@ -456,7 +505,10 @@ try {
   await page.getByRole("button", { name: "상점", exact: true }).click();
   await page.getByRole("button", { name: "300P로 소장", exact: true }).click();
   await page.getByRole("button", { name: "구매 확정", exact: true }).click();
-  await page.getByRole("button", { name: "장착하기", exact: true }).click();
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes("equipFrame")),
+    page.getByRole("button", { name: "장착하기", exact: true }).click(),
+  ]);
   assert.equal(wardrobe.equipped, "aurora");
   await page.getByRole("button", { name: "카드 배경", exact: true }).click();
   await page.getByRole("button", { name: "300P로 소장", exact: true }).click();
@@ -491,10 +543,37 @@ try {
       .evaluate(el => getComputedStyle(el).animationName),
     "none"
   );
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.getByRole("button", { name: "박00 카드 열기" }).click();
+  await page
+    .getByRole("button", { name: "프레임 포함 이미지 저장", exact: true })
+    .waitFor();
+  assert.ok(await page.locator(".art-portal.from-orbit").isVisible());
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: path.join(qaRoot, "gallery-card-popup.png") });
+  const sameUrl = page.url();
+  await page.goBack();
+  await page.locator(".reward-dialog").waitFor({ state: "hidden" });
+  assert.equal(page.url(), sameUrl);
+  assert.equal(
+    await page.evaluate(() => history.state?.haemilAvatarOverlay),
+    undefined
+  );
+  for (let i = 0; i < 3; i++) {
+    await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
+    await page.locator(".reward-dialog").waitFor();
+    await page.locator(".reward-dialog > [data-slot=dialog-close]").click();
+    await page.locator(".reward-dialog").waitFor({ state: "hidden" });
+    await page.waitForFunction(() => !history.state?.haemilAvatarOverlay);
+  }
   assert.deepEqual(errors, []);
   console.log(
     "PASS desktop/mobile order, administrator upload, candidate selection, collection, representative crop, no horizontal overflow or JS errors"
   );
+} catch (error) {
+  console.log("QA failed at", page.url());
+  await page.screenshot({ path: path.join(qaRoot, "failure.png") });
+  throw error;
 } finally {
   await browser.close();
   await server.close();
