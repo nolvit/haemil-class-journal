@@ -755,7 +755,7 @@
 }
 .collection-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
   padding: 5px;
   border: 1px solid #98804d55;
@@ -948,11 +948,15 @@
   font-size: 23px;
 }
 .av-tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
   margin: 0 0 24px;
 }
 .av-tabs button {
+  white-space: nowrap;
+  min-width: 0;
+  font-size: 14px;
   flex: 1;
   display: flex;
   justify-content: center;
@@ -1530,7 +1534,8 @@
   position: relative;
   bottom: auto;
   flex: 0 0 auto;
-  margin: 18px -30px -30px;
+  margin: 24px 0 0;
+  padding: 18px 8px calc(18px + env(safe-area-inset-bottom));
 }
 .avatar-theme .reward-links button {
   display: flex;
@@ -1845,7 +1850,7 @@
   }
   .reward-dialog-layout > .reward-links {
     bottom: auto;
-    margin: 18px -17px -24px;
+    margin: 24px 0 0;
   }
   .avatar-theme .av-card-target > div:first-child {
     align-items: flex-start;
