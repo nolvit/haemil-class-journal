@@ -49,6 +49,12 @@ export const seasonalAssets = {
     file: "zoom-thumb.png",
     spec: "RGBA transparent PNG. One perfectly centered circular jewel knob diameter64 at (48,48), surrounded by at most16px soft glow. Crisp circular rim, subtle seasonal motif. No labels, hand, track or extra objects.",
   },
+  bgmPanel: {
+    name: "BGM 플레이어 패널",
+    size: "1024 x 160",
+    file: "bgm-player-panel.png",
+    spec: "RGBA transparent PNG panel skin. A refined horizontal rounded panel with a quiet center for code-rendered title, controls and progress bar. Decorations only near the rim and corners. No icons, buttons, text, music notes, slider, labels or embedded UI. Preserve transparent breathing room and stretch-safe center geometry.",
+  },
 } as const;
 export function seasonalPrompt(
   season: keyof typeof seasons,

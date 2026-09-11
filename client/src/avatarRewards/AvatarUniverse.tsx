@@ -7,6 +7,7 @@ import {
   Music2,
   ShoppingBag,
   Sparkles,
+  Globe2,
 } from "lucide-react";
 import {
   galleryPageSize,
@@ -24,6 +25,140 @@ import {
 } from "@/components/ui/dialog";
 import { AvatarBgmShop } from "./AvatarBgm";
 type Identity = { token: string; studentId: number };
+
+export function WorldThemeCollection({ identity }: { identity: Identity }) {
+  const state = trpc.avatarRewards.worldThemeState.useQuery(identity, {
+    retry: false,
+  });
+  const equip = trpc.avatarRewards.equipWorldTheme.useMutation({
+    onError: error => toast.error(error.message),
+    onSuccess: () => {
+      void state.refetch();
+      toast.success("전체 배경 테마를 장착했어요.");
+    },
+  });
+  const items = (state.data?.items ?? []).filter(item =>
+    state.data?.owned.includes(item.id)
+  );
+  if (state.isLoading)
+    return <p role="status">전체 배경 컬렉션을 불러오는 중…</p>;
+  return (
+    <div className="world-theme-grid">
+      {items.map(item => {
+        const equipped = state.data?.equipped === item.id;
+        const preview = item.assets?.world_background ?? item.assetUrl;
+        return (
+          <article className="world-theme-item" key={item.id}>
+            <div
+              className="world-theme-preview"
+              style={
+                preview
+                  ? { backgroundImage: `url(${JSON.stringify(preview)})` }
+                  : undefined
+              }
+            >
+              <Globe2 aria-hidden="true" />
+              <span>{item.season}</span>
+            </div>
+            <span className="av-rank">{item.rank}</span>
+            <h4>{item.name}</h4>
+            <p>{item.description}</p>
+            <small>배경 · 확대바 · BGM 패널 세트</small>
+            <button
+              disabled={equipped || equip.isPending}
+              onClick={() => equip.mutate({ ...identity, worldId: item.id })}
+            >
+              {equipped ? "현재 장착" : "장착하기"}
+            </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
+
+function WorldThemeShop({
+  identity,
+  balance,
+  onRefresh,
+}: {
+  identity: Identity;
+  balance: number;
+  onRefresh: () => void;
+}) {
+  const state = trpc.avatarRewards.worldThemeState.useQuery(identity, {
+    retry: false,
+  });
+  const purchase = trpc.avatarRewards.purchaseWorldTheme.useMutation({
+    onError: error => toast.error(error.message),
+    onSuccess: () => {
+      void state.refetch();
+      onRefresh();
+      toast.success("전체 배경 테마 세트를 소장했어요.");
+    },
+  });
+  const equip = trpc.avatarRewards.equipWorldTheme.useMutation({
+    onError: error => toast.error(error.message),
+    onSuccess: () => {
+      void state.refetch();
+      toast.success("배경·확대바·BGM 패널을 함께 적용했어요.");
+    },
+  });
+  return (
+    <div className="world-theme-grid">
+      {(state.data?.items ?? []).map(item => {
+        const owned = state.data?.owned.includes(item.id) ?? item.price === 0;
+        const equipped = state.data?.equipped === item.id;
+        const preview = item.assets?.world_background ?? item.assetUrl;
+        return (
+          <article className="world-theme-item" key={item.id}>
+            <div
+              className="world-theme-preview"
+              style={
+                preview
+                  ? { backgroundImage: `url(${JSON.stringify(preview)})` }
+                  : undefined
+              }
+            >
+              <Globe2 aria-hidden="true" />
+              <span>{item.season}</span>
+            </div>
+            <span className="av-rank">
+              {item.rank} ·{" "}
+              {item.price ? `${item.price.toLocaleString()} P` : "기본 제공"}
+            </span>
+            <h4>{item.name}</h4>
+            <p>{item.description}</p>
+            <small>전체 배경 · 확대바 3종 · BGM 패널</small>
+            <button
+              disabled={
+                purchase.isPending ||
+                equip.isPending ||
+                equipped ||
+                (!owned && balance < item.price)
+              }
+              onClick={() =>
+                owned
+                  ? equip.mutate({ ...identity, worldId: item.id })
+                  : window.confirm(
+                      `${item.name} 테마 세트를 ${item.price.toLocaleString()}P로 소장할까요?`
+                    ) && purchase.mutate({ ...identity, worldId: item.id })
+              }
+            >
+              {equipped
+                ? "현재 장착"
+                : owned
+                  ? "장착하기"
+                  : balance < item.price
+                    ? "포인트 부족"
+                    : `${item.price.toLocaleString()}P로 세트 소장`}
+            </button>
+          </article>
+        );
+      })}
+    </div>
+  );
+}
 export function AvatarShop({
   identity,
   wardrobe,
@@ -41,9 +176,9 @@ export function AvatarShop({
   onRefresh: () => void;
   onOpen: (a: Artwork) => void;
 }) {
-  const [category, setCategory] = useState<"frames" | "backgrounds" | "bgm">(
-    "frames"
-  );
+  const [category, setCategory] = useState<
+    "frames" | "backgrounds" | "worlds" | "bgm"
+  >("frames");
   const catalog = trpc.avatarRewards.shopCatalog.useQuery(
     {
       ...identity,
@@ -52,7 +187,9 @@ export function AvatarShop({
           ? "card_frame"
           : category === "backgrounds"
             ? "card_background"
-            : "bgm",
+            : category === "worlds"
+              ? "world_background"
+              : "bgm",
     },
     { retry: false }
   );
@@ -98,6 +235,13 @@ export function AvatarShop({
       </div>
       <div className="av-tabs" role="group" aria-label="상점 카테고리">
         <button
+          aria-pressed={category === "worlds"}
+          onClick={() => setCategory("worlds")}
+        >
+          <Globe2 size={16} />
+          전체 배경
+        </button>
+        <button
           aria-pressed={category === "frames"}
           onClick={() => setCategory("frames")}
         >
@@ -125,6 +269,12 @@ export function AvatarShop({
           balance={balance}
           onRefresh={onRefresh}
         />
+      ) : category === "worlds" ? (
+        <WorldThemeShop
+          identity={identity}
+          balance={balance}
+          onRefresh={onRefresh}
+        />
       ) : cards.length ? (
         <label className="av-card-target">
           꾸밀 카드
@@ -139,7 +289,7 @@ export function AvatarShop({
       ) : (
         <p>먼저 스페셜 아바타 카드를 만들어 주세요.</p>
       )}
-      {category !== "bgm" && (
+      {category !== "bgm" && category !== "worlds" && (
         <div className="universe-grid">
           {products.map(item => {
             const owned = !card

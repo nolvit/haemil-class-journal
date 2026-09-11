@@ -5,8 +5,11 @@ import {
   shopCategories,
   shopCategoryLabels,
   shopRanks,
+  shopAssetRoles,
+  shopAssetRoleLabels,
   type ShopItem,
   type ShopCategory,
+  type ShopAssetRole,
 } from "@shared/avatarShop";
 
 const empty: ShopItem = {
@@ -18,6 +21,7 @@ const empty: ShopItem = {
   price: 0,
   season: "상시",
   assetUrl: null,
+  assets: {},
   durationSeconds: null,
   active: true,
 };
@@ -37,11 +41,15 @@ export function AvatarShopAdmin() {
   const query = trpc.avatarRewards.adminShopItems.useQuery();
   const [draft, setDraft] = useState<ShopItem>(empty),
     [file, setFile] = useState<File | null>(null),
+    [assetFiles, setAssetFiles] = useState<
+      Partial<Record<ShopAssetRole, File>>
+    >({}),
     [editing, setEditing] = useState(false);
   const done = () => {
     void query.refetch();
     setDraft(empty);
     setFile(null);
+    setAssetFiles({});
     setEditing(false);
     toast.success("상점 상품을 저장했습니다.");
   };
@@ -68,14 +76,28 @@ export function AvatarShopAdmin() {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     const asset = file ? await encode(file) : undefined;
+    const encodedAssets = Object.fromEntries(
+      await Promise.all(
+        Object.entries(assetFiles).map(async ([role, selected]) => [
+          role,
+          await encode(selected),
+        ])
+      )
+    );
     const item = {
       ...draft,
       assetUrl: draft.assetUrl || null,
       durationSeconds:
         draft.category === "bgm" ? Number(draft.durationSeconds) || 1 : null,
     };
-    if (editing) update.mutate({ item, asset });
-    else create.mutate({ item, asset });
+    const payload = {
+      item,
+      asset,
+      assetFiles:
+        Object.keys(encodedAssets).length > 0 ? encodedAssets : undefined,
+    };
+    if (editing) update.mutate(payload);
+    else create.mutate(payload);
   };
   return (
     <div className="shop-admin">
@@ -104,9 +126,11 @@ export function AvatarShopAdmin() {
           종류
           <select
             value={draft.category}
-            onChange={e =>
-              setDraft({ ...draft, category: e.target.value as ShopCategory })
-            }
+            onChange={e => {
+              setDraft({ ...draft, category: e.target.value as ShopCategory });
+              setFile(null);
+              setAssetFiles({});
+            }}
           >
             {shopCategories.map(x => (
               <option key={x} value={x}>
@@ -183,23 +207,54 @@ export function AvatarShopAdmin() {
             onChange={e => setDraft({ ...draft, description: e.target.value })}
           />
         </label>
-        <label className="shop-admin-wide">
-          상품 파일
-          <input
-            type="file"
-            accept={
-              draft.category === "bgm"
-                ? "audio/mpeg,.mp3"
-                : "image/png,image/jpeg,image/webp"
-            }
-            onChange={e => setFile(e.target.files?.[0] ?? null)}
-          />
-          <small>
-            {editing && !file
-              ? "기존 파일 유지 · 새 파일을 고르면 교체됩니다."
-              : "프레임·배경은 고해상도 PNG, BGM은 MP3를 권장합니다."}
-          </small>
-        </label>
+        {draft.category === "world_background" ? (
+          <fieldset className="shop-admin-wide shop-asset-set">
+            <legend>테마 세트 에셋</legend>
+            <p>
+              비워 둔 항목은 기본 테마 디자인을 사용합니다. 수정할 때는 바꿀
+              파일만 선택하세요.
+            </p>
+            {shopAssetRoles.map(role => (
+              <label key={role}>
+                {shopAssetRoleLabels[role]}
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={e =>
+                    setAssetFiles(current => ({
+                      ...current,
+                      [role]: e.target.files?.[0],
+                    }))
+                  }
+                />
+                <small>
+                  {assetFiles[role]?.name ??
+                    (draft.assets[role]
+                      ? "등록된 파일 유지"
+                      : "기본 테마로 자동 적용")}
+                </small>
+              </label>
+            ))}
+          </fieldset>
+        ) : (
+          <label className="shop-admin-wide">
+            상품 파일
+            <input
+              type="file"
+              accept={
+                draft.category === "bgm"
+                  ? "audio/mpeg,.mp3"
+                  : "image/png,image/jpeg,image/webp"
+              }
+              onChange={e => setFile(e.target.files?.[0] ?? null)}
+            />
+            <small>
+              {editing && !file
+                ? "기존 파일 유지 · 새 파일을 고르면 교체됩니다."
+                : "프레임·배경은 고해상도 PNG, BGM은 MP3를 권장합니다."}
+            </small>
+          </label>
+        )}
         <label className="shop-active">
           <input
             type="checkbox"
@@ -216,6 +271,7 @@ export function AvatarShopAdmin() {
               onClick={() => {
                 setDraft(empty);
                 setFile(null);
+                setAssetFiles({});
                 setEditing(false);
               }}
             >
@@ -244,6 +300,7 @@ export function AvatarShopAdmin() {
                 onClick={() => {
                   setDraft(item);
                   setFile(null);
+                  setAssetFiles({});
                   setEditing(true);
                 }}
               >
@@ -255,7 +312,7 @@ export function AvatarShopAdmin() {
                 onClick={() => {
                   if (
                     confirm(
-                      `${item.name} 상품을 삭제할까요? 이미 소장한 BGM은 계속 사용할 수 있습니다.`
+                      `${item.name} 상품을 삭제할까요? 이미 소장한 상품은 계속 사용할 수 있습니다.`
                     )
                   )
                     remove.mutate({ id: item.id });

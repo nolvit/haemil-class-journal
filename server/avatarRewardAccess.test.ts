@@ -169,6 +169,17 @@ describe("reward integration boundaries", () => {
         studentId: 2,
         trackId: "moonlight-library",
       }),
+      caller.worldThemeState({ token: "valid-token", studentId: 2 }),
+      caller.purchaseWorldTheme({
+        token: "valid-token",
+        studentId: 2,
+        worldId: "starlight-court",
+      }),
+      caller.equipWorldTheme({
+        token: "valid-token",
+        studentId: 2,
+        worldId: "starlight-court",
+      }),
       caller.wardrobe({ token: "valid-token", studentId: 2 }),
       caller.gallery({ token: "valid-token", studentId: 2, page: 0 }),
       caller.purchaseFrame({

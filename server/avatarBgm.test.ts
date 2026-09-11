@@ -5,7 +5,11 @@ import {
   avatarBgmTrackId,
 } from "../shared/avatarBgm";
 import { rewardDDL } from "./avatarRewardSchema";
-import { defaultShopItems, shopItemInput } from "../shared/avatarShop";
+import {
+  defaultShopItems,
+  shopAssetRoles,
+  shopItemInput,
+} from "../shared/avatarShop";
 
 describe("avatar BGM catalog and purchase policy", () => {
   it("offers only the first owned track for free", () => {
@@ -37,6 +41,24 @@ describe("avatar BGM catalog and purchase policy", () => {
     ).toBe(true);
     expect(
       rewardDDL.some(statement => statement.includes("avatar_shop_items"))
+    ).toBe(true);
+    for (const table of [
+      "avatar_shop_item_assets",
+      "avatar_world_inventory",
+      "avatar_world_settings",
+    ])
+      expect(rewardDDL.some(statement => statement.includes(table))).toBe(true);
+    expect(shopAssetRoles).toEqual([
+      "world_background",
+      "slider_track_base",
+      "slider_track_fill",
+      "slider_thumb",
+      "bgm_panel",
+    ]);
+    expect(
+      defaultShopItems.some(
+        item => item.category === "world_background" && item.price === 0
+      )
     ).toBe(true);
     expect(
       defaultShopItems.every(item => shopItemInput.safeParse(item).success)

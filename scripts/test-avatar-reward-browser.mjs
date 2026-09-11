@@ -137,6 +137,38 @@ const shop = [
     durationSeconds: null,
     active: true,
   },
+  {
+    id: "starlight-court",
+    category: "world_background",
+    name: "별빛 정원",
+    rank: "기본",
+    price: 0,
+    description: "기본 테마 세트",
+    season: "상시",
+    assetUrl: null,
+    assets: {},
+    durationSeconds: null,
+    active: true,
+  },
+  {
+    id: "xmas-world",
+    category: "world_background",
+    name: "성탄의 별빛 궁전",
+    rank: "에픽",
+    price: 200,
+    description: "배경과 조작 UI가 함께 바뀌는 시즌 세트",
+    season: "크리스마스",
+    assetUrl: null,
+    assets: {
+      world_background: image,
+      slider_track_base: image,
+      slider_track_fill: image,
+      slider_thumb: image,
+      bgm_panel: image,
+    },
+    durationSeconds: null,
+    active: true,
+  },
 ];
 const tracks = [
   {
@@ -159,6 +191,12 @@ const tracks = [
   },
 ];
 const bgm = { owned: [], equipped: null, firstPurchaseFree: true, tracks };
+const worldTheme = {
+  owned: ["starlight-court"],
+  equipped: "starlight-court",
+  items: shop.filter(x => x.category === "world_background"),
+  assets: {},
+};
 const errors = [];
 const page = await browser.newPage({ viewport: { width: 1200, height: 900 } });
 page.on("pageerror", e => errors.push(e.message));
@@ -179,7 +217,19 @@ await page.route("**/api/trpc/**", async route => {
       value = shop.filter(x => x.category === input.category);
     else if (method.endsWith("adminShopItems")) value = shop;
     else if (method.endsWith("bgmState")) value = bgm;
-    else if (method.endsWith("purchaseBgm")) {
+    else if (method.endsWith("worldThemeState")) value = worldTheme;
+    else if (method.endsWith("purchaseWorldTheme")) {
+      if (!worldTheme.owned.includes(input.worldId)) {
+        worldTheme.owned.push(input.worldId);
+        state.account.balance -= 200;
+      }
+      value = { balance: state.account.balance, duplicate: false };
+    } else if (method.endsWith("equipWorldTheme")) {
+      worldTheme.equipped = input.worldId;
+      worldTheme.assets =
+        worldTheme.items.find(item => item.id === input.worldId)?.assets ?? {};
+      value = null;
+    } else if (method.endsWith("purchaseBgm")) {
       const price = bgm.owned.length === 0 ? 0 : 300;
       if (!bgm.owned.includes(input.trackId)) {
         bgm.owned.push(input.trackId);
@@ -521,6 +571,32 @@ try {
   await page.waitForFunction(() => !history.state?.haemilAvatarOverlay);
   await page.goto("http://127.0.0.1:5186/?admin");
   await page.getByText("새 아바타 주문 1건", { exact: true }).first().waitFor();
+  const shopWorkspace = page.locator(".admin-workspaces details").nth(1);
+  await shopWorkspace.evaluate(details => (details.open = true));
+  await shopWorkspace
+    .locator("select")
+    .first()
+    .selectOption("world_background");
+  for (const label of [
+    "전체 배경",
+    "확대바 바탕 트랙",
+    "확대바 채움 트랙",
+    "확대바 손잡이",
+    "BGM 플레이어 패널",
+  ])
+    await shopWorkspace
+      .locator(".shop-asset-set label", { hasText: label })
+      .locator("input[type=file]")
+      .waitFor();
+  assert.equal(
+    await shopWorkspace.locator(".shop-asset-set input[type=file]").count(),
+    5
+  );
+  await page
+    .locator(".admin-workspaces details")
+    .first()
+    .locator("summary")
+    .click();
   await page.getByLabel("공식 캐릭터 이름").first().fill("테스트 공식 캐릭터");
   await page
     .getByLabel("공식 캐릭터 이미지")
@@ -550,6 +626,11 @@ try {
   ]);
   assert.equal(officials[0].name, "테스트 오피셜");
   assert.equal(officials[0].cropZoom, 230);
+  await page
+    .locator(".admin-workspaces details")
+    .nth(2)
+    .locator("summary")
+    .click();
   await page.getByLabel("대표 캐릭터 테마").selectOption("조선시대");
   await page.getByLabel("대표 캐릭터 변신 단계").selectOption("superstar");
   await page.getByRole("button", { name: "전체 랜덤" }).click();
@@ -558,8 +639,11 @@ try {
       "조선시대 · SUPERSTAR"
     )
   );
-  await page.getByLabel("시즌", { exact: true }).selectOption("christmas");
-  await page.getByLabel("에셋 종류").selectOption("thumb");
+  const promptWorkspace = page.locator(".admin-workspaces details").nth(2);
+  await promptWorkspace
+    .getByLabel("시즌", { exact: true })
+    .selectOption("christmas");
+  await promptWorkspace.getByLabel("에셋 종류").selectOption("thumb");
   assert.ok(
     (await page.getByLabel("시즌 에셋 제작 프롬프트").inputValue()).includes(
       "96 x 96"
@@ -801,13 +885,23 @@ try {
   const moonlight = page
     .locator(".bgm-product")
     .filter({ hasText: "달빛 도서관" });
-  await moonlight.getByRole("button", { name: "20초 미리듣기" }).click();
-  await moonlight.getByRole("button", { name: "미리듣기 중지" }).waitFor();
+  const previewButton = moonlight.getByRole("button", {
+    name: "달빛 도서관 미리 듣기",
+  });
+  assert.equal((await previewButton.innerText()).includes("20초"), false);
+  await previewButton.click();
+  await moonlight.getByRole("button", { name: "20초 미리듣기 중지" }).waitFor();
+  assert.equal(
+    await moonlight.locator(".bgm-preview-copy").innerText(),
+    "20초\n미리듣기"
+  );
   await page.locator(".avatar-bgm-shop audio").evaluate(audio => {
     audio.currentTime = 20;
     audio.dispatchEvent(new Event("timeupdate"));
   });
-  await moonlight.getByRole("button", { name: "20초 미리듣기" }).waitFor();
+  await moonlight
+    .getByRole("button", { name: "달빛 도서관 미리 듣기" })
+    .waitFor();
   const beforeFreeBgm = state.account.balance;
   await moonlight.getByRole("button", { name: "첫 곡 무료 소장" }).click();
   await moonlight.getByRole("button", { name: "장착 중" }).waitFor();
@@ -829,12 +923,76 @@ try {
     "on"
   );
   const player = page.locator(".avatar-bgm-player audio");
+  await page.waitForFunction(() => {
+    const audio = document.querySelector(".avatar-bgm-player audio");
+    return audio && !audio.paused && audio.currentTime > 0;
+  });
+  await page.getByRole("button", { name: "BGM 일시정지" }).click();
+  await page.waitForFunction(
+    () => document.querySelector(".avatar-bgm-player audio")?.paused === true
+  );
+  const stoppedAt = await player.evaluate(audio => audio.currentTime);
+  await page.waitForTimeout(300);
+  assert.ok(
+    Math.abs((await player.evaluate(audio => audio.currentTime)) - stoppedAt) <
+      0.08
+  );
+  await page.getByRole("slider", { name: "BGM 재생 위치" }).fill("50");
+  assert.ok(
+    Math.abs(
+      (await player.evaluate(audio => audio.currentTime)) -
+        (await player.evaluate(audio => audio.duration / 2))
+    ) < 0.75
+  );
+  await page.getByRole("button", { name: "BGM 재생" }).click();
+  await page.waitForFunction(
+    () => document.querySelector(".avatar-bgm-player audio")?.paused === false
+  );
   await page.waitForTimeout(350);
   const timeBeforeMenu = await player.evaluate(audio => audio.currentTime);
   await page.getByRole("button", { name: "포인트", exact: true }).click();
   await page.waitForTimeout(350);
   const timeAfterMenu = await player.evaluate(audio => audio.currentTime);
   assert.ok(timeAfterMenu >= timeBeforeMenu);
+  await page.getByRole("button", { name: "컬렉션", exact: true }).click();
+  await page.getByRole("tab", { name: "BGM", exact: true }).click();
+  const ownedBgm = page
+    .locator(".bgm-collection-item")
+    .filter({ hasText: "별빛 산책" });
+  await ownedBgm.getByRole("button", { name: "현재 장착" }).waitFor();
+  await page.getByRole("button", { name: "상점", exact: true }).click();
+  await page
+    .getByRole("group", { name: "상점 카테고리" })
+    .getByRole("button", { name: "전체 배경" })
+    .click();
+  const seasonalWorld = page
+    .locator(".world-theme-item")
+    .filter({ hasText: "성탄의 별빛 궁전" });
+  page.once("dialog", dialog => dialog.accept());
+  await seasonalWorld.getByRole("button", { name: "200P로 세트 소장" }).click();
+  await seasonalWorld.getByRole("button", { name: "장착하기" }).waitFor();
+  await seasonalWorld.getByRole("button", { name: "장착하기" }).click();
+  await seasonalWorld.getByRole("button", { name: "현재 장착" }).waitFor();
+  assert.equal(worldTheme.equipped, "xmas-world");
+  const themedVariables = await page
+    .locator(".reward-dialog")
+    .evaluate(node => ({
+      background: node.style.getPropertyValue("--av-world-background"),
+      track: node.style.getPropertyValue("--av-slider-track-base"),
+      fill: node.style.getPropertyValue("--av-slider-track-fill"),
+      thumb: node.style.getPropertyValue("--av-slider-thumb"),
+      panel: node.style.getPropertyValue("--av-bgm-panel"),
+    }));
+  assert.ok(
+    Object.values(themedVariables).every(value => value.includes(image))
+  );
+  await page.getByRole("button", { name: "컬렉션", exact: true }).click();
+  await page.getByRole("tab", { name: "전체 배경", exact: true }).click();
+  await page
+    .locator(".world-theme-item")
+    .filter({ hasText: "성탄의 별빛 궁전" })
+    .getByRole("button", { name: "현재 장착" })
+    .waitFor();
   await page.locator(".reward-dialog").evaluate(el => el.scrollTo(0, 0));
   await page.waitForTimeout(4200);
   await page.screenshot({ path: path.join(qaRoot, "fantasy-shop.png") });
@@ -853,18 +1011,26 @@ try {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(450);
   const bgmBox = await page.locator(".avatar-bgm-player").boundingBox();
+  const rewardDialogBox = await page.locator(".reward-dialog").boundingBox();
   assert.ok(bgmBox);
+  assert.ok(rewardDialogBox);
   assert.ok(bgmBox.x + bgmBox.width <= 379);
-  assert.ok(bgmBox.x >= 220 && bgmBox.y <= 4 && bgmBox.height <= 30);
+  assert.ok(bgmBox.x >= 220 && bgmBox.height <= 30);
+  assert.ok(
+    Math.abs(
+      bgmBox.x + bgmBox.width - (rewardDialogBox.x + rewardDialogBox.width - 12)
+    ) <= 2
+  );
+  assert.ok(bgmBox.y + bgmBox.height <= rewardDialogBox.y - 3);
   assert.equal(
     await page
       .locator(".avatar-bgm-player")
       .evaluate(el => getComputedStyle(el).position),
-    "fixed"
+    "absolute"
   );
   assert.equal(
-    await page.locator(".reward-heading .avatar-bgm-player").count(),
-    0
+    await page.locator(".reward-dialog > .avatar-bgm-player").count(),
+    1
   );
   const navButtons = await page
     .locator(".reward-links button")
@@ -914,6 +1080,31 @@ try {
     page.getByRole("button", { name: "광장 프로필 저장" }).click(),
   ]);
   assert.equal(state.cards[0].galleryCropX, 64);
+  await page
+    .getByRole("button", { name: "선택 학생으로 해밀월드 바로 열기 · ∞P" })
+    .click();
+  const adminWorld = page.locator(".admin-world-preview");
+  await adminWorld.waitFor();
+  await adminWorld.getByText("∞ P", { exact: true }).waitFor();
+  await adminWorld.getByRole("button", { name: "상점", exact: true }).click();
+  await adminWorld.getByText("상점 상품 무제한 테스트").waitFor();
+  await adminWorld
+    .getByRole("button", { name: "∞ P로 테스트" })
+    .first()
+    .click();
+  await adminWorld.screenshot({
+    path: path.join(qaRoot, "admin-world-preview.png"),
+  });
+  await adminWorld
+    .getByRole("button", { name: "관리자 미리보기 닫기" })
+    .click();
+  await adminWorld.waitFor({ state: "hidden" });
+  await page.waitForTimeout(500);
+  await page
+    .locator(".admin-workspaces details")
+    .first()
+    .locator("summary")
+    .click();
   const savedOfficial = page.locator(".official-character-card:not(.is-new)");
   page.once("dialog", dialog => dialog.accept());
   await Promise.all([
@@ -923,7 +1114,7 @@ try {
   assert.equal(officials.length, 0);
   assert.deepEqual(errors, []);
   console.log(
-    "PASS desktop/mobile order, administrator upload, candidate selection, collection, representative crop, no horizontal overflow or JS errors"
+    "PASS theme-set admin, world purchase/equip/assets, BGM collection/play/pause/seek, student cards/gallery, no overflow or JS errors"
   );
 } catch (error) {
   console.log("QA failed at", page.url());

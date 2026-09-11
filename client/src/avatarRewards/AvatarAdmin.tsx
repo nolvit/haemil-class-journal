@@ -13,6 +13,7 @@ import {
   OfficialCharacterPromptBuilder,
 } from "./OfficialCharacterAdmin";
 import { AvatarShopAdmin } from "./AvatarShopAdmin";
+import { AdminWorldPreview } from "./AdminWorldPreview";
 function PointAdjustment({
   studentId,
   balance,
@@ -234,6 +235,7 @@ function AdminGalleryCrop({
 }
 export default function AvatarAdmin() {
   const [art, setArt] = useState<Artwork | null>(null);
+  const [worldPreview, setWorldPreview] = useState(false);
   const [studentId, setStudentId] = useState(0),
     [master, setMaster] = useState<File | null>(null),
     [images, setImages] = useState<File[]>([]),
@@ -333,6 +335,13 @@ export default function AvatarAdmin() {
           ))}
         </select>
       </label>
+      <Button
+        className="admin-world-launch"
+        disabled={!snapshot.data}
+        onClick={() => setWorldPreview(true)}
+      >
+        선택 학생으로 해밀월드 바로 열기 · ∞P
+      </Button>
       {snapshot.error && <p role="alert">{snapshot.error.message}</p>}
       {snapshot.data && (
         <>
@@ -579,6 +588,13 @@ export default function AvatarAdmin() {
         </>
       )}
       <ArtworkPortal art={art} onClose={() => setArt(null)} />
+      {snapshot.data && (
+        <AdminWorldPreview
+          open={worldPreview}
+          onOpenChange={setWorldPreview}
+          snapshot={snapshot.data}
+        />
+      )}
     </main>
   );
 }

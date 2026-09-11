@@ -53,6 +53,8 @@ import {
   type ShopItem,
   type ShopItemInput,
   type ShopCategory,
+  type ShopAssetRole,
+  type WorldThemeState,
 } from "../shared/avatarShop";
 
 let pool: mysql.Pool | undefined;
@@ -595,7 +597,20 @@ function mapShopItem(x: any): ShopItem {
     durationSeconds:
       x.durationSeconds == null ? null : Number(x.durationSeconds),
     active: !!x.active,
+    assets: x.assets ?? {},
   };
+}
+async function attachShopAssets(items: ShopItem[]) {
+  if (!items.length) return items;
+  const [assetRows] = await database().query<RowDataPacket[]>(
+    "SELECT itemId,assetRole,assetUrl FROM avatar_shop_item_assets WHERE itemId IN (?)",
+    [items.map(item => item.id)]
+  );
+  for (const row of assetRows) {
+    const item = items.find(x => x.id === row.itemId);
+    if (item) item.assets[row.assetRole as ShopAssetRole] = row.assetUrl;
+  }
+  return items;
 }
 export async function shopCatalog(
   category?: ShopCategory,
@@ -612,7 +627,15 @@ export async function shopCatalog(
     `SELECT * FROM avatar_shop_items WHERE ${where} ORDER BY category,season,price,id`,
     params
   );
-  return data.map(mapShopItem);
+  return attachShopAssets(data.map(mapShopItem));
+}
+async function saveShopItemAssets(input: ShopItemInput) {
+  for (const [role, url] of Object.entries(input.assets))
+    if (url)
+      await database().query(
+        "INSERT INTO avatar_shop_item_assets(itemId,assetRole,assetUrl) VALUES(?,?,?) ON DUPLICATE KEY UPDATE assetUrl=VALUES(assetUrl)",
+        [input.id, role, url]
+      );
 }
 export async function createShopItem(input: ShopItemInput) {
   await ensureRewardSchema();
@@ -632,6 +655,7 @@ export async function createShopItem(input: ShopItemInput) {
         input.active,
       ]
     );
+    await saveShopItemAssets(input);
   } catch (e) {
     if ((e as any).code === "ER_DUP_ENTRY")
       reject("이미 사용 중인 상품 ID예요.");
@@ -656,6 +680,7 @@ export async function updateShopItem(input: ShopItemInput) {
     ]
   );
   if (!r.affectedRows) reject("상품을 찾을 수 없습니다.");
+  await saveShopItemAssets(input);
 }
 export async function deleteShopItem(id: string) {
   await ensureRewardSchema();
@@ -677,6 +702,101 @@ export async function equipBgm(studentId: number, trackId: AvatarBgmTrackId) {
     await c.query(
       "INSERT INTO avatar_bgm_settings(studentId,equippedTrackId) VALUES(?,?) ON DUPLICATE KEY UPDATE equippedTrackId=VALUES(equippedTrackId)",
       [studentId, trackId]
+    );
+  });
+}
+
+function resolvedWorldAssets(items: ShopItem[], equipped: string) {
+  const basic = items.find(x => x.id === "starlight-court");
+  const current = items.find(x => x.id === equipped) ?? basic;
+  return {
+    ...(basic?.assets ?? {}),
+    ...(basic?.assetUrl ? { world_background: basic.assetUrl } : {}),
+    ...(current?.assets ?? {}),
+    ...(current?.assetUrl ? { world_background: current.assetUrl } : {}),
+  } as Partial<Record<ShopAssetRole, string>>;
+}
+export async function worldThemeState(
+  studentId: number
+): Promise<WorldThemeState> {
+  await ensureRewardSchema();
+  const [inventory] = await database().query<RowDataPacket[]>(
+    "SELECT worldId FROM avatar_world_inventory WHERE studentId=? ORDER BY purchasedAt,worldId",
+    [studentId]
+  );
+  const [settings] = await database().query<RowDataPacket[]>(
+    "SELECT equippedWorldId FROM avatar_world_settings WHERE studentId=?",
+    [studentId]
+  );
+  const [catalogRows] = await database().query<RowDataPacket[]>(
+    "SELECT * FROM avatar_shop_items WHERE category='world_background' AND ((deleted=0 AND active=1) OR id IN (SELECT worldId FROM avatar_world_inventory WHERE studentId=?)) ORDER BY season,price,id",
+    [studentId]
+  );
+  const items = await attachShopAssets(catalogRows.map(mapShopItem));
+  const owned = Array.from(
+    new Set([
+      "starlight-court",
+      ...inventory.map(row => String(row.worldId)),
+      ...items.filter(item => item.price === 0).map(item => item.id),
+    ])
+  );
+  const requested = String(settings[0]?.equippedWorldId ?? "starlight-court");
+  const equipped = owned.includes(requested) ? requested : "starlight-court";
+  return {
+    owned,
+    equipped,
+    items,
+    assets: resolvedWorldAssets(items, equipped),
+  };
+}
+export async function purchaseWorldTheme(studentId: number, worldId: string) {
+  return transaction(studentId, async (c, account) => {
+    const [item] = await rows<{ name: string; price: number }>(
+      c,
+      "SELECT name,price FROM avatar_shop_items WHERE id=? AND category='world_background' AND active=1 AND deleted=0 FOR UPDATE",
+      [worldId]
+    );
+    if (!item) reject("판매 중인 전체 배경을 찾을 수 없어요.");
+    const owned = await rows(
+      c,
+      "SELECT worldId FROM avatar_world_inventory WHERE studentId=? AND worldId=?",
+      [studentId, worldId]
+    );
+    if (owned.length) return { balance: account.balance, duplicate: true };
+    const price = Number(item.price);
+    if (account.balance < price) reject("전체 배경 구매 포인트가 부족해요.");
+    await c.query(
+      "INSERT INTO avatar_world_inventory(studentId,worldId,purchasePrice) VALUES(?,?,?)",
+      [studentId, worldId, price]
+    );
+    account.balance -= price;
+    if (price)
+      await ledger(c, studentId, -price, `전체 배경 소장: ${item.name}`);
+    return { balance: account.balance, duplicate: false };
+  });
+}
+export async function equipWorldTheme(studentId: number, worldId: string) {
+  return transaction(studentId, async c => {
+    const [item] = await rows<{ price: number }>(
+      c,
+      "SELECT price FROM avatar_shop_items WHERE id=? AND category='world_background'",
+      [worldId]
+    );
+    if (!item) reject("전체 배경을 찾을 수 없어요.");
+    if (
+      Number(item.price) > 0 &&
+      !(
+        await rows(
+          c,
+          "SELECT worldId FROM avatar_world_inventory WHERE studentId=? AND worldId=?",
+          [studentId, worldId]
+        )
+      ).length
+    )
+      reject("먼저 이 전체 배경을 소장해 주세요.");
+    await c.query(
+      "INSERT INTO avatar_world_settings(studentId,equippedWorldId) VALUES(?,?) ON DUPLICATE KEY UPDATE equippedWorldId=VALUES(equippedWorldId)",
+      [studentId, worldId]
     );
   });
 }

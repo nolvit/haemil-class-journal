@@ -16,7 +16,11 @@ import * as store from "../avatarRewardStore";
 import { storagePut } from "../storage";
 import { officialCharacterInput } from "../../shared/avatarOfficial";
 import { avatarBgmTrackId } from "../../shared/avatarBgm";
-import { shopItemInput, shopCategory } from "../../shared/avatarShop";
+import {
+  shopItemInput,
+  shopCategory,
+  shopAssetRole,
+} from "../../shared/avatarShop";
 const identity = z.object({
   token: z.string().min(8).max(64),
   studentId: z.number().int().positive(),
@@ -78,6 +82,9 @@ const shopAssetInput = z.object({
   data: z.string().min(1).max(24_000_000),
   mime: z.enum(["image/png", "image/jpeg", "image/webp", "audio/mpeg"]),
 });
+const shopAssetFilesInput = z
+  .partialRecord(shopAssetRole, shopAssetInput)
+  .optional();
 async function saveShopAsset(file: z.infer<typeof shopAssetInput>) {
   if (!/^[A-Za-z0-9+/]+={0,2}$/.test(file.data))
     throw new TRPCError({
@@ -121,6 +128,19 @@ export const avatarRewardsRouter = router({
   equipBgm: studentProcedure
     .input(z.object({ trackId: avatarBgmTrackId }))
     .mutation(({ input }) => store.equipBgm(input.studentId, input.trackId)),
+  worldThemeState: studentProcedure.query(({ input }) =>
+    store.worldThemeState(input.studentId)
+  ),
+  purchaseWorldTheme: studentProcedure
+    .input(z.object({ worldId: z.string().min(1).max(64) }))
+    .mutation(({ input }) =>
+      store.purchaseWorldTheme(input.studentId, input.worldId)
+    ),
+  equipWorldTheme: studentProcedure
+    .input(z.object({ worldId: z.string().min(1).max(64) }))
+    .mutation(({ input }) =>
+      store.equipWorldTheme(input.studentId, input.worldId)
+    ),
   purchaseBackground: studentProcedure
     .input(z.object({ cardId: z.string().uuid(), backgroundId }))
     .mutation(({ input }) =>
@@ -209,25 +229,45 @@ export const avatarRewardsRouter = router({
     store.shopCatalog(undefined, true)
   ),
   createShopItem: adminProcedure
-    .input(z.object({ item: shopItemInput, asset: shopAssetInput.optional() }))
-    .mutation(async ({ input }) =>
-      store.createShopItem({
+    .input(
+      z.object({
+        item: shopItemInput,
+        asset: shopAssetInput.optional(),
+        assetFiles: shopAssetFilesInput,
+      })
+    )
+    .mutation(async ({ input }) => {
+      const assets = { ...input.item.assets };
+      for (const [role, file] of Object.entries(input.assetFiles ?? {}))
+        assets[role as keyof typeof assets] = await saveShopAsset(file);
+      return store.createShopItem({
         ...input.item,
+        assets,
         assetUrl: input.asset
           ? await saveShopAsset(input.asset)
           : input.item.assetUrl,
-      })
-    ),
+      });
+    }),
   updateShopItem: adminProcedure
-    .input(z.object({ item: shopItemInput, asset: shopAssetInput.optional() }))
-    .mutation(async ({ input }) =>
-      store.updateShopItem({
+    .input(
+      z.object({
+        item: shopItemInput,
+        asset: shopAssetInput.optional(),
+        assetFiles: shopAssetFilesInput,
+      })
+    )
+    .mutation(async ({ input }) => {
+      const assets = { ...input.item.assets };
+      for (const [role, file] of Object.entries(input.assetFiles ?? {}))
+        assets[role as keyof typeof assets] = await saveShopAsset(file);
+      return store.updateShopItem({
         ...input.item,
+        assets,
         assetUrl: input.asset
           ? await saveShopAsset(input.asset)
           : input.item.assetUrl,
-      })
-    ),
+      });
+    }),
   deleteShopItem: adminProcedure
     .input(z.object({ id: z.string().min(1).max(64) }))
     .mutation(({ input }) => store.deleteShopItem(input.id)),

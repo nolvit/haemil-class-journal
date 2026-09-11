@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Music2, Pause, Play, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
@@ -22,6 +22,11 @@ export function AvatarBgmPlayer({
       typeof localStorage !== "undefined" &&
       localStorage.getItem(playbackKey) === "on"
   );
+  const [wantedPlaying, setWantedPlaying] = useState(
+    () =>
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(playbackKey) === "on"
+  );
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const equipped =
@@ -41,12 +46,12 @@ export function AvatarBgmPlayer({
 
   useEffect(() => {
     if (!audio.current) return;
-    if (open && enabled && equipped) void start();
+    if (open && enabled && wantedPlaying && equipped) void start();
     else {
       audio.current.pause();
       setPlaying(false);
     }
-  }, [open, enabled, equipped?.id]);
+  }, [open, enabled, wantedPlaying, equipped?.id]);
 
   useEffect(() => {
     const pause = () => {
@@ -54,7 +59,7 @@ export function AvatarBgmPlayer({
       setPlaying(false);
     };
     const resume = () => {
-      if (open && enabled) void start();
+      if (open && enabled && wantedPlaying) void start();
     };
     window.addEventListener("haemil-bgm-preview-start", pause);
     window.addEventListener("haemil-bgm-preview-stop", resume);
@@ -62,7 +67,7 @@ export function AvatarBgmPlayer({
       window.removeEventListener("haemil-bgm-preview-start", pause);
       window.removeEventListener("haemil-bgm-preview-stop", resume);
     };
-  }, [open, enabled, equipped?.id]);
+  }, [open, enabled, wantedPlaying, equipped?.id]);
 
   return (
     <div className="avatar-bgm-player" aria-label="해밀월드 BGM 플레이어">
@@ -92,7 +97,9 @@ export function AvatarBgmPlayer({
           }
           const next = !enabled;
           setEnabled(next);
+          setWantedPlaying(next);
           localStorage.setItem(playbackKey, next ? "on" : "off");
+          if (!next) audio.current?.pause();
           if (next && !(await start()))
             toast.info("재생 버튼을 한 번 더 눌러 음악을 시작해 주세요.");
         }}
@@ -102,15 +109,52 @@ export function AvatarBgmPlayer({
       </button>
       <div className="avatar-bgm-now">
         <span>{equipped?.title ?? "BGM을 선택해 주세요"}</span>
-        <div aria-hidden="true">
-          <i style={{ width: `${progress}%` }} />
-        </div>
+        <input
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={progress}
+          disabled={!equipped}
+          aria-label="BGM 재생 위치"
+          style={{ "--bgm-progress": `${progress}%` } as CSSProperties}
+          onChange={event => {
+            const next = Number(event.currentTarget.value);
+            setProgress(next);
+            if (
+              audio.current &&
+              Number.isFinite(audio.current.duration) &&
+              audio.current.duration > 0
+            ) {
+              audio.current.currentTime = (audio.current.duration * next) / 100;
+            }
+          }}
+        />
       </div>
-      {playing ? (
-        <Pause size={13} aria-hidden="true" />
-      ) : (
-        <Music2 size={13} aria-hidden="true" />
-      )}
+      <button
+        type="button"
+        className="bgm-play-toggle"
+        disabled={!equipped}
+        aria-label={playing ? "BGM 일시정지" : "BGM 재생"}
+        onClick={async () => {
+          if (playing) {
+            setWantedPlaying(false);
+            audio.current?.pause();
+            return;
+          }
+          setEnabled(true);
+          setWantedPlaying(true);
+          localStorage.setItem(playbackKey, "on");
+          if (!(await start()))
+            toast.info("음악을 시작하지 못했어요. 다시 눌러 주세요.");
+        }}
+      >
+        {playing ? (
+          <Pause size={13} aria-hidden="true" />
+        ) : (
+          <Play size={13} aria-hidden="true" />
+        )}
+      </button>
     </div>
   );
 }
@@ -192,7 +236,12 @@ export function AvatarBgmShop({
               </div>
               <button
                 type="button"
-                className="bgm-preview"
+                className={`bgm-preview ${previewing === track.id ? "is-previewing" : ""}`}
+                aria-label={
+                  previewing === track.id
+                    ? "20초 미리듣기 중지"
+                    : `${track.title} 미리 듣기`
+                }
                 onClick={async () => {
                   if (previewing === track.id) {
                     stopPreview();
@@ -220,7 +269,14 @@ export function AvatarBgmShop({
                 ) : (
                   <Play size={15} />
                 )}
-                {previewing === track.id ? "미리듣기 중지" : "20초 미리듣기"}
+                {previewing === track.id ? (
+                  <span className="bgm-preview-copy">
+                    <b>20초</b>
+                    <span>미리듣기</span>
+                  </span>
+                ) : (
+                  <span>미리 듣기</span>
+                )}
               </button>
               <button
                 type="button"
@@ -251,6 +307,51 @@ export function AvatarBgmShop({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+export function AvatarBgmCollection({ identity }: { identity: Identity }) {
+  const state = trpc.avatarRewards.bgmState.useQuery(identity, {
+    retry: false,
+  });
+  const equip = trpc.avatarRewards.equipBgm.useMutation({
+    onError: error => toast.error(error.message),
+    onSuccess: () => {
+      void state.refetch();
+      toast.success("컬렉션에서 선택한 BGM을 장착했어요.");
+    },
+  });
+  const tracks = (state.data?.tracks ?? []).filter(track =>
+    state.data?.owned.includes(track.id)
+  );
+  if (state.isLoading) return <p role="status">BGM 컬렉션을 불러오는 중…</p>;
+  if (!tracks.length)
+    return <p className="collection-empty">아직 소장한 BGM이 없어요.</p>;
+  return (
+    <div className="bgm-collection-grid">
+      {tracks.map(track => {
+        const equipped = state.data?.equipped === track.id;
+        return (
+          <article className="bgm-collection-item" key={track.id}>
+            <div className="bgm-disc" aria-hidden="true">
+              <Music2 />
+            </div>
+            <div>
+              <span className="av-kicker">OWNED BGM</span>
+              <h4>{track.title}</h4>
+              <small>{track.durationLabel}</small>
+              <p>{track.description}</p>
+            </div>
+            <button
+              disabled={equipped || equip.isPending}
+              onClick={() => equip.mutate({ ...identity, trackId: track.id })}
+            >
+              {equipped ? "현재 장착" : "장착하기"}
+            </button>
+          </article>
+        );
+      })}
     </div>
   );
 }
