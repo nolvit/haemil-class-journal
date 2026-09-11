@@ -11,6 +11,7 @@ import { getPortalFamilyByToken } from "../db";
 import {
   rewardOrderInput,
   rewardAdjustmentInput,
+  rewardBulkAdjustmentInput,
 } from "../../shared/avatarRewards";
 import * as store from "../avatarRewardStore";
 import { storagePut } from "../storage";
@@ -298,6 +299,11 @@ export const avatarRewardsRouter = router({
   adjust: adminProcedure
     .input(rewardAdjustmentInput)
     .mutation(({ input, ctx }) => store.adjustRewardPoints(input, ctx.user.id)),
+  bulkAdjust: adminProcedure
+    .input(rewardBulkAdjustmentInput)
+    .mutation(({ input, ctx }) =>
+      store.bulkAdjustRewardPoints(input.adjustments, ctx.user.id)
+    ),
   adminSnapshot: adminProcedure
     .input(student)
     .query(({ input }) => store.rewardSnapshot(input.studentId)),
