@@ -56,6 +56,7 @@ export type ShopItemInput = z.infer<typeof shopItemInput>;
 export type ShopItem = ShopItemInput & {
   createdAt?: string;
   updatedAt?: string;
+  salesCount?: number;
 };
 export type WorldThemeState = {
   owned: string[];
