@@ -90,3 +90,17 @@ export const rewardAdjustmentInput = z.object({
     .max(140),
   requestId: z.string().uuid(),
 });
+export const rewardBulkAdjustmentInput = z.object({
+  adjustments: z
+    .array(
+      rewardAdjustmentInput.extend({
+        delta: z.number().int().min(1).max(100000),
+      })
+    )
+    .min(1)
+    .max(100)
+    .refine(
+      rows => new Set(rows.map(row => row.studentId)).size === rows.length,
+      "같은 학생을 두 번 선택할 수 없습니다."
+    ),
+});
