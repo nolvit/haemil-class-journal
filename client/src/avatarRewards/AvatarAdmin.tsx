@@ -121,6 +121,156 @@ function PointAdjustment({
     </section>
   );
 }
+function BulkPointAdjustment({
+  students,
+  onSaved,
+}: {
+  students: { id: number; name: string; grade: string }[];
+  onSaved: () => void;
+}) {
+  const [selected, setSelected] = useState<Set<number>>(() => new Set());
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [requestIds, setRequestIds] = useState<Record<number, string>>({});
+  const mutate = trpc.avatarRewards.bulkAdjust.useMutation({
+    onError: e => toast.error(e.message),
+    onSuccess: result => {
+      setSelected(new Set());
+      setAmount("");
+      setReason("");
+      setRequestIds({});
+      onSaved();
+      toast.success(`${result.count}명에게 포인트를 지급했습니다.`);
+    },
+  });
+  const resetRequests = () => setRequestIds({});
+  const points = Number(amount);
+  return (
+    <section className="bulk-point-adjustment">
+      <div className="bulk-point-heading">
+        <div>
+          <h2>여러 학생에게 포인트 지급</h2>
+          <p>
+            학생을 여러 명 선택하고 같은 포인트와 사유를 한 번에 적용합니다.
+          </p>
+        </div>
+        <b>{selected.size}명 선택</b>
+      </div>
+      <div className="bulk-point-tools">
+        <button
+          type="button"
+          onClick={() => {
+            setSelected(new Set(students.map(student => student.id)));
+            resetRequests();
+          }}
+        >
+          전체 선택
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setSelected(new Set());
+            resetRequests();
+          }}
+        >
+          선택 해제
+        </button>
+      </div>
+      <div className="bulk-student-grid">
+        {students.map(student => (
+          <label
+            key={student.id}
+            className={selected.has(student.id) ? "selected" : ""}
+          >
+            <input
+              type="checkbox"
+              checked={selected.has(student.id)}
+              onChange={() => {
+                setSelected(current => {
+                  const next = new Set(current);
+                  if (next.has(student.id)) next.delete(student.id);
+                  else next.add(student.id);
+                  return next;
+                });
+                resetRequests();
+              }}
+            />
+            <span>{student.name}</span>
+            <small>{student.grade}</small>
+          </label>
+        ))}
+      </div>
+      <form
+        className="bulk-point-form"
+        onSubmit={event => {
+          event.preventDefault();
+          const targets = students.filter(student => selected.has(student.id));
+          if (
+            !window.confirm(
+              `${targets.length}명에게 ${points.toLocaleString()}P를 지급할까요?\n사유: ${reason}`
+            )
+          )
+            return;
+          const ids = { ...requestIds };
+          for (const student of targets)
+            ids[student.id] ??= crypto.randomUUID();
+          setRequestIds(ids);
+          mutate.mutate({
+            adjustments: targets.map(student => ({
+              studentId: student.id,
+              delta: points,
+              reason,
+              requestId: ids[student.id],
+            })),
+          });
+        }}
+      >
+        <label>
+          지급 포인트
+          <Input
+            type="number"
+            min="1"
+            max="100000"
+            step="1"
+            required
+            value={amount}
+            disabled={mutate.isPending}
+            onChange={event => {
+              setAmount(event.target.value);
+              resetRequests();
+            }}
+          />
+        </label>
+        <label>
+          학생에게 보여 줄 지급 사유
+          <Input
+            required
+            maxLength={140}
+            placeholder="예: 9월 과제 성실 보너스"
+            value={reason}
+            disabled={mutate.isPending}
+            onChange={event => {
+              setReason(event.target.value);
+              resetRequests();
+            }}
+          />
+        </label>
+        <Button
+          type="submit"
+          disabled={
+            mutate.isPending ||
+            selected.size === 0 ||
+            !Number.isInteger(points) ||
+            points < 1 ||
+            !reason.trim()
+          }
+        >
+          {mutate.isPending ? "일괄 지급 중…" : `${selected.size}명에게 지급`}
+        </Button>
+      </form>
+    </section>
+  );
+}
 async function readImage(file: File) {
   if (
     !["image/png", "image/jpeg", "image/webp"].includes(file.type) ||
@@ -314,6 +464,9 @@ export default function AvatarAdmin() {
         <h2>학생별 제작·포인트 관리</h2>
       </div>
       {list.error && <p role="alert">{list.error.message}</p>}
+      {list.data && (
+        <BulkPointAdjustment students={list.data} onSaved={refresh} />
+      )}
       <label>
         학생 선택
         <select
