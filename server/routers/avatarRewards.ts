@@ -117,6 +117,9 @@ async function saveShopAsset(file: z.infer<typeof shopAssetInput>) {
   ).url;
 }
 export const avatarRewardsRouter = router({
+  ownedDecorationCatalog: studentProcedure.query(({ input }) =>
+    store.ownedDecorationCatalog(input.studentId)
+  ),
   shopCatalog: studentProcedure
     .input(z.object({ category: shopCategory.optional() }))
     .query(({ input }) => store.shopCatalog(input.category)),
