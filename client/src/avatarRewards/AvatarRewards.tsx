@@ -69,6 +69,7 @@ import {
 } from "./AvatarUniverse";
 import type { Wardrobe } from "@shared/avatarCollection";
 import { AvatarBgmCollection, AvatarBgmPlayer } from "./AvatarBgm";
+import { themedRangeStyle } from "./themedRange";
 
 const emptyOrder: RewardOrderInput = {
   selectedParts: [],
@@ -719,11 +720,13 @@ export function AvatarRewards({
                               <label>
                                 얼굴 위치
                                 <input
+                                  className="avatar-themed-range"
                                   aria-label="얼굴 위치"
                                   type="range"
                                   min="0"
                                   max="100"
                                   value={position}
+                                  style={themedRangeStyle(position, 0, 100)}
                                   onChange={e =>
                                     setCropY(Number(e.target.value))
                                   }
@@ -732,11 +735,13 @@ export function AvatarRewards({
                               <label>
                                 좌우 위치
                                 <input
+                                  className="avatar-themed-range"
                                   aria-label="얼굴 좌우 위치"
                                   type="range"
                                   min="0"
                                   max="100"
                                   value={horizontal}
+                                  style={themedRangeStyle(horizontal, 0, 100)}
                                   onChange={e =>
                                     setCropX(Number(e.target.value))
                                   }
@@ -745,12 +750,18 @@ export function AvatarRewards({
                               <label>
                                 얼굴 확대·축소
                                 <input
+                                  className="avatar-themed-range"
                                   aria-label="얼굴 확대 비율"
                                   type="range"
                                   min="100"
                                   max="500"
                                   step="10"
                                   value={zoom ?? wardrobe.cropZoom}
+                                  style={themedRangeStyle(
+                                    zoom ?? wardrobe.cropZoom,
+                                    100,
+                                    500
+                                  )}
                                   onChange={e =>
                                     setZoom(Number(e.target.value))
                                   }

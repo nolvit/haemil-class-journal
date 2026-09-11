@@ -24,6 +24,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { AvatarBgmShop } from "./AvatarBgm";
+import { themedRangeStyle } from "./themedRange";
 type Identity = { token: string; studentId: number };
 
 export function WorldThemeCollection({ identity }: { identity: Identity }) {
@@ -481,34 +482,40 @@ export function CardSharing({
         <label>
           좌우 위치{" "}
           <input
+            className="avatar-themed-range"
             aria-label="광장 좌우 위치"
             type="range"
             min="0"
             max="100"
             value={cropX}
+            style={themedRangeStyle(cropX, 0, 100)}
             onChange={e => setCropX(Number(e.target.value))}
           />
         </label>
         <label>
           상하 위치{" "}
           <input
+            className="avatar-themed-range"
             aria-label="광장 상하 위치"
             type="range"
             min="0"
             max="100"
             value={cropY}
+            style={themedRangeStyle(cropY, 0, 100)}
             onChange={e => setCropY(Number(e.target.value))}
           />
         </label>
         <label>
           확대{" "}
           <input
+            className="avatar-themed-range"
             aria-label="광장 확대 비율"
             type="range"
             min="100"
             max="500"
             step="10"
             value={cropZoom}
+            style={themedRangeStyle(cropZoom, 100, 500)}
             onChange={e => setCropZoom(Number(e.target.value))}
           />
           <output>{cropZoom}%</output>
