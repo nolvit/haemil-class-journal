@@ -9,6 +9,7 @@ import {
   useEffect,
   useRef,
   useContext,
+  createContext,
   type CSSProperties,
   type ReactNode,
 } from "react";
@@ -21,11 +22,34 @@ import {
   DialogClose,
 } from "@/components/ui/dialog";
 import type { FrameId, BackgroundId } from "@shared/avatarCollection";
+type CardDecorationAssets = {
+  frames: Record<string, string>;
+  backgrounds: Record<string, string>;
+};
+const CardDecorationAssetsContext = createContext<CardDecorationAssets>({
+  frames: {},
+  backgrounds: {},
+});
+export function CardDecorationAssetsProvider({
+  value,
+  children,
+}: {
+  value: CardDecorationAssets;
+  children: ReactNode;
+}) {
+  return (
+    <CardDecorationAssetsContext.Provider value={value}>
+      {children}
+    </CardDecorationAssetsContext.Provider>
+  );
+}
 export type Artwork = {
   url: string;
   title: string;
   frame?: FrameId;
   background?: BackgroundId;
+  frameAssetUrl?: string;
+  backgroundAssetUrl?: string;
   origin?: { x: number; y: number; width: number; height: number };
 };
 export function ArtworkPortal({
@@ -44,6 +68,7 @@ export function ArtworkPortal({
   );
   const [error, setError] = useState(false);
   const inherited = useContext(AvatarNavigationContext);
+  const decorationAssets = useContext(CardDecorationAssetsContext);
   useAvatarBackGuard(!!art, onClose, !inherited);
   useEffect(() => {
     setFullscreen(false);
@@ -53,7 +78,21 @@ export function ArtworkPortal({
     if (!art) return;
     let disposed = false,
       objectUrl = "";
-    renderCollectionCard(art.url, art.frame, art.background)
+    const frameAssetUrl =
+      art.frameAssetUrl ??
+      (art.frame ? decorationAssets.frames[art.frame] : undefined);
+    const backgroundAssetUrl =
+      art.backgroundAssetUrl ??
+      (art.background
+        ? decorationAssets.backgrounds[art.background]
+        : undefined);
+    renderCollectionCard(
+      art.url,
+      art.frame,
+      art.background,
+      frameAssetUrl,
+      backgroundAssetUrl
+    )
       .then(blob => {
         if (disposed) return;
         objectUrl = URL.createObjectURL(blob);
@@ -66,7 +105,14 @@ export function ArtworkPortal({
       disposed = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [art?.url, art?.frame, art?.background]);
+  }, [
+    art?.url,
+    art?.frame,
+    art?.background,
+    art?.frameAssetUrl,
+    art?.backgroundAssetUrl,
+    decorationAssets,
+  ]);
   const origin = art?.origin;
   const originStyle = origin
     ? ({
@@ -228,6 +274,8 @@ export function FantasyCard({
   selected = false,
   onOpen,
   children,
+  frameAssetUrl,
+  backgroundAssetUrl,
 }: {
   url: string;
   title: string;
@@ -237,8 +285,14 @@ export function FantasyCard({
   selected?: boolean;
   onOpen?: () => void;
   children?: ReactNode;
+  frameAssetUrl?: string;
+  backgroundAssetUrl?: string;
 }) {
   const [ripple, setRipple] = useState(0);
+  const decorationAssets = useContext(CardDecorationAssetsContext);
+  const resolvedFrameAsset = frameAssetUrl ?? decorationAssets.frames[frame];
+  const resolvedBackgroundAsset =
+    backgroundAssetUrl ?? decorationAssets.backgrounds[background];
   return (
     <article
       className={`fantasy-card frame-${frame} backdrop-${background} ${representative ? "is-representative" : ""} ${selected ? "is-selected" : ""}`}
@@ -250,16 +304,24 @@ export function FantasyCard({
       </div>
       <button
         type="button"
-        className="card-art"
+        className={`card-art ${resolvedFrameAsset ? "has-custom-frame" : ""} ${resolvedBackgroundAsset ? "has-custom-background" : ""}`}
         onPointerDown={() => setRipple(n => n + 1)}
         onClick={onOpen}
         aria-label={title + " 확대 보기"}
       >
+        {resolvedBackgroundAsset && (
+          <img
+            className="card-background-asset"
+            src={resolvedBackgroundAsset}
+            alt=""
+            aria-hidden="true"
+          />
+        )}
         <span className="card-corner tl" />
         <span className="card-corner tr" />
         <span className="card-corner bl" />
         <span className="card-corner br" />
-        <img loading="lazy" src={url} alt={title} />
+        <img className="card-character" loading="lazy" src={url} alt={title} />
         <svg
           className="card-filigree"
           viewBox="0 0 300 400"
@@ -282,6 +344,14 @@ export function FantasyCard({
           key={ripple}
           className={"card-glint" + (ripple ? " is-rippling" : "")}
         />
+        {resolvedFrameAsset && (
+          <img
+            className="card-frame-asset"
+            src={resolvedFrameAsset}
+            alt=""
+            aria-hidden="true"
+          />
+        )}
         <span className="card-expand">
           <Expand size={16} />
         </span>

@@ -48,6 +48,10 @@ const { chromium } = await import(
 );
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 const image = "/avatar-rewards/avatars/official/official_male_avatar.png";
+const customFrameAsset =
+  "/avatar-rewards/avatars/official/official_female_avatar.png";
+const customBackgroundAsset =
+  "/avatar-rewards/avatars/official/official_male_avatar.png";
 const orderInput = {
   top: "후드티",
   bottom: "청바지",
@@ -85,6 +89,14 @@ const wardrobe = {
   cardStyles: {},
   cardFrames: {},
   cardBackgrounds: {},
+  decorationAssets: {
+    frames: {
+      "custom-starlight-frame": customFrameAsset,
+    },
+    backgrounds: {
+      "custom-midnight-background": customBackgroundAsset,
+    },
+  },
 };
 let liked = false;
 let officials = [];
@@ -114,6 +126,18 @@ const shop = [
     active: true,
   },
   {
+    id: "custom-starlight-frame",
+    category: "card_frame",
+    name: "업로드 별빛 프레임",
+    rank: "에픽",
+    price: 150,
+    description: "관리자가 올린 사용자 정의 프레임",
+    season: "테스트",
+    assetUrl: customFrameAsset,
+    durationSeconds: null,
+    active: true,
+  },
+  {
     id: "classic",
     category: "card_background",
     name: "별의 인장",
@@ -134,6 +158,18 @@ const shop = [
     description: "서고 배경",
     season: "상시",
     assetUrl: null,
+    durationSeconds: null,
+    active: true,
+  },
+  {
+    id: "custom-midnight-background",
+    category: "card_background",
+    name: "업로드 심야 배경",
+    rank: "레어",
+    price: 150,
+    description: "관리자가 올린 사용자 정의 카드 배경",
+    season: "테스트",
+    assetUrl: customBackgroundAsset,
     durationSeconds: null,
     active: true,
   },
@@ -850,19 +886,89 @@ try {
   await page.reload();
   await page.getByRole("button", { name: "내 아바타와 출석 포인트" }).click();
   await page.getByRole("button", { name: "상점", exact: true }).click();
-  await page.getByRole("button", { name: "150P로 소장", exact: true }).click();
+  const auroraProduct = page
+    .locator(".universe-grid > div")
+    .filter({ hasText: "오로라의 정원" });
+  await auroraProduct
+    .getByRole("button", { name: "150P로 소장", exact: true })
+    .click();
   await page.getByRole("button", { name: "구매 확정", exact: true }).click();
   await Promise.all([
     page.waitForResponse(r => r.url().includes("equipFrame")),
-    page.getByRole("button", { name: "장착하기", exact: true }).click(),
+    auroraProduct
+      .getByRole("button", { name: "장착하기", exact: true })
+      .click(),
   ]);
   assert.equal(wardrobe.cardStyles[candidateId].frame, "aurora");
   await page.getByRole("button", { name: "카드 배경", exact: true }).click();
-  await page.getByRole("button", { name: "150P로 소장", exact: true }).click();
+  const libraryProduct = page
+    .locator(".universe-grid > div")
+    .filter({ hasText: "달빛 서고" });
+  await libraryProduct
+    .getByRole("button", { name: "150P로 소장", exact: true })
+    .click();
   await page.getByRole("button", { name: "구매 확정", exact: true }).click();
-  await page.getByRole("button", { name: "장착하기", exact: true }).click();
+  await libraryProduct
+    .getByRole("button", { name: "장착하기", exact: true })
+    .click();
   await page.waitForTimeout(450);
   assert.equal(wardrobe.cardStyles[candidateId].background, "library");
+  await page.getByRole("button", { name: "카드 프레임", exact: true }).click();
+  const customFrameProduct = page
+    .locator(".universe-grid > div")
+    .filter({ hasText: "업로드 별빛 프레임" });
+  await customFrameProduct
+    .getByRole("button", { name: "150P로 소장", exact: true })
+    .click();
+  await page.getByRole("button", { name: "구매 확정", exact: true }).click();
+  await customFrameProduct
+    .getByRole("button", { name: "장착하기", exact: true })
+    .click();
+  await page.waitForTimeout(450);
+  assert.equal(
+    wardrobe.cardStyles[candidateId].frame,
+    "custom-starlight-frame"
+  );
+  await page.getByRole("button", { name: "카드 배경", exact: true }).click();
+  const customBackgroundProduct = page
+    .locator(".universe-grid > div")
+    .filter({ hasText: "업로드 심야 배경" });
+  await customBackgroundProduct
+    .getByRole("button", { name: "150P로 소장", exact: true })
+    .click();
+  await page.getByRole("button", { name: "구매 확정", exact: true }).click();
+  await customBackgroundProduct
+    .getByRole("button", { name: "장착하기", exact: true })
+    .click();
+  await page.waitForTimeout(450);
+  assert.equal(
+    wardrobe.cardStyles[candidateId].background,
+    "custom-midnight-background"
+  );
+  await page.getByRole("button", { name: "컬렉션", exact: true }).click();
+  const decoratedStudentCard = page
+    .locator(".universe-grid .fantasy-card")
+    .nth(1);
+  await decoratedStudentCard.locator(".card-frame-asset").waitFor();
+  await decoratedStudentCard.locator(".card-background-asset").waitFor();
+  assert.ok(
+    (
+      await decoratedStudentCard
+        .locator(".card-frame-asset")
+        .getAttribute("src")
+    )?.includes("official_female_avatar.png")
+  );
+  assert.ok(
+    (
+      await decoratedStudentCard
+        .locator(".card-background-asset")
+        .getAttribute("src")
+    )?.includes("official_male_avatar.png")
+  );
+  await decoratedStudentCard.getByRole("button", { name: /확대 보기/ }).click();
+  await page.locator(".art-portal img[src^='blob:']").waitFor();
+  await page.getByRole("button", { name: "그림 확대 닫기" }).click();
+  await page.getByRole("button", { name: "상점", exact: true }).click();
   await page.getByRole("button", { name: "BGM", exact: true }).click();
   await page.getByText("달빛 도서관", { exact: true }).waitFor();
   await page.getByText("3분 4초", { exact: true }).waitFor();
@@ -1088,10 +1194,44 @@ try {
   await adminWorld.getByText("∞ P", { exact: true }).waitFor();
   await adminWorld.getByRole("button", { name: "상점", exact: true }).click();
   await adminWorld.getByText("상점 상품 무제한 테스트").waitFor();
+  const adminCustomFrame = adminWorld
+    .locator(".admin-preview-products article")
+    .filter({ hasText: "업로드 별빛 프레임" });
+  await adminCustomFrame.getByRole("button", { name: "∞ P로 테스트" }).click();
+  await adminWorld.getByRole("button", { name: "컬렉션", exact: true }).click();
+  await adminWorld.locator(".admin-preview-card .card-frame-asset").waitFor();
+  await adminWorld.getByRole("button", { name: "상점", exact: true }).click();
   await adminWorld
-    .getByRole("button", { name: "∞ P로 테스트" })
-    .first()
+    .getByRole("button", { name: "카드 배경", exact: true })
     .click();
+  const adminCustomBackground = adminWorld
+    .locator(".admin-preview-products article")
+    .filter({ hasText: "업로드 심야 배경" });
+  await adminCustomBackground
+    .getByRole("button", { name: "∞ P로 테스트" })
+    .click();
+  await adminWorld.getByRole("button", { name: "컬렉션", exact: true }).click();
+  await adminWorld
+    .locator(".admin-preview-card .card-background-asset")
+    .waitFor();
+  await adminWorld.getByRole("button", { name: "상점", exact: true }).click();
+  await adminWorld
+    .getByRole("button", { name: "전체 배경", exact: true })
+    .click();
+  const adminWorldSet = adminWorld
+    .locator(".admin-preview-products article")
+    .filter({ hasText: "성탄의 별빛 궁전" });
+  await adminWorldSet.getByRole("button", { name: "∞ P로 테스트" }).click();
+  const adminThemeVariables = await adminWorld.evaluate(node => ({
+    background: node.style.getPropertyValue("--av-world-background"),
+    track: node.style.getPropertyValue("--av-slider-track-base"),
+    fill: node.style.getPropertyValue("--av-slider-track-fill"),
+    thumb: node.style.getPropertyValue("--av-slider-thumb"),
+    panel: node.style.getPropertyValue("--av-bgm-panel"),
+  }));
+  assert.ok(
+    Object.values(adminThemeVariables).every(value => value.includes(image))
+  );
   await adminWorld.screenshot({
     path: path.join(qaRoot, "admin-world-preview.png"),
   });

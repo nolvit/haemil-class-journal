@@ -59,6 +59,10 @@ export type Wardrobe = {
   cardStyles: Record<string, { frame: FrameId; background: BackgroundId }>;
   cardFrames: Record<string, string[]>;
   cardBackgrounds: Record<string, string[]>;
+  decorationAssets: {
+    frames: Record<string, string>;
+    backgrounds: Record<string, string>;
+  };
 };
 export type GalleryCard = {
   cropX: number;

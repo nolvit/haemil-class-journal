@@ -17,11 +17,22 @@ const palettes = {
 export async function renderCollectionCard(
   url: string,
   frame: FrameId = "lunar",
-  background: BackgroundId = "classic"
+  background: BackgroundId = "classic",
+  frameAssetUrl?: string,
+  backgroundAssetUrl?: string
 ): Promise<Blob> {
-  const response = await fetch(url, { credentials: "same-origin" });
-  if (!response.ok) throw new Error("카드 이미지를 불러오지 못했어요.");
-  const bitmap = await createImageBitmap(await response.blob());
+  const loadBitmap = async (source?: string) => {
+    if (!source) return null;
+    const response = await fetch(source, { credentials: "same-origin" });
+    if (!response.ok) throw new Error("카드 이미지를 불러오지 못했어요.");
+    return createImageBitmap(await response.blob());
+  };
+  const [bitmap, frameBitmap, backgroundBitmap] = await Promise.all([
+    loadBitmap(url),
+    loadBitmap(frameAssetUrl),
+    loadBitmap(backgroundAssetUrl),
+  ]);
+  if (!bitmap) throw new Error("카드 이미지를 불러오지 못했어요.");
   try {
     const canvas = document.createElement("canvas");
     canvas.width = CARD_RENDER_WIDTH;
@@ -69,6 +80,7 @@ export async function renderCollectionCard(
     glow.addColorStop(1, "#0b151c");
     c.fillStyle = glow;
     c.fillRect(0, 0, 900, 1200);
+    if (backgroundBitmap) c.drawImage(backgroundBitmap, 0, 0, 900, 1200);
     c.lineWidth = 2;
     rounded(16, 16, 868, 1168, 38, undefined, gold);
     rounded(25, 25, 850, 1150, 31, undefined, light);
@@ -182,6 +194,7 @@ export async function renderCollectionCard(
     c.fillText("H A E M I L   C O L L E C T I O N", 450, 1122);
     star(230, 1115, 7);
     star(670, 1115, 7);
+    if (frameBitmap) c.drawImage(frameBitmap, 0, 0, 900, 1200);
     return await new Promise<Blob>((resolve, reject) =>
       canvas.toBlob(
         b =>
@@ -191,6 +204,8 @@ export async function renderCollectionCard(
     );
   } finally {
     bitmap.close();
+    frameBitmap?.close();
+    backgroundBitmap?.close();
   }
 }
 export function downloadCollectionCard(blob: Blob) {

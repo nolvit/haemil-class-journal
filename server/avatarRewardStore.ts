@@ -858,6 +858,32 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
       "SELECT b.cardId,b.backgroundId FROM avatar_card_backgrounds b JOIN avatar_collection ac ON ac.id=b.cardId WHERE ac.studentId=?",
       [studentId]
     );
+    // Active catalog assets are needed for shop previews. Assets attached to a
+    // student's cards remain resolvable even if an administrator later hides
+    // or retires the product, so previous purchases never lose their artwork.
+    const decorationAssets = await rows<{
+      id: string;
+      category: "card_frame" | "card_background";
+      assetUrl: string;
+    }>(
+      c,
+      `SELECT id,category,assetUrl
+       FROM avatar_shop_items
+       WHERE assetUrl IS NOT NULL AND assetUrl<>'' AND (
+         (active=1 AND deleted=0 AND category IN ('card_frame','card_background'))
+         OR id IN (
+           SELECT f.frameId FROM avatar_card_frames f
+           JOIN avatar_collection ac ON ac.id=f.cardId
+           WHERE ac.studentId=?
+         )
+         OR id IN (
+           SELECT b.backgroundId FROM avatar_card_backgrounds b
+           JOIN avatar_collection ac ON ac.id=b.cardId
+           WHERE ac.studentId=?
+         )
+       )`,
+      [studentId, studentId]
+    );
     return {
       background: w?.background ?? "classic",
       ownedBackgrounds: ["classic", ...bg.map(x => x.backgroundId)],
@@ -884,6 +910,18 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
         (all, x) => ((all[x.cardId] ??= []).push(x.backgroundId), all),
         {}
       ),
+      decorationAssets: {
+        frames: Object.fromEntries(
+          decorationAssets
+            .filter(x => x.category === "card_frame")
+            .map(x => [x.id, x.assetUrl])
+        ),
+        backgrounds: Object.fromEntries(
+          decorationAssets
+            .filter(x => x.category === "card_background")
+            .map(x => [x.id, x.assetUrl])
+        ),
+      },
     };
   });
 }

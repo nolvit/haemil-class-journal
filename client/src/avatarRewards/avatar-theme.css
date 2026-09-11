@@ -1085,13 +1085,47 @@
   text-shadow: 0 0 10px var(--frame);
   pointer-events: none;
 }
-.card-art img {
+.card-art > .card-character {
   width: 100%;
   height: 100%;
   object-fit: contain;
   position: relative;
   z-index: 0;
   border-radius: 45px 45px 5px 5px;
+}
+.card-art.has-custom-frame,
+.card-art.has-custom-background {
+  padding: 10.42% 7.78% 12.92%;
+  border-radius: 18px;
+}
+.card-background-asset,
+.card-frame-asset {
+  position: absolute !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border-radius: inherit !important;
+  object-fit: fill !important;
+  pointer-events: none;
+}
+.card-background-asset {
+  z-index: 0 !important;
+}
+.card-frame-asset {
+  z-index: 5 !important;
+}
+.card-art.has-custom-background > .card-character {
+  z-index: 1;
+}
+.card-art.has-custom-frame:before,
+.card-art.has-custom-frame:after,
+.card-art.has-custom-frame .card-corner,
+.card-art.has-custom-frame .card-filigree {
+  opacity: 0;
+}
+.card-art.has-custom-frame .card-expand,
+.card-art.has-custom-frame .card-glint {
+  z-index: 6;
 }
 .card-corner {
   position: absolute;
