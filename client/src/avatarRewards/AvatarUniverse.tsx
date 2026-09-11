@@ -277,16 +277,31 @@ export function AvatarShop({
           onRefresh={onRefresh}
         />
       ) : cards.length ? (
-        <label className="av-card-target">
-          꾸밀 카드
-          <select value={card?.id} onChange={e => setCardId(e.target.value)}>
-            {cards.map((c, i) => (
-              <option key={c.id} value={c.id}>
-                컬렉션 카드 {i + 1}
-              </option>
+        <section className="av-card-target">
+          <div>
+            <b>꾸밀 카드 선택</b>
+            <small>프레임과 배경을 적용할 카드를 먼저 골라 주세요.</small>
+          </div>
+          <div
+            className="av-card-target-list"
+            role="radiogroup"
+            aria-label="꾸밀 카드"
+          >
+            {cards.map((candidate, i) => (
+              <button
+                type="button"
+                role="radio"
+                key={candidate.id}
+                aria-checked={card?.id === candidate.id}
+                onClick={() => setCardId(candidate.id)}
+              >
+                <img src={candidate.url} alt="" />
+                <span>컬렉션 카드 {i + 1}</span>
+                {card?.id === candidate.id && <b>선택됨</b>}
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </section>
       ) : (
         <p>먼저 스페셜 아바타 카드를 만들어 주세요.</p>
       )}
