@@ -1084,6 +1084,7 @@ try {
     .locator(".reward-dialog")
     .evaluate(node => ({
       background: node.style.getPropertyValue("--av-world-background"),
+      renderedBackground: getComputedStyle(node).backgroundImage,
       track: node.style.getPropertyValue("--av-slider-track-base"),
       fill: node.style.getPropertyValue("--av-slider-track-fill"),
       thumb: node.style.getPropertyValue("--av-slider-thumb"),
@@ -1224,6 +1225,7 @@ try {
   await adminWorldSet.getByRole("button", { name: "∞ P로 테스트" }).click();
   const adminThemeVariables = await adminWorld.evaluate(node => ({
     background: node.style.getPropertyValue("--av-world-background"),
+    renderedBackground: getComputedStyle(node).backgroundImage,
     track: node.style.getPropertyValue("--av-slider-track-base"),
     fill: node.style.getPropertyValue("--av-slider-track-fill"),
     thumb: node.style.getPropertyValue("--av-slider-thumb"),

@@ -634,7 +634,7 @@
 }
 
 .avatar-theme.reward-dialog {
-  background-image: var(--av-world-background);
+  background-image: var(--av-world-background) !important;
   background-position: center;
   background-size: cover;
 }
