@@ -665,15 +665,17 @@
     var(--av-slider-track-fill, linear-gradient(90deg, #4f9995, #ead6a1)),
     var(--av-slider-track-base, linear-gradient(transparent, transparent)),
     linear-gradient(90deg, #4f9995, #1c343c);
-  background-position: left center, center, center;
+  background-position:
+    left center,
+    center,
+    center;
   background-size:
     var(--av-range-progress, 0%) 100%,
     100% 100%,
     100% 100%;
   background-repeat: no-repeat;
 }
-.avatar-theme
-  input.avatar-themed-range[type="range"]::-webkit-slider-thumb {
+.avatar-theme input.avatar-themed-range[type="range"]::-webkit-slider-thumb {
   margin-top: -8px;
 }
 .avatar-theme input.avatar-themed-range[type="range"]::-moz-range-track {
@@ -1473,10 +1475,61 @@
   font-size: 11px;
   white-space: nowrap;
 }
+.avatar-theme .reward-nav-icon {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+.avatar-theme .reward-links .reward-home-tab {
+  color: #e9d8aa;
+}
+.avatar-theme .reward-links .reward-home-tab .reward-nav-icon {
+  width: 46px;
+  height: 46px;
+  margin: -22px 0 0;
+  border: 1px solid #d8bd7d;
+  border-radius: 50%;
+  color: #fff0bd;
+  background:
+    radial-gradient(circle at 38% 28%, #49615d 0, #243b3c 38%, #101f27 76%),
+    #14262c;
+  box-shadow:
+    0 0 0 5px #101c23,
+    0 8px 20px #0009,
+    inset 0 1px 0 #fff4c447,
+    0 0 18px #c7a85d30;
+}
+.avatar-theme .reward-links .reward-home-tab[aria-current="page"] {
+  background: none;
+}
+.avatar-theme
+  .reward-links
+  .reward-home-tab[aria-current="page"]
+  .reward-nav-icon {
+  color: #fff5d2;
+  border-color: #ffe0a0;
+  box-shadow:
+    0 0 0 5px #101c23,
+    0 8px 20px #0009,
+    inset 0 1px 0 #fff7d166,
+    0 0 24px #e8c36a66;
+}
 .avatar-theme .reward-links button[aria-current="page"] {
   color: #ffe1a0;
   background: linear-gradient(#a88f5622, transparent);
   border-radius: 8px;
+}
+.avatar-theme .reward-guide-ledger {
+  width: 100%;
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border-color: #bca36f99;
+  color: #f2dfac;
+  background: linear-gradient(135deg, #1a2c33, #263d3c);
 }
 .avatar-theme .stylebook-launch {
   background: linear-gradient(125deg, #152730, #253b3a);

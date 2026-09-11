@@ -33,7 +33,8 @@ import {
   X,
   Layers,
   ScrollText,
-  CircleHelp,
+  Coins,
+  House,
   Store,
   Heart,
 } from "lucide-react";
@@ -94,7 +95,7 @@ export function AvatarRewards({
   const identity = { token, studentId };
   const [open, setOpen] = useState(false);
   const [page, setPage] = useState<
-    "home" | "order" | "collection" | "ledger" | "guide" | "shop" | "gallery"
+    "home" | "order" | "collection" | "ledger" | "points" | "shop" | "gallery"
   >("home");
   const [order, setOrder] = useState<RewardOrderInput>(emptyOrder);
   const [randomTheme, setRandomTheme] = useState<AvatarTheme>("판타지");
@@ -187,9 +188,13 @@ export function AvatarRewards({
   });
   const data = query.data;
   const account = data?.account;
-  const image =
-    data?.cards.find(c => c.id === account?.representativeId)?.url ??
-    account?.masterUrl;
+  const representativeCard = data?.cards.find(
+    c => c.id === account?.representativeId
+  );
+  const image = representativeCard?.url ?? account?.masterUrl;
+  const representativeFrame = representativeCard?.frame ?? wardrobe.equipped;
+  const representativeBackground =
+    representativeCard?.background ?? wardrobe.background;
   const active = data?.orders.find(
     o => o.status === "submitted" || o.status === "ready"
   );
@@ -320,8 +325,12 @@ export function AvatarRewards({
               <div className="reward-heading">
                 {page !== "home" && (
                   <button
-                    aria-label="아바타 홈으로"
-                    onClick={() => navigate("home")}
+                    aria-label={
+                      page === "ledger" ? "포인트로" : "아바타 홈으로"
+                    }
+                    onClick={() =>
+                      navigate(page === "ledger" ? "points" : "home")
+                    }
                   >
                     <ArrowLeft size={20} />
                   </button>
@@ -333,8 +342,8 @@ export function AvatarRewards({
                         home: "나의 아바타",
                         order: "스페셜 아바타 주문",
                         collection: "내 컬렉션",
-                        ledger: "포인트 내역",
-                        guide: "포인트는 이렇게 모아요",
+                        ledger: "포인트 장부",
+                        points: "포인트",
                         shop: "별빛 상점",
                         gallery: "별빛 광장",
                       }[page]
@@ -366,11 +375,16 @@ export function AvatarRewards({
                           <FantasyCard
                             url={image}
                             title="나의 아바타"
-                            frame={wardrobe.equipped}
-                            background={wardrobe.background}
+                            frame={representativeFrame}
+                            background={representativeBackground}
                             representative
                             onOpen={() =>
-                              openArt({ url: image, title: "나의 아바타" })
+                              openArt({
+                                url: image,
+                                title: "나의 아바타",
+                                frame: representativeFrame,
+                                background: representativeBackground,
+                              })
                             }
                           />
                         ) : (
@@ -488,7 +502,7 @@ export function AvatarRewards({
                       <Stylebook />
                     </>
                   )}
-                  {page === "guide" && (
+                  {page === "points" && (
                     <div className="reward-guide">
                       <h3>수업한 만큼 포인트가 쌓여요!</h3>
                       <p>
@@ -539,6 +553,14 @@ export function AvatarRewards({
                         새 포인트 적립은 2026년 9월 9일 수업부터 적용돼요. 출결
                         정정으로 잔액이 음수가 되면 이후 적립으로 보충돼요.
                       </small>
+                      <Button
+                        variant="outline"
+                        className="reward-ledger-button reward-guide-ledger"
+                        onClick={() => navigate("ledger")}
+                      >
+                        <ScrollText size={17} />
+                        포인트 적립·사용 장부 보기
+                      </Button>
                     </div>
                   )}
                   {page === "ledger" && (
@@ -1082,8 +1104,8 @@ export function AvatarRewards({
                     {(
                       [
                         ["collection", "컬렉션", Layers],
-                        ["ledger", "포인트", ScrollText],
-                        ["guide", "안내", CircleHelp],
+                        ["points", "포인트", Coins],
+                        ["home", "홈", House],
                         ["shop", "상점", Store],
                         ["gallery", "광장", Heart],
                       ] as const
@@ -1091,11 +1113,20 @@ export function AvatarRewards({
                       <button
                         type="button"
                         key={id}
-                        aria-current={page === id ? "page" : undefined}
+                        className={
+                          id === "home" ? "reward-home-tab" : undefined
+                        }
+                        aria-current={
+                          page === id || (id === "points" && page === "ledger")
+                            ? "page"
+                            : undefined
+                        }
                         onClick={() => navigate(id)}
                       >
-                        <Icon size={18} />
-                        {label}
+                        <span className="reward-nav-icon">
+                          <Icon size={id === "home" ? 21 : 18} />
+                        </span>
+                        <span>{label}</span>
                       </button>
                     ))}
                   </nav>
