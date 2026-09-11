@@ -322,9 +322,27 @@
 .reward-dialog-body {
   display: grid;
   gap: 24px;
+  min-width: 0;
   max-height: calc(94dvh - 60px);
   overflow-y: auto;
+  overflow-x: hidden;
   overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #a88d5866 transparent;
+}
+.reward-dialog-body::-webkit-scrollbar {
+  width: 5px;
+  height: 0;
+}
+.reward-dialog-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+.reward-dialog-body::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: linear-gradient(#d9c27b55, #6b8d8866);
+}
+.reward-dialog-body::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(#e4ce8a88, #79aaa188);
 }
 .avatar-theme.reward-dialog[data-state="open"] {
   animation: av-world-enter 0.42s cubic-bezier(0.16, 1, 0.3, 1) !important;
@@ -633,10 +651,11 @@
   box-shadow: 0 0 12px #85d9c277;
 }
 
-.avatar-theme.reward-dialog {
+.avatar-theme.reward-dialog[style*="--av-world-background"] {
   background-image: var(--av-world-background) !important;
-  background-position: center;
-  background-size: cover;
+  background-position: center center !important;
+  background-size: cover !important;
+  background-repeat: no-repeat !important;
 }
 .collection-tabs {
   display: grid;

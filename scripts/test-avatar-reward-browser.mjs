@@ -1093,6 +1093,16 @@ try {
   assert.ok(
     Object.values(themedVariables).every(value => value.includes(image))
   );
+  const studentBackgroundPresentation = await page
+    .locator(".reward-dialog")
+    .evaluate(node => ({
+      size: getComputedStyle(node).backgroundSize,
+      repeat: getComputedStyle(node).backgroundRepeat,
+    }));
+  assert.deepEqual(studentBackgroundPresentation, {
+    size: "cover",
+    repeat: "no-repeat",
+  });
   await page.getByRole("button", { name: "컬렉션", exact: true }).click();
   await page.getByRole("tab", { name: "전체 배경", exact: true }).click();
   await page
@@ -1148,6 +1158,12 @@ try {
       .locator(".reward-dialog")
       .evaluate(el => el.scrollWidth > el.clientWidth),
     false
+  );
+  assert.equal(
+    await page
+      .locator(".reward-dialog-body")
+      .evaluate(el => getComputedStyle(el).overflowX),
+    "hidden"
   );
   await page.emulateMedia({ reducedMotion: "reduce" });
   assert.equal(
@@ -1234,6 +1250,14 @@ try {
   assert.ok(
     Object.values(adminThemeVariables).every(value => value.includes(image))
   );
+  const adminBackgroundPresentation = await adminWorld.evaluate(node => ({
+    size: getComputedStyle(node).backgroundSize,
+    repeat: getComputedStyle(node).backgroundRepeat,
+  }));
+  assert.deepEqual(adminBackgroundPresentation, {
+    size: "cover",
+    repeat: "no-repeat",
+  });
   await adminWorld.screenshot({
     path: path.join(qaRoot, "admin-world-preview.png"),
   });
