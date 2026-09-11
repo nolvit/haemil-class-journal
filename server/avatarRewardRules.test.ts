@@ -5,6 +5,7 @@ import {
   avatarOrderPrice,
   randomPrice,
 } from "../shared/avatarRewardRules";
+import { rewardBulkAdjustmentInput } from "../shared/avatarRewards";
 describe("journal avatar rewards", () => {
   it("adds a fixed mode surcharge after each base tier", () => {
     for (const count of [0, 1, 2, 3, 20]) {
@@ -49,5 +50,25 @@ describe("journal avatar rewards", () => {
     expect([0, 1, 2, 3].map(x => randomPrice(x, true))).toEqual([
       10, 20, 30, 50,
     ]);
+  });
+  it("validates multi-student bonus point requests", () => {
+    const request = (studentId: number) => ({
+      studentId,
+      delta: 100,
+      reason: "과제 성실 보너스",
+      requestId: crypto.randomUUID(),
+    });
+    expect(
+      rewardBulkAdjustmentInput.parse({ adjustments: [request(1), request(2)] })
+        .adjustments
+    ).toHaveLength(2);
+    expect(() =>
+      rewardBulkAdjustmentInput.parse({ adjustments: [request(1), request(1)] })
+    ).toThrow();
+    expect(() =>
+      rewardBulkAdjustmentInput.parse({
+        adjustments: [{ ...request(1), delta: -100 }],
+      })
+    ).toThrow();
   });
 });

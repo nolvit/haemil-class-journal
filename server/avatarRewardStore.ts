@@ -479,6 +479,17 @@ export async function adjustRewardPoints(
     return { balance: a.balance, duplicate: false };
   });
 }
+export async function bulkAdjustRewardPoints(
+  inputs: z.infer<typeof rewardAdjustmentInput>[],
+  actorUserId: number
+) {
+  const results = [];
+  for (const input of inputs) {
+    if (input.delta <= 0) reject("일괄 지급 포인트는 1P 이상이어야 합니다.");
+    results.push(await adjustRewardPoints(input, actorUserId));
+  }
+  return { count: results.length };
+}
 export async function setRewardMaster(studentId: number, url: string) {
   return transaction(studentId, async (_c, a) => {
     a.masterUrl = url;
@@ -597,6 +608,7 @@ function mapShopItem(x: any): ShopItem {
     durationSeconds:
       x.durationSeconds == null ? null : Number(x.durationSeconds),
     active: !!x.active,
+    salesCount: Number(x.salesCount ?? 0),
     assets: x.assets ?? {},
   };
 }
@@ -618,13 +630,27 @@ export async function shopCatalog(
 ): Promise<ShopItem[]> {
   await ensureRewardSchema();
   const params: unknown[] = [];
-  let where = includeHidden ? "deleted=0" : "deleted=0 AND active=1";
+  let where = includeHidden
+    ? "item.deleted=0"
+    : "item.deleted=0 AND item.active=1";
   if (category) {
-    where += " AND category=?";
+    where += " AND item.category=?";
     params.push(category);
   }
   const [data] = await database().query<RowDataPacket[]>(
-    `SELECT * FROM avatar_shop_items WHERE ${where} ORDER BY category,season,price,id`,
+    `SELECT item.*,COALESCE(sales.salesCount,0) AS salesCount
+     FROM avatar_shop_items item
+     LEFT JOIN (
+       SELECT 'card_frame' AS category,frameId AS id,COUNT(*) AS salesCount FROM avatar_card_frames GROUP BY frameId
+       UNION ALL
+       SELECT 'card_background',backgroundId,COUNT(*) FROM avatar_card_backgrounds GROUP BY backgroundId
+       UNION ALL
+       SELECT 'world_background',worldId,COUNT(*) FROM avatar_world_inventory GROUP BY worldId
+       UNION ALL
+       SELECT 'bgm',trackId,COUNT(*) FROM avatar_bgm_inventory GROUP BY trackId
+     ) sales ON sales.category=item.category AND sales.id=item.id
+     WHERE ${where}
+     ORDER BY item.category,item.season,item.price,item.id`,
     params
   );
   return attachShopAssets(data.map(mapShopItem));

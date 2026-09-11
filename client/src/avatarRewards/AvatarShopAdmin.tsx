@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { trpc } from "@/lib/trpc";
 import { toast } from "sonner";
 import {
@@ -39,12 +39,29 @@ async function encode(file: File) {
 }
 export function AvatarShopAdmin() {
   const query = trpc.avatarRewards.adminShopItems.useQuery();
+  const formRef = useRef<HTMLFormElement>(null);
   const [draft, setDraft] = useState<ShopItem>(empty),
     [file, setFile] = useState<File | null>(null),
     [assetFiles, setAssetFiles] = useState<
       Partial<Record<ShopAssetRole, File>>
     >({}),
-    [editing, setEditing] = useState(false);
+    [editing, setEditing] = useState(false),
+    [sort, setSort] = useState<"name" | "updated" | "sales">("updated");
+  const products = useMemo(
+    () =>
+      [...(query.data ?? [])].sort((a, b) => {
+        if (sort === "name") return a.name.localeCompare(b.name, "ko");
+        if (sort === "sales")
+          return (
+            (b.salesCount ?? 0) - (a.salesCount ?? 0) ||
+            a.name.localeCompare(b.name, "ko")
+          );
+        return String(b.updatedAt ?? "").localeCompare(
+          String(a.updatedAt ?? "")
+        );
+      }),
+    [query.data, sort]
+  );
   const done = () => {
     void query.refetch();
     setDraft(empty);
@@ -110,7 +127,7 @@ export function AvatarShopAdmin() {
         </div>
         <b>{query.data?.length ?? 0}개</b>
       </div>
-      <form className="shop-admin-form" onSubmit={submit}>
+      <form ref={formRef} className="shop-admin-form" onSubmit={submit}>
         <label>
           상품 ID
           <input
@@ -280,8 +297,25 @@ export function AvatarShopAdmin() {
           )}
         </div>
       </form>
+      <div className="shop-admin-list-heading">
+        <div>
+          <h3>등록 상품</h3>
+          <small>판매량은 학생이 상품을 소장한 횟수입니다.</small>
+        </div>
+        <label>
+          정렬
+          <select
+            value={sort}
+            onChange={event => setSort(event.target.value as typeof sort)}
+          >
+            <option value="name">이름순</option>
+            <option value="updated">최근 수정순</option>
+            <option value="sales">판매량순</option>
+          </select>
+        </label>
+      </div>
       <div className="shop-admin-list">
-        {query.data?.map(item => (
+        {products.map(item => (
           <article key={item.id}>
             <div>
               <span>
@@ -294,6 +328,9 @@ export function AvatarShopAdmin() {
                 {item.id} · {item.price.toLocaleString()}P ·{" "}
                 {item.active ? "판매 중" : "비공개"}
               </small>
+              <b className="shop-sales-count">
+                판매 {Number(item.salesCount ?? 0).toLocaleString()}건
+              </b>
             </div>
             <div>
               <button
@@ -302,6 +339,12 @@ export function AvatarShopAdmin() {
                   setFile(null);
                   setAssetFiles({});
                   setEditing(true);
+                  requestAnimationFrame(() =>
+                    formRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
+                  );
                 }}
               >
                 수정
