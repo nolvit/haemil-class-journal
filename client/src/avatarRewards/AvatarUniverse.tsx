@@ -161,6 +161,7 @@ function WorldThemeShop({
   );
 }
 export function AvatarShop({
+  collection = false,
   identity,
   wardrobe,
   balance,
@@ -169,6 +170,7 @@ export function AvatarShop({
   onRefresh,
   onOpen,
 }: {
+  collection?: boolean;
   identity: Identity;
   wardrobe: Wardrobe;
   balance: number;
@@ -195,6 +197,10 @@ export function AvatarShop({
     { retry: false }
   );
   const [cardId, setCardId] = useState(cards[0]?.id ?? "");
+  const ownedCatalog = trpc.avatarRewards.ownedDecorationCatalog.useQuery(
+    identity,
+    { enabled: collection, retry: false }
+  );
   const card = cards.find(c => c.id === cardId) ?? cards[0];
   const style = card
     ? (wardrobe.cardStyles[card.id] ?? {
@@ -222,26 +228,45 @@ export function AvatarShop({
     equipBg = trpc.avatarRewards.equipBackground.useMutation(options);
   const busy =
     buy.isPending || equip.isPending || buyBg.isPending || equipBg.isPending;
-  const products = (catalog.data ?? []).map(item => ({
-    ...item,
-    rank: item.rank,
-  }));
+  const products = (
+    collection ? (ownedCatalog.data ?? []) : (catalog.data ?? [])
+  )
+    .filter(
+      item =>
+        !collection ||
+        item.category ===
+          (category === "frames" ? "card_frame" : "card_background")
+    )
+    .map(item => ({
+      ...item,
+      rank: item.rank,
+    }));
   return (
     <section className="universe-shop">
       <div className="av-section-intro">
         <span className="av-kicker">THE ATELIER</span>
-        <h3>한 장의 세계를 완성하는 장식</h3>
-        <p>장식은 선택한 카드에 귀속되며 카드마다 다르게 꾸밀 수 있어요.</p>
-        <b>{balance.toLocaleString()} P</b>
+        <h3>
+          {collection
+            ? "내가 소장한 카드 장식"
+            : "한 장의 세계를 완성하는 장식"}
+        </h3>
+        <p>
+          {collection
+            ? "카드를 선택하고 소장한 프레임과 배경을 바꿔 보세요."
+            : "구매 전 미리 보고 소장한 장식은 컬렉션에서 바꿀 수 있어요."}
+        </p>
+        {!collection && <b>{balance.toLocaleString()} P</b>}
       </div>
       <div className="av-tabs" role="group" aria-label="상점 카테고리">
-        <button
-          aria-pressed={category === "worlds"}
-          onClick={() => setCategory("worlds")}
-        >
-          <Globe2 size={16} />
-          전체 배경
-        </button>
+        {!collection && (
+          <button
+            aria-pressed={category === "worlds"}
+            onClick={() => setCategory("worlds")}
+          >
+            <Globe2 size={16} />
+            전체 배경
+          </button>
+        )}
         <button
           aria-pressed={category === "frames"}
           onClick={() => setCategory("frames")}
@@ -256,13 +281,15 @@ export function AvatarShop({
           <ShoppingBag size={16} />
           카드 배경
         </button>
-        <button
-          aria-pressed={category === "bgm"}
-          onClick={() => setCategory("bgm")}
-        >
-          <Music2 size={16} />
-          BGM
-        </button>
+        {!collection && (
+          <button
+            aria-pressed={category === "bgm"}
+            onClick={() => setCategory("bgm")}
+          >
+            <Music2 size={16} />
+            BGM
+          </button>
+        )}
       </div>
       {category === "bgm" ? (
         <AvatarBgmShop
@@ -307,6 +334,29 @@ export function AvatarShop({
       )}
       {category !== "bgm" && category !== "worlds" && (
         <div className="universe-grid">
+          {collection && ownedCatalog.isLoading && (
+            <p role="status">소장한 장식을 불러오는 중…</p>
+          )}
+          {collection && ownedCatalog.error && (
+            <button onClick={() => void ownedCatalog.refetch()}>
+              소장한 장식 다시 불러오기
+            </button>
+          )}
+          {collection &&
+            ownedCatalog.data &&
+            !products.some(
+              item =>
+                card &&
+                (category === "frames"
+                  ? (wardrobe.cardFrames[card.id] ?? [])
+                  : (wardrobe.cardBackgrounds[card.id] ?? [])
+                ).includes(item.id)
+            ) && (
+              <p>
+                이 카드에 구매한 {category === "frames" ? "프레임" : "배경"}이
+                아직 없어요.
+              </p>
+            )}
           {products.map(item => {
             const owned = !card
               ? false
@@ -318,6 +368,16 @@ export function AvatarShop({
             const equipped =
               item.id ===
               (category === "frames" ? style.frame : style.background);
+            if (
+              collection &&
+              (!card ||
+                !(
+                  category === "frames"
+                    ? (wardrobe.cardFrames[card.id] ?? [])
+                    : (wardrobe.cardBackgrounds[card.id] ?? [])
+                ).includes(item.id))
+            )
+              return null;
             return (
               <div key={item.id}>
                 <FantasyCard
@@ -355,7 +415,10 @@ export function AvatarShop({
                   <p>{item.description}</p>
                   <button
                     disabled={
-                      busy || equipped || (!owned && balance < item.price)
+                      !card ||
+                      busy ||
+                      equipped ||
+                      (collection ? !owned : owned || balance < item.price)
                     }
                     onClick={() => {
                       if (!card) return;
@@ -378,7 +441,9 @@ export function AvatarShop({
                     {equipped
                       ? "장착 중"
                       : owned
-                        ? "장착하기"
+                        ? collection
+                          ? "장착하기"
+                          : "소장 중 · 컬렉션에서 변경"
                         : balance < item.price
                           ? "포인트 부족"
                           : item.price.toLocaleString() + "P로 소장"}
