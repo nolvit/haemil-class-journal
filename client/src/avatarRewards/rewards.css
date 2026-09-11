@@ -504,3 +504,74 @@
   gap: 8px;
   font-size: 14px;
 }
+.bulk-point-adjustment {
+  margin-bottom: 22px;
+}
+.bulk-point-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.bulk-point-heading h2,
+.bulk-point-heading p {
+  margin-top: 0;
+}
+.bulk-point-heading > b {
+  flex-shrink: 0;
+  padding: 7px 11px;
+  border-radius: 999px;
+  color: #6b5522;
+  background: #f2dfaa;
+}
+.bulk-point-tools {
+  display: flex;
+  gap: 8px;
+  margin: 12px 0;
+}
+.bulk-point-tools button {
+  padding: 7px 11px;
+  border: 1px solid #c9b77a;
+  border-radius: 9px;
+}
+.bulk-student-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+  max-height: 260px;
+  padding: 4px;
+  overflow-y: auto;
+}
+.bulk-student-grid label {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d8ddd5;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.bulk-student-grid label.selected {
+  border-color: #8a783f;
+  background: #f4ead0;
+}
+.bulk-student-grid small {
+  color: #73817b;
+}
+.bulk-point-form {
+  display: grid;
+  grid-template-columns: minmax(130px, 0.35fr) minmax(240px, 1fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-top: 16px;
+}
+.bulk-point-form label {
+  display: grid;
+  gap: 7px;
+}
+@media (max-width: 720px) {
+  .bulk-point-form {
+    grid-template-columns: 1fr;
+  }
+}
