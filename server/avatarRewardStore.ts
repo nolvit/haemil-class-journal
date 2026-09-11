@@ -655,6 +655,21 @@ export async function shopCatalog(
   );
   return attachShopAssets(data.map(mapShopItem));
 }
+export async function ownedDecorationCatalog(studentId: number) {
+  await ensureRewardSchema();
+  const [data] = await database().query<RowDataPacket[]>(
+    `SELECT item.* FROM avatar_shop_items item WHERE
+      (item.category='card_frame' AND EXISTS (
+        SELECT 1 FROM avatar_card_frames f JOIN avatar_collection c ON c.id=f.cardId
+        WHERE c.studentId=? AND f.frameId=item.id
+      )) OR (item.category='card_background' AND EXISTS (
+        SELECT 1 FROM avatar_card_backgrounds b JOIN avatar_collection c ON c.id=b.cardId
+        WHERE c.studentId=? AND b.backgroundId=item.id
+      )) ORDER BY item.category,item.name`,
+    [studentId, studentId]
+  );
+  return attachShopAssets(data.map(mapShopItem));
+}
 async function saveShopItemAssets(input: ShopItemInput) {
   for (const [role, url] of Object.entries(input.assets))
     if (url)
