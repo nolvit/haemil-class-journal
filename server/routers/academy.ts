@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { matchesAutomaticCalendarStatus } from "../../shared/closureRules";
+import { getPushDeviceLabel } from "../../shared/pushDeviceLabels";
 import {
   isJournalWriteBlocked,
   selectableAttendanceStatusValues,
@@ -17,6 +18,7 @@ import { storagePut } from "../storage";
 import {
   attendancePushPayload,
   getVapidPublicKey,
+  sendAdminPush,
   sendStudentPush,
   totalCountPushPayload,
 } from "../pushNotifications";
@@ -58,7 +60,12 @@ const studentInput = z.object({
   validUntil: z.string().trim().max(32).optional(),
   paymentMethod: z.string().trim().max(80).optional(),
   remainingTwoAlertMessage: z.string().trim().max(1000).optional(),
-  attendanceCode: z.union([z.literal(""), z.string().regex(/^\d{4}$/, "출결번호는 숫자 4자리여야 합니다.")]).optional(),
+  attendanceCode: z
+    .union([
+      z.literal(""),
+      z.string().regex(/^\d{4}$/, "출결번호는 숫자 4자리여야 합니다."),
+    ])
+    .optional(),
   classGroupIds: z.array(z.number().int().positive()).max(20),
   portalEnabled: z.boolean(),
 });
@@ -506,6 +513,46 @@ export const academyRouter = router({
         )
       ),
   }),
+  adminPush: router({
+    config: adminProcedure.query(() => ({
+      available: Boolean(getVapidPublicKey()),
+      publicKey: getVapidPublicKey(),
+    })),
+    devices: adminProcedure.query(async () => {
+      const devices = await academyDb.listAdminPushSubscriptions();
+      return devices.map(device => ({
+        ...device,
+        label: getPushDeviceLabel(device.userAgent),
+      }));
+    }),
+    subscribe: adminProcedure
+      .input(pushSubscriptionInput)
+      .mutation(async ({ input, ctx }) => {
+        const endpointHash = createHash("sha256")
+          .update(input.endpoint)
+          .digest("hex");
+        await academyDb.upsertAdminPushSubscription({
+          userId: ctx.user.id,
+          endpointHash,
+          endpoint: input.endpoint,
+          p256dh: input.keys.p256dh,
+          auth: input.keys.auth,
+          userAgent: ctx.req.headers["user-agent"],
+        });
+        return { success: true };
+      }),
+    test: adminProcedure.mutation(() =>
+      sendAdminPush({
+        title: "해밀 관리자 알림 테스트",
+        body: "이 기기는 아바타 제작 요청 알림을 받을 수 있습니다.",
+        url: "/avatar-rewards",
+        tag: `admin-push-test-${Date.now()}`,
+      })
+    ),
+    remove: adminProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(({ input }) => academyDb.deleteAdminPushSubscription(input.id)),
+  }),
   attendance: router({
     save: adminProcedure
       .input(
@@ -572,7 +619,11 @@ export const academyRouter = router({
         })
       )
       .mutation(async ({ input, ctx }) => {
-        await assertAttendanceEditable(ctx.user, input.studentId, input.eventDate);
+        await assertAttendanceEditable(
+          ctx.user,
+          input.studentId,
+          input.eventDate
+        );
         return academyDb.resetAttendanceCodeEvents(
           input.studentId,
           input.eventDate
