@@ -98,6 +98,45 @@ export async function sendStudentPush(
   });
 }
 
+export async function sendAdminPush(payload: ParentPushPayload) {
+  if (!ensureConfigured())
+    return { targetCount: 0, sent: 0, failed: 0, unavailable: true };
+  const subscriptions = await academyDb.listAdminPushDeliverySubscriptions();
+  let sent = 0;
+  let failed = 0;
+  await Promise.all(
+    subscriptions.map(async subscription => {
+      try {
+        await webPush.sendNotification(
+          {
+            endpoint: subscription.endpoint,
+            keys: { p256dh: subscription.p256dh, auth: subscription.auth },
+          },
+          JSON.stringify(payload),
+          { TTL: 60 * 60 * 24 }
+        );
+        sent += 1;
+        await academyDb.touchAdminPushSubscription(subscription.id);
+      } catch (error: any) {
+        failed += 1;
+        if (error?.statusCode === 404 || error?.statusCode === 410)
+          await academyDb.deleteAdminPushSubscription(subscription.id);
+        else
+          console.error(
+            "[Admin push] delivery failed",
+            error?.statusCode ?? error
+          );
+      }
+    })
+  );
+  return {
+    targetCount: subscriptions.length,
+    sent,
+    failed,
+    unavailable: false,
+  };
+}
+
 export function totalCountPushPayload(
   token: string,
   studentName: string,

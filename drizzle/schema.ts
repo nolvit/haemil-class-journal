@@ -177,6 +177,29 @@ export const parentPushSubscriptions = mysqlTable(
   })
 );
 
+/** 관리자 앱에서 아바타 주문 등 내부 업무 알림을 받는 기기다. */
+export const adminPushSubscriptions = mysqlTable(
+  "admin_push_subscriptions",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    userId: int("userId").notNull(),
+    endpointHash: varchar("endpointHash", { length: 64 }).notNull(),
+    endpoint: text("endpoint").notNull(),
+    p256dh: varchar("p256dh", { length: 512 }).notNull(),
+    auth: varchar("auth", { length: 256 }).notNull(),
+    userAgent: varchar("userAgent", { length: 512 }),
+    lastSentAt: timestamp("lastSentAt"),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    endpointUnique: uniqueIndex("admin_push_subscriptions_endpoint_unique").on(
+      table.endpointHash
+    ),
+    userIndex: index("admin_push_subscriptions_user_index").on(table.userId),
+  })
+);
+
 /** 잔여 수업 2회 시 보호자에게 보낼 학생별 문구와 발송 이력이다. */
 export const studentRemainingCountNotifications = mysqlTable(
   "student_remaining_count_notifications",

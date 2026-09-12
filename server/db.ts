@@ -19,6 +19,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import {
   attendanceEntryEvents,
   attendanceRecords,
+  adminPushSubscriptions,
   classGroups,
   closurePeriods,
   InsertUser,
@@ -137,6 +138,27 @@ export async function ensureRemainingCountNotificationSchema() {
       INDEX notification_delivery_logs_created_index (createdAt),
       INDEX notification_delivery_logs_student_created_index (studentId, createdAt),
       INDEX notification_delivery_logs_event_date_index (eventDate)
+    )
+  `);
+}
+
+export async function ensureAdminPushSchema() {
+  const db = await requireDb();
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS admin_push_subscriptions (
+      id int AUTO_INCREMENT NOT NULL,
+      userId int NOT NULL,
+      endpointHash varchar(64) NOT NULL,
+      endpoint text NOT NULL,
+      p256dh varchar(512) NOT NULL,
+      auth varchar(256) NOT NULL,
+      userAgent varchar(512),
+      lastSentAt timestamp NULL,
+      createdAt timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      updatedAt timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY admin_push_subscriptions_endpoint_unique (endpointHash),
+      KEY admin_push_subscriptions_user_index (userId)
     )
   `);
 }
@@ -544,13 +566,11 @@ export async function settlePreviousWeekCounts(today = todayInKorea()) {
           .set({ sessionCount: nextSessionCount })
           .where(eq(weeklyCountAccruals.id, existing.id));
       } else {
-        await tx
-          .insert(weeklyCountAccruals)
-          .values({
-            studentId: student.id,
-            weekStart,
-            sessionCount: nextSessionCount,
-          });
+        await tx.insert(weeklyCountAccruals).values({
+          studentId: student.id,
+          weekStart,
+          sessionCount: nextSessionCount,
+        });
         if (nextSessionCount !== 0) {
           await tx
             .update(students)
@@ -578,12 +598,13 @@ export async function settlePreviousWeekCounts(today = todayInKorea()) {
  * 주는 소급 적용하지 않는다.
  */
 const AUTO_UNREGISTERED_WEEKDAYS_EFFECTIVE_FROM = "2026-09-14";
-let autoUnregisteredWeekdaysCache: { weekStart: string; checkedAt: number } | null = null;
+let autoUnregisteredWeekdaysCache: {
+  weekStart: string;
+  checkedAt: number;
+} | null = null;
 const AUTO_UNREGISTERED_WEEKDAYS_CACHE_MS = 30 * 60 * 1000;
 
-export async function applyWeeklyAutoUnregisteredDays(
-  today = todayInKorea()
-) {
+export async function applyWeeklyAutoUnregisteredDays(today = todayInKorea()) {
   const weekStart = getMonday(today);
   if (weekStart < AUTO_UNREGISTERED_WEEKDAYS_EFFECTIVE_FROM)
     return { applied: 0 };
@@ -836,13 +857,11 @@ export async function listStudents(
       });
     }
     if (row.classGroupId && row.classGroupName && row.classSubject) {
-      result
-        .get(row.studentId)
-        ?.classGroups.push({
-          id: row.classGroupId,
-          name: row.classGroupName,
-          subject: row.classSubject,
-        });
+      result.get(row.studentId)?.classGroups.push({
+        id: row.classGroupId,
+        name: row.classGroupName,
+        subject: row.classSubject,
+      });
     }
   }
   const records = Array.from(result.values());
@@ -901,7 +920,10 @@ export async function listStudents(
         .where(
           and(
             eq(parentPortalMonthlyViews.monthKey, currentMonth),
-            inArray(parentPortalMonthlyViews.studentId, records.map(student => student.id))
+            inArray(
+              parentPortalMonthlyViews.studentId,
+              records.map(student => student.id)
+            )
           )
         )
     : [];
@@ -1045,7 +1067,9 @@ export async function getJournalWorkspace(
         ? {
             status: effectiveStatus,
             arrivalTime: hasManualAttendance ? row.attendanceArrivalTime : null,
-            departureTime: hasManualAttendance ? row.attendanceDepartureTime : null,
+            departureTime: hasManualAttendance
+              ? row.attendanceDepartureTime
+              : null,
             recordedByUserId: row.attendanceRecordedBy,
           }
         : null,
@@ -1185,7 +1209,9 @@ async function getDashboardWorkspace(journalDate: string) {
         ? {
             status: effectiveStatus,
             arrivalTime: hasManualAttendance ? row.attendanceArrivalTime : null,
-            departureTime: hasManualAttendance ? row.attendanceDepartureTime : null,
+            departureTime: hasManualAttendance
+              ? row.attendanceDepartureTime
+              : null,
             recordedByUserId: row.attendanceRecordedBy,
           }
         : null,
@@ -1246,7 +1272,8 @@ export async function getDashboard(journalDate: string) {
     existing.attendanceStatus =
       row.attendance?.status ?? existing.attendanceStatus;
     existing.arrivalTime = row.attendance?.arrivalTime ?? existing.arrivalTime;
-    existing.departureTime = row.attendance?.departureTime ?? existing.departureTime;
+    existing.departureTime =
+      row.attendance?.departureTime ?? existing.departureTime;
     existing.classGroups.set(row.classGroup.id, {
       id: row.classGroup.id,
       subject: row.classGroup.subject,
@@ -1322,15 +1349,13 @@ export async function getDashboard(journalDate: string) {
 
 export async function createClassGroup(input: ClassGroupInput, userId: number) {
   const db = await requireDb();
-  await db
-    .insert(classGroups)
-    .values({
-      ...input,
-      meetingDays: serializeMeetingDays(input.meetingDays),
-      description: input.description || null,
-      accentColor: input.accentColor || "#234E52",
-      createdByUserId: userId,
-    });
+  await db.insert(classGroups).values({
+    ...input,
+    meetingDays: serializeMeetingDays(input.meetingDays),
+    description: input.description || null,
+    accentColor: input.accentColor || "#234E52",
+    createdByUserId: userId,
+  });
 }
 
 export async function updateClassGroup(id: number, input: ClassGroupInput) {
@@ -1396,15 +1421,13 @@ export async function createStudent(
     message: input.remainingTwoAlertMessage || "",
   });
   if (input.classGroupIds.length) {
-    await db
-      .insert(studentEnrollments)
-      .values(
-        input.classGroupIds.map(classGroupId => ({
-          studentId,
-          classGroupId,
-          active: true,
-        }))
-      );
+    await db.insert(studentEnrollments).values(
+      input.classGroupIds.map(classGroupId => ({
+        studentId,
+        classGroupId,
+        active: true,
+      }))
+    );
   }
   return studentId;
 }
@@ -1442,7 +1465,8 @@ export async function updateStudent(
           )
         )
         .limit(1);
-      if (duplicate[0]) throw new Error("이미 다른 학생이 사용 중인 출결번호입니다.");
+      if (duplicate[0])
+        throw new Error("이미 다른 학생이 사용 중인 출결번호입니다.");
     }
     await tx
       .update(students)
@@ -1464,7 +1488,9 @@ export async function updateStudent(
           : input.validUntil || null,
         paymentMethod: input.paymentMethod || null,
         portalEnabled: input.portalEnabled,
-        ...(input.attendanceCode ? { attendanceCode: input.attendanceCode } : {}),
+        ...(input.attendanceCode
+          ? { attendanceCode: input.attendanceCode }
+          : {}),
       })
       .where(eq(students.id, id));
     await tx
@@ -1477,17 +1503,15 @@ export async function updateStudent(
         set: { message: input.remainingTwoAlertMessage || "" },
       });
     if (totalCountChanged) {
-      await tx
-        .insert(registrationCountHistories)
-        .values({
-          studentId: id,
-          changeType: "manual_adjustment",
-          registrationCount: Number(student.registrationCount ?? 0),
-          addedCount: afterTotalCount - beforeTotalCount,
-          beforeTotalCount,
-          afterTotalCount,
-          createdByUserId: userId,
-        });
+      await tx.insert(registrationCountHistories).values({
+        studentId: id,
+        changeType: "manual_adjustment",
+        registrationCount: Number(student.registrationCount ?? 0),
+        addedCount: afterTotalCount - beforeTotalCount,
+        beforeTotalCount,
+        afterTotalCount,
+        createdByUserId: userId,
+      });
     }
     await tx
       .update(studentEnrollments)
@@ -1610,17 +1634,15 @@ export async function addStudentRegistrationCount(id: number, userId: number) {
         tuitionAlert: null,
       })
       .where(eq(students.id, id));
-    await tx
-      .insert(registrationCountHistories)
-      .values({
-        studentId: id,
-        changeType: "registration_add",
-        registrationCount,
-        addedCount: added,
-        beforeTotalCount: oldTotal,
-        afterTotalCount: newTotal,
-        createdByUserId: userId,
-      });
+    await tx.insert(registrationCountHistories).values({
+      studentId: id,
+      changeType: "registration_add",
+      registrationCount,
+      addedCount: added,
+      beforeTotalCount: oldTotal,
+      afterTotalCount: newTotal,
+      createdByUserId: userId,
+    });
     return { registrationCount, added, oldTotal, newTotal };
   });
 }
@@ -1651,17 +1673,15 @@ export async function adjustStudentTotalCount(
         tuitionAlert: null,
       })
       .where(eq(students.id, id));
-    await tx
-      .insert(registrationCountHistories)
-      .values({
-        studentId: id,
-        changeType: "manual_adjustment",
-        registrationCount: Number(student.registrationCount ?? 0),
-        addedCount: delta,
-        beforeTotalCount: oldTotal,
-        afterTotalCount: newTotal,
-        createdByUserId: userId,
-      });
+    await tx.insert(registrationCountHistories).values({
+      studentId: id,
+      changeType: "manual_adjustment",
+      registrationCount: Number(student.registrationCount ?? 0),
+      addedCount: delta,
+      beforeTotalCount: oldTotal,
+      afterTotalCount: newTotal,
+      createdByUserId: userId,
+    });
     return { added: delta, oldTotal, newTotal };
   });
 }
@@ -1736,7 +1756,10 @@ export async function rotateStudentPublicToken(
  * familyKey를 공유하게 한다. 이미 형제·자매 그룹이 있는 학생을 선택하면
  * 그 그룹을 그대로 재사용(병합)하고, 아무도 그룹이 없으면 새 키를 만든다.
  */
-export async function setStudentFamily(studentId: number, siblingIds: number[]) {
+export async function setStudentFamily(
+  studentId: number,
+  siblingIds: number[]
+) {
   const db = await requireDb();
   const memberIds = Array.from(new Set([studentId, ...siblingIds]));
   if (memberIds.length < 2)
@@ -2132,6 +2155,69 @@ export async function deleteParentPushSubscription(id: number) {
     .where(eq(parentPushSubscriptions.id, id));
 }
 
+export async function upsertAdminPushSubscription(input: {
+  userId: number;
+  endpointHash: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  userAgent?: string;
+}) {
+  await ensureAdminPushSchema();
+  const db = await requireDb();
+  await db
+    .insert(adminPushSubscriptions)
+    .values({ ...input, userAgent: input.userAgent || null })
+    .onDuplicateKeyUpdate({
+      set: {
+        userId: input.userId,
+        endpoint: input.endpoint,
+        p256dh: input.p256dh,
+        auth: input.auth,
+        userAgent: input.userAgent || null,
+      },
+    });
+}
+
+export async function listAdminPushSubscriptions() {
+  await ensureAdminPushSchema();
+  const db = await requireDb();
+  return db
+    .select({
+      id: adminPushSubscriptions.id,
+      userId: adminPushSubscriptions.userId,
+      userAgent: adminPushSubscriptions.userAgent,
+      lastSentAt: adminPushSubscriptions.lastSentAt,
+      createdAt: adminPushSubscriptions.createdAt,
+      updatedAt: adminPushSubscriptions.updatedAt,
+    })
+    .from(adminPushSubscriptions)
+    .orderBy(desc(adminPushSubscriptions.updatedAt));
+}
+
+export async function listAdminPushDeliverySubscriptions() {
+  await ensureAdminPushSchema();
+  const db = await requireDb();
+  return db.select().from(adminPushSubscriptions);
+}
+
+export async function deleteAdminPushSubscription(id: number) {
+  await ensureAdminPushSchema();
+  const db = await requireDb();
+  await db
+    .delete(adminPushSubscriptions)
+    .where(eq(adminPushSubscriptions.id, id));
+}
+
+export async function touchAdminPushSubscription(id: number) {
+  await ensureAdminPushSchema();
+  const db = await requireDb();
+  await db
+    .update(adminPushSubscriptions)
+    .set({ lastSentAt: new Date() })
+    .where(eq(adminPushSubscriptions.id, id));
+}
+
 export async function getAttendanceRecord(
   studentId: number,
   journalDate: string
@@ -2250,15 +2336,13 @@ export async function saveAttendance(input: {
             updatedByUserId: input.userId,
           };
           if (!target) {
-            await tx
-              .insert(lessonJournals)
-              .values({
-                studentId: source.studentId,
-                classGroupId: source.classGroupId,
-                journalDate: targetDate,
-                ...journalValues,
-                createdByUserId: carry.createdByUserId,
-              });
+            await tx.insert(lessonJournals).values({
+              studentId: source.studentId,
+              classGroupId: source.classGroupId,
+              journalDate: targetDate,
+              ...journalValues,
+              createdByUserId: carry.createdByUserId,
+            });
             moved = true;
             break;
           }
@@ -2320,7 +2404,21 @@ export async function saveAttendance(input: {
         };
       }
       if (input.overwriteCurrentJournal && currentJournals.length)
-        await tx.update(lessonJournals).set({ content: "", homework: "", notes: "", isDraft: false, updatedByUserId: input.userId }).where(inArray(lessonJournals.id, currentJournals.map(row => row.id)));
+        await tx
+          .update(lessonJournals)
+          .set({
+            content: "",
+            homework: "",
+            notes: "",
+            isDraft: false,
+            updatedByUserId: input.userId,
+          })
+          .where(
+            inArray(
+              lessonJournals.id,
+              currentJournals.map(row => row.id)
+            )
+          );
       const futureJournals = await tx
         .select()
         .from(lessonJournals)
@@ -2328,24 +2426,53 @@ export async function saveAttendance(input: {
           and(
             eq(lessonJournals.studentId, input.studentId),
             gt(lessonJournals.journalDate, input.journalDate),
-            or(ne(lessonJournals.content, ""), ne(lessonJournals.homework, ""), ne(lessonJournals.notes, ""))
+            or(
+              ne(lessonJournals.content, ""),
+              ne(lessonJournals.homework, ""),
+              ne(lessonJournals.notes, "")
+            )
           )
         )
-        .orderBy(asc(lessonJournals.classGroupId), asc(lessonJournals.journalDate));
-      const horizon = new Date(`${futureJournals.at(-1)?.journalDate ?? input.journalDate}T00:00:00Z`);
+        .orderBy(
+          asc(lessonJournals.classGroupId),
+          asc(lessonJournals.journalDate)
+        );
+      const horizon = new Date(
+        `${futureJournals.at(-1)?.journalDate ?? input.journalDate}T00:00:00Z`
+      );
       horizon.setUTCDate(horizon.getUTCDate() + 366);
       const horizonDate = horizon.toISOString().slice(0, 10);
       const rangeDates: string[] = [];
-      for (let date = input.journalDate; date <= horizonDate; date = getAdjacentJournalDate(date, 1, true)) rangeDates.push(date);
+      for (
+        let date = input.journalDate;
+        date <= horizonDate;
+        date = getAdjacentJournalDate(date, 1, true)
+      )
+        rangeDates.push(date);
       const [blockedAttendances, calendarEvents] = await Promise.all([
-        tx.select({ journalDate: attendanceRecords.journalDate, status: attendanceRecords.status })
+        tx
+          .select({
+            journalDate: attendanceRecords.journalDate,
+            status: attendanceRecords.status,
+          })
           .from(attendanceRecords)
-          .where(and(eq(attendanceRecords.studentId, input.studentId), gte(attendanceRecords.journalDate, input.journalDate), lte(attendanceRecords.journalDate, horizonDate))),
+          .where(
+            and(
+              eq(attendanceRecords.studentId, input.studentId),
+              gte(attendanceRecords.journalDate, input.journalDate),
+              lte(attendanceRecords.journalDate, horizonDate)
+            )
+          ),
         getCalendarEventsForDates(rangeDates),
       ]);
       const blockedDates = new Set(calendarEvents.keys());
       for (const attendance of blockedAttendances)
-        if (["absent", "not_registered", "holiday", "closed"].includes(attendance.status)) blockedDates.add(attendance.journalDate);
+        if (
+          ["absent", "not_registered", "holiday", "closed"].includes(
+            attendance.status
+          )
+        )
+          blockedDates.add(attendance.journalDate);
       blockedDates.delete(input.journalDate);
       const futureByClass = new Map<number, typeof futureJournals>();
       for (const journal of futureJournals) {
@@ -2353,29 +2480,63 @@ export async function saveAttendance(input: {
         group.push(journal);
         futureByClass.set(journal.classGroupId, group);
       }
-      for (const [classGroupId, sources] of Array.from(futureByClass.entries())) {
+      for (const [classGroupId, sources] of Array.from(
+        futureByClass.entries()
+      )) {
         const targetDates: string[] = [];
-        for (let date = input.journalDate; targetDates.length < sources.length && date <= horizonDate; date = getAdjacentJournalDate(date, 1, true)) {
+        for (
+          let date = input.journalDate;
+          targetDates.length < sources.length && date <= horizonDate;
+          date = getAdjacentJournalDate(date, 1, true)
+        ) {
           const day = new Date(`${date}T00:00:00Z`).getUTCDay();
-          if (day !== 0 && day !== 6 && !blockedDates.has(date)) targetDates.push(date);
+          if (day !== 0 && day !== 6 && !blockedDates.has(date))
+            targetDates.push(date);
         }
-        if (targetDates.length < sources.length) throw new Error("수업일지를 당길 수 있는 날짜가 부족합니다.");
+        if (targetDates.length < sources.length)
+          throw new Error("수업일지를 당길 수 있는 날짜가 부족합니다.");
         const idsToClear = [
-          ...currentJournals.filter(row => row.classGroupId === classGroupId).map(row => row.id),
+          ...currentJournals
+            .filter(row => row.classGroupId === classGroupId)
+            .map(row => row.id),
           ...sources.map(row => row.id),
         ];
         if (idsToClear.length)
-          await tx.update(lessonJournals).set({ content: "", homework: "", notes: "", isDraft: false, updatedByUserId: input.userId }).where(inArray(lessonJournals.id, idsToClear));
+          await tx
+            .update(lessonJournals)
+            .set({
+              content: "",
+              homework: "",
+              notes: "",
+              isDraft: false,
+              updatedByUserId: input.userId,
+            })
+            .where(inArray(lessonJournals.id, idsToClear));
         for (let index = 0; index < sources.length; index += 1) {
           const source = sources[index]!;
           const targetDate = targetDates[index]!;
-          await tx.insert(lessonJournals).values({
-            studentId: input.studentId, classGroupId, journalDate: targetDate,
-            content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft,
-            createdByUserId: source.createdByUserId, updatedByUserId: input.userId,
-          }).onDuplicateKeyUpdate({ set: {
-            content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft, updatedByUserId: input.userId,
-          }});
+          await tx
+            .insert(lessonJournals)
+            .values({
+              studentId: input.studentId,
+              classGroupId,
+              journalDate: targetDate,
+              content: source.content,
+              homework: source.homework,
+              notes: source.notes,
+              isDraft: source.isDraft,
+              createdByUserId: source.createdByUserId,
+              updatedByUserId: input.userId,
+            })
+            .onDuplicateKeyUpdate({
+              set: {
+                content: source.content,
+                homework: source.homework,
+                notes: source.notes,
+                isDraft: source.isDraft,
+                updatedByUserId: input.userId,
+              },
+            });
           pulledFrom.push(source.journalDate);
         }
       }
@@ -2525,14 +2686,12 @@ export async function saveLessonJournal(input: {
     input.journalDate
   );
   if (!existing) {
-    await db
-      .insert(lessonJournals)
-      .values({
-        ...input,
-        isDraft: input.isDraft ?? false,
-        createdByUserId: input.userId,
-        updatedByUserId: input.userId,
-      });
+    await db.insert(lessonJournals).values({
+      ...input,
+      isDraft: input.isDraft ?? false,
+      createdByUserId: input.userId,
+      updatedByUserId: input.userId,
+    });
   } else {
     await db
       .update(lessonJournals)
@@ -2620,15 +2779,13 @@ export async function insertLessonJournal(input: {
           .set(values)
           .where(eq(lessonJournals.id, existingTarget[0].id));
       } else {
-        await tx
-          .insert(lessonJournals)
-          .values({
-            studentId: input.studentId,
-            classGroupId: input.classGroupId,
-            journalDate: move.targetDate,
-            ...values,
-            createdByUserId: source.createdByUserId,
-          });
+        await tx.insert(lessonJournals).values({
+          studentId: input.studentId,
+          classGroupId: input.classGroupId,
+          journalDate: move.targetDate,
+          ...values,
+          createdByUserId: source.createdByUserId,
+        });
       }
     }
 
@@ -2677,26 +2834,58 @@ export async function deleteAndPullLessonJournal(input: {
         )
       )
       .orderBy(asc(lessonJournals.journalDate));
-    const horizon = new Date(`${sourceRows.at(-1)?.journalDate ?? input.journalDate}T00:00:00Z`);
-    horizon.setUTCDate(horizon.getUTCDate() + Math.max(366, sourceRows.length * 3));
+    const horizon = new Date(
+      `${sourceRows.at(-1)?.journalDate ?? input.journalDate}T00:00:00Z`
+    );
+    horizon.setUTCDate(
+      horizon.getUTCDate() + Math.max(366, sourceRows.length * 3)
+    );
     const horizonDate = horizon.toISOString().slice(0, 10);
     const [blockedAttendances, calendarEvents] = await Promise.all([
-      tx.select({ journalDate: attendanceRecords.journalDate, status: attendanceRecords.status })
+      tx
+        .select({
+          journalDate: attendanceRecords.journalDate,
+          status: attendanceRecords.status,
+        })
         .from(attendanceRecords)
-        .where(and(eq(attendanceRecords.studentId, input.studentId), gte(attendanceRecords.journalDate, input.journalDate), lte(attendanceRecords.journalDate, horizonDate))),
-      getCalendarEventsForDates(Array.from({ length: 367 }, (_, offset) => {
-        const date = new Date(`${input.journalDate}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10);
-      })),
+        .where(
+          and(
+            eq(attendanceRecords.studentId, input.studentId),
+            gte(attendanceRecords.journalDate, input.journalDate),
+            lte(attendanceRecords.journalDate, horizonDate)
+          )
+        ),
+      getCalendarEventsForDates(
+        Array.from({ length: 367 }, (_, offset) => {
+          const date = new Date(`${input.journalDate}T00:00:00Z`);
+          date.setUTCDate(date.getUTCDate() + offset);
+          return date.toISOString().slice(0, 10);
+        })
+      ),
     ]);
     const blockedDates = new Set(calendarEvents.keys());
     for (const attendance of blockedAttendances)
-      if (["absent", "not_registered", "holiday", "closed"].includes(attendance.status)) blockedDates.add(attendance.journalDate);
+      if (
+        ["absent", "not_registered", "holiday", "closed"].includes(
+          attendance.status
+        )
+      )
+        blockedDates.add(attendance.journalDate);
     const targetDates: string[] = [];
-    for (let date = input.journalDate; targetDates.length < sourceRows.length && date <= horizonDate; date = getAdjacentJournalDate(date, 1, true)) {
+    for (
+      let date = input.journalDate;
+      targetDates.length < sourceRows.length && date <= horizonDate;
+      date = getAdjacentJournalDate(date, 1, true)
+    ) {
       const day = new Date(`${date}T00:00:00Z`).getUTCDay();
-      if ((input.includeWeekend || (day !== 0 && day !== 6)) && !blockedDates.has(date)) targetDates.push(date);
+      if (
+        (input.includeWeekend || (day !== 0 && day !== 6)) &&
+        !blockedDates.has(date)
+      )
+        targetDates.push(date);
     }
-    if (targetDates.length < sourceRows.length) throw new Error("수업일지를 당길 수 있는 날짜가 부족합니다.");
+    if (targetDates.length < sourceRows.length)
+      throw new Error("수업일지를 당길 수 있는 날짜가 부족합니다.");
     const rowsToClear = await tx
       .select({ id: lessonJournals.id })
       .from(lessonJournals)
@@ -2704,7 +2893,10 @@ export async function deleteAndPullLessonJournal(input: {
         and(
           eq(lessonJournals.studentId, input.studentId),
           eq(lessonJournals.classGroupId, input.classGroupId),
-          inArray(lessonJournals.journalDate, [input.journalDate, ...sourceRows.map(row => row.journalDate)])
+          inArray(lessonJournals.journalDate, [
+            input.journalDate,
+            ...sourceRows.map(row => row.journalDate),
+          ])
         )
       );
     if (rowsToClear.length)
@@ -2717,19 +2909,43 @@ export async function deleteAndPullLessonJournal(input: {
           isDraft: false,
           updatedByUserId: input.userId,
         })
-        .where(inArray(lessonJournals.id, rowsToClear.map(row => row.id)));
+        .where(
+          inArray(
+            lessonJournals.id,
+            rowsToClear.map(row => row.id)
+          )
+        );
     for (let index = 0; index < sourceRows.length; index += 1) {
       const source = sourceRows[index]!;
       const targetDate = targetDates[index]!;
-      await tx.insert(lessonJournals).values({
-        studentId: input.studentId, classGroupId: input.classGroupId, journalDate: targetDate,
-        content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft,
-        createdByUserId: source.createdByUserId, updatedByUserId: input.userId,
-      }).onDuplicateKeyUpdate({ set: {
-        content: source.content, homework: source.homework, notes: source.notes, isDraft: source.isDraft, updatedByUserId: input.userId,
-      }});
+      await tx
+        .insert(lessonJournals)
+        .values({
+          studentId: input.studentId,
+          classGroupId: input.classGroupId,
+          journalDate: targetDate,
+          content: source.content,
+          homework: source.homework,
+          notes: source.notes,
+          isDraft: source.isDraft,
+          createdByUserId: source.createdByUserId,
+          updatedByUserId: input.userId,
+        })
+        .onDuplicateKeyUpdate({
+          set: {
+            content: source.content,
+            homework: source.homework,
+            notes: source.notes,
+            isDraft: source.isDraft,
+            updatedByUserId: input.userId,
+          },
+        });
     }
-    return { movedCount: sourceRows.length, movedFrom: sourceRows.map(row => row.journalDate), targetDates };
+    return {
+      movedCount: sourceRows.length,
+      movedFrom: sourceRows.map(row => row.journalDate),
+      targetDates,
+    };
   });
 }
 
@@ -2977,7 +3193,13 @@ export async function getPublicStudentWeek(
     journalDate =>
       effectiveAttendances.find(
         attendance => attendance.journalDate === journalDate
-      ) ?? { journalDate, status: null, arrivalTime: null, departureTime: null, calendarEvent: null }
+      ) ?? {
+        journalDate,
+        status: null,
+        arrivalTime: null,
+        departureTime: null,
+        calendarEvent: null,
+      }
   );
   const weekSessions = businessAttendances.reduce(
     (total, attendance) => total + getAttendanceSessionUnits(attendance.status),
