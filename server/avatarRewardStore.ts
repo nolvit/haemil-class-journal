@@ -31,7 +31,11 @@ import type {
   RewardOrderInput,
   RewardSnapshot,
 } from "../shared/avatarRewards";
-import { rewardDDL, rewardSchemaUpgrades } from "./avatarRewardSchema";
+import {
+  rewardDDL,
+  rewardSchemaUpgrades,
+  rewardBackfills,
+} from "./avatarRewardSchema";
 import {
   rewardOrderInput,
   rewardAdjustmentInput,
@@ -100,6 +104,7 @@ export async function ensureRewardSchema() {
         }
       }
     }
+    for (const statement of rewardBackfills) await database().query(statement);
   })().catch(e => {
     initialized = undefined;
     throw e;
@@ -652,6 +657,21 @@ export async function shopCatalog(
      WHERE ${where}
      ORDER BY item.category,item.season,item.price,item.id`,
     params
+  );
+  return attachShopAssets(data.map(mapShopItem));
+}
+export async function ownedDecorationCatalog(studentId: number) {
+  await ensureRewardSchema();
+  const [data] = await database().query<RowDataPacket[]>(
+    `SELECT item.* FROM avatar_shop_items item WHERE
+      (item.category='card_frame' AND EXISTS (
+        SELECT 1 FROM avatar_card_frames f JOIN avatar_collection c ON c.id=f.cardId
+        WHERE c.studentId=? AND f.frameId=item.id
+      )) OR (item.category='card_background' AND EXISTS (
+        SELECT 1 FROM avatar_card_backgrounds b JOIN avatar_collection c ON c.id=b.cardId
+        WHERE c.studentId=? AND b.backgroundId=item.id
+      )) ORDER BY item.category,item.name`,
+    [studentId, studentId]
   );
   return attachShopAssets(data.map(mapShopItem));
 }

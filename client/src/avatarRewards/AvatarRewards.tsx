@@ -140,7 +140,7 @@ export function AvatarRewards({
   const [art, setArt] = useState<Artwork | null>(null);
   const [selectedCard, setSelectedCard] = useState<string | null>(null);
   const [collectionTab, setCollectionTab] = useState<
-    "cards" | "worlds" | "bgm"
+    "cards" | "decorations" | "worlds" | "bgm"
   >("cards");
   const [zoom, setZoom] = useState<number | null>(null);
   const zoomMutation = trpc.avatarRewards.cropZoom.useMutation({
@@ -609,6 +609,13 @@ export function AvatarRewards({
                           </button>
                           <button
                             role="tab"
+                            aria-selected={collectionTab === "decorations"}
+                            onClick={() => setCollectionTab("decorations")}
+                          >
+                            카드 장식
+                          </button>
+                          <button
+                            role="tab"
                             aria-selected={collectionTab === "bgm"}
                             onClick={() => setCollectionTab("bgm")}
                           >
@@ -823,6 +830,22 @@ export function AvatarRewards({
                         {collectionTab === "worlds" && (
                           <WorldThemeCollection identity={identity} />
                         )}
+                        {collectionTab === "decorations" &&
+                          wardrobeQuery.data && (
+                            <AvatarShop
+                              collection
+                              identity={identity}
+                              wardrobe={wardrobe}
+                              cards={data.cards}
+                              balance={account.balance}
+                              image={
+                                image ??
+                                "/avatar-rewards/avatars/official/official_female_avatar.png"
+                              }
+                              onRefresh={() => void refresh()}
+                              onOpen={openArt}
+                            />
+                          )}
                         {collectionTab === "bgm" && (
                           <AvatarBgmCollection identity={identity} />
                         )}

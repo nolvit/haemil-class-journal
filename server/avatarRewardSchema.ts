@@ -22,6 +22,9 @@ export const rewardDDL = [
   `CREATE TABLE IF NOT EXISTS avatar_shop_item_assets (itemId VARCHAR(64) NOT NULL, assetRole VARCHAR(40) NOT NULL, assetUrl TEXT NOT NULL, updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY(itemId,assetRole), INDEX avatar_shop_asset_item(itemId))`,
   `CREATE TABLE IF NOT EXISTS avatar_world_inventory (studentId INT NOT NULL, worldId VARCHAR(64) NOT NULL, purchasePrice INT NOT NULL, purchasedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, PRIMARY KEY(studentId,worldId))`,
   `CREATE TABLE IF NOT EXISTS avatar_world_settings (studentId INT PRIMARY KEY, equippedWorldId VARCHAR(64) NOT NULL DEFAULT 'starlight-court', updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP)`,
+];
+// Backfills must run after upgrades because legacy tables may lack columns.
+export const rewardBackfills = [
   `INSERT IGNORE INTO avatar_card_frames(cardId,frameId) SELECT ac.id,fi.frameId FROM avatar_collection ac JOIN avatar_frame_inventory fi ON fi.studentId=ac.studentId`,
   `INSERT IGNORE INTO avatar_card_backgrounds(cardId,backgroundId) SELECT ac.id,bi.backgroundId FROM avatar_collection ac JOIN avatar_background_inventory bi ON bi.studentId=ac.studentId`,
   `INSERT IGNORE INTO avatar_card_style(cardId,frameId,backgroundId) SELECT ac.id,COALESCE(w.equipped,'lunar'),COALESCE(w.background,'classic') FROM avatar_collection ac LEFT JOIN avatar_wardrobe w ON w.studentId=ac.studentId`,
