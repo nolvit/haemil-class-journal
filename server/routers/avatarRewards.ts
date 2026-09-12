@@ -8,6 +8,8 @@ import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import { getPortalFamilyByToken } from "../db";
+import { getStudentNotificationIdentity } from "../db";
+import { sendAdminPush } from "../pushNotifications";
 import {
   rewardOrderInput,
   rewardAdjustmentInput,
@@ -192,9 +194,24 @@ export const avatarRewardsRouter = router({
   ),
   submit: studentProcedure
     .input(z.object({ order: rewardOrderInput }))
-    .mutation(({ input }) =>
-      store.submitRewardOrder(input.studentId, input.order)
-    ),
+    .mutation(async ({ input }) => {
+      const result = await store.submitRewardOrder(
+        input.studentId,
+        input.order
+      );
+      try {
+        const student = await getStudentNotificationIdentity(input.studentId);
+        await sendAdminPush({
+          title: "새 스페셜 아바타 제작 요청",
+          body: `${student?.name ?? "학생"} 학생이 아바타 제작을 요청했습니다.`,
+          url: "/avatar-rewards",
+          tag: `avatar-order-${result.id}`,
+        });
+      } catch (error) {
+        console.error("[Avatar order] admin push failed", error);
+      }
+      return result;
+    }),
   randomCharge: studentProcedure
     .input(z.object({ all: z.boolean(), requestId: z.string().uuid() }))
     .mutation(({ input }) =>
