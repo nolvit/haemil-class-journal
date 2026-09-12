@@ -31,7 +31,11 @@ import type {
   RewardOrderInput,
   RewardSnapshot,
 } from "../shared/avatarRewards";
-import { rewardDDL, rewardSchemaUpgrades } from "./avatarRewardSchema";
+import {
+  rewardDDL,
+  rewardSchemaUpgrades,
+  rewardBackfills,
+} from "./avatarRewardSchema";
 import {
   rewardOrderInput,
   rewardAdjustmentInput,
@@ -100,6 +104,7 @@ export async function ensureRewardSchema() {
         }
       }
     }
+    for (const statement of rewardBackfills) await database().query(statement);
   })().catch(e => {
     initialized = undefined;
     throw e;
