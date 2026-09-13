@@ -439,8 +439,16 @@ export function AvatarRewards({
                         )}
                         {active?.status === "ready" && (
                           <section className="reward-arrival">
-                            <h3>선택할 아바타가 도착했어요!</h3>
-                            <p>마음에 드는 한 장을 골라 주세요.</p>
+                            <h3>
+                              {active.source === "admin_gift"
+                                ? "아바타 선물이 도착했어요!"
+                                : "선택할 아바타가 도착했어요!"}
+                            </h3>
+                            <p>
+                              {active.source === "admin_gift"
+                                ? "원장님이 준비한 두 장 중 마음에 드는 한 장을 골라 주세요. 포인트는 차감되지 않아요."
+                                : "마음에 드는 한 장을 골라 주세요."}
+                            </p>
                             <div className="universe-grid">
                               {active.candidates.map((c, i) => (
                                 <FantasyCard

@@ -286,6 +286,14 @@ export async function rewardSnapshot(
       "SELECT id,delta,reason,createdAt FROM reward_ledger WHERE studentId=? ORDER BY id DESC LIMIT 500",
       [studentId]
     ),
+    giftHistory: await rows(
+      c,
+      `SELECT gift.id,gift.itemId,item.name AS itemName,gift.category,gift.createdAt
+       FROM avatar_admin_gifts gift
+       JOIN avatar_shop_items item ON item.id=gift.itemId
+       WHERE gift.studentId=? ORDER BY gift.createdAt DESC LIMIT 100`,
+      [studentId]
+    ),
   }));
 }
 export async function submitRewardOrder(
@@ -365,8 +373,10 @@ export async function cancelRewardOrder(studentId: number, orderId: string) {
     await c.query("UPDATE avatar_orders SET status='cancelled' WHERE id=?", [
       orderId,
     ]);
-    a.balance += o.price;
-    await ledger(c, studentId, o.price, "주문 취소 환불");
+    if (o.source !== "admin_gift" && o.price > 0) {
+      a.balance += o.price;
+      await ledger(c, studentId, o.price, "주문 취소 환불");
+    }
   });
 }
 export async function publishRewardCandidates(
@@ -391,6 +401,48 @@ export async function publishRewardCandidates(
       orderId,
     ]);
   });
+}
+export async function createAdminGift(
+  studentId: number,
+  urls: [string, string]
+) {
+  return transaction(studentId, async (c, account) => {
+    const id = randomUUID();
+    const input: RewardOrderInput = {
+      selectedParts: [],
+      top: "",
+      bottom: "",
+      shoes: "",
+      hair: "",
+      background: "",
+      pet: "",
+      pose: "",
+      extra: "관리자 선물",
+      accessories: [],
+      mode: "original",
+    };
+    await c.query(
+      "INSERT INTO avatar_orders(id,studentId,source,status,price,input,prompt,masterUrl) VALUES(?,?,'admin_gift','ready',0,?,?,?)",
+      [
+        id,
+        studentId,
+        JSON.stringify(input),
+        "관리자 선물",
+        account.masterUrl ?? urls[0],
+      ]
+    );
+    for (const url of urls)
+      await c.query(
+        "INSERT INTO avatar_candidates(id,orderId,url) VALUES(?,?,?)",
+        [randomUUID(), id, url]
+      );
+    return { id };
+  });
+}
+export function countsTowardPaidAvatarOrders(
+  source: RewardOrder["source"] | undefined
+) {
+  return source !== "admin_gift";
 }
 export async function selectRewardCandidate(
   studentId: number,
@@ -420,7 +472,7 @@ export async function selectRewardCandidate(
     await c.query("UPDATE avatar_orders SET status='completed' WHERE id=?", [
       orderId,
     ]);
-    a.completedOrders++;
+    if (countsTowardPaidAvatarOrders(o.source)) a.completedOrders++;
   });
 }
 export async function setRewardRepresentative(
@@ -660,6 +712,60 @@ export async function shopCatalog(
   );
   return attachShopAssets(data.map(mapShopItem));
 }
+export async function giftShopItem(
+  studentId: number,
+  itemId: string,
+  actorUserId: number
+) {
+  return transaction(studentId, async (c, account) => {
+    const [item] = await rows<{
+      id: string;
+      name: string;
+      category: ShopCategory;
+    }>(
+      c,
+      "SELECT id,name,category FROM avatar_shop_items WHERE id=? AND category IN ('card_frame','card_background','world_background','bgm') AND active=1 AND deleted=0 FOR UPDATE",
+      [itemId]
+    );
+    if (!item) reject("선물할 상품을 찾을 수 없습니다.");
+    let duplicate = false;
+    if (item.category === "card_frame") {
+      const [result] = await c.query<ResultSetHeader>(
+        "INSERT IGNORE INTO avatar_gift_frames(studentId,frameId) VALUES(?,?)",
+        [studentId, item.id]
+      );
+      duplicate = result.affectedRows === 0;
+    } else if (item.category === "card_background") {
+      const [result] = await c.query<ResultSetHeader>(
+        "INSERT IGNORE INTO avatar_gift_backgrounds(studentId,backgroundId) VALUES(?,?)",
+        [studentId, item.id]
+      );
+      duplicate = result.affectedRows === 0;
+    } else if (item.category === "world_background") {
+      const [result] = await c.query<ResultSetHeader>(
+        "INSERT IGNORE INTO avatar_world_inventory(studentId,worldId,purchasePrice) VALUES(?,?,0)",
+        [studentId, item.id]
+      );
+      duplicate = result.affectedRows === 0;
+    } else {
+      const [result] = await c.query<ResultSetHeader>(
+        "INSERT IGNORE INTO avatar_bgm_inventory(studentId,trackId,purchasePrice) VALUES(?,?,0)",
+        [studentId, item.id]
+      );
+      duplicate = result.affectedRows === 0;
+    }
+    if (!duplicate)
+      await c.query(
+        "INSERT INTO avatar_admin_gifts(id,studentId,itemId,category,actorUserId) VALUES(?,?,?,?,?)",
+        [randomUUID(), studentId, item.id, item.category, actorUserId]
+      );
+    return {
+      duplicate,
+      balance: account.balance,
+      item: { id: item.id, name: item.name, category: item.category },
+    };
+  });
+}
 export async function ownedDecorationCatalog(studentId: number) {
   await ensureRewardSchema();
   const [data] = await database().query<RowDataPacket[]>(
@@ -667,11 +773,15 @@ export async function ownedDecorationCatalog(studentId: number) {
       (item.category='card_frame' AND EXISTS (
         SELECT 1 FROM avatar_card_frames f JOIN avatar_collection c ON c.id=f.cardId
         WHERE c.studentId=? AND f.frameId=item.id
+      )) OR (item.category='card_frame' AND EXISTS (
+        SELECT 1 FROM avatar_gift_frames gf WHERE gf.studentId=? AND gf.frameId=item.id
       )) OR (item.category='card_background' AND EXISTS (
         SELECT 1 FROM avatar_card_backgrounds b JOIN avatar_collection c ON c.id=b.cardId
         WHERE c.studentId=? AND b.backgroundId=item.id
+      )) OR (item.category='card_background' AND EXISTS (
+        SELECT 1 FROM avatar_gift_backgrounds gb WHERE gb.studentId=? AND gb.backgroundId=item.id
       )) ORDER BY item.category,item.name`,
-    [studentId, studentId]
+    [studentId, studentId, studentId, studentId]
   );
   return attachShopAssets(data.map(mapShopItem));
 }
@@ -904,6 +1014,21 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
       "SELECT b.cardId,b.backgroundId FROM avatar_card_backgrounds b JOIN avatar_collection ac ON ac.id=b.cardId WHERE ac.studentId=?",
       [studentId]
     );
+    const giftFrames = await rows<{ frameId: string }>(
+      c,
+      "SELECT frameId FROM avatar_gift_frames WHERE studentId=?",
+      [studentId]
+    );
+    const giftBackgrounds = await rows<{ backgroundId: string }>(
+      c,
+      "SELECT backgroundId FROM avatar_gift_backgrounds WHERE studentId=?",
+      [studentId]
+    );
+    const studentCards = await rows<{ id: string }>(
+      c,
+      "SELECT id FROM avatar_collection WHERE studentId=?",
+      [studentId]
+    );
     // Active catalog assets are needed for shop previews. Assets attached to a
     // student's cards remain resolvable even if an administrator later hides
     // or retires the product, so previous purchases never lose their artwork.
@@ -930,6 +1055,28 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
        )`,
       [studentId, studentId]
     );
+    const framesByCard = cardFrames.reduce<Record<string, string[]>>(
+      (all, x) => ((all[x.cardId] ??= []).push(x.frameId), all),
+      {}
+    );
+    const backgroundsByCard = cardBackgrounds.reduce<Record<string, string[]>>(
+      (all, x) => ((all[x.cardId] ??= []).push(x.backgroundId), all),
+      {}
+    );
+    for (const card of studentCards) {
+      framesByCard[card.id] = Array.from(
+        new Set([
+          ...(framesByCard[card.id] ?? []),
+          ...giftFrames.map(item => item.frameId),
+        ])
+      );
+      backgroundsByCard[card.id] = Array.from(
+        new Set([
+          ...(backgroundsByCard[card.id] ?? []),
+          ...giftBackgrounds.map(item => item.backgroundId),
+        ])
+      );
+    }
     return {
       background: w?.background ?? "classic",
       ownedBackgrounds: ["classic", ...bg.map(x => x.backgroundId)],
@@ -948,14 +1095,8 @@ export async function wardrobe(studentId: number): Promise<Wardrobe> {
           { frame: x.frameId, background: x.backgroundId },
         ])
       ),
-      cardFrames: cardFrames.reduce<Record<string, string[]>>(
-        (all, x) => ((all[x.cardId] ??= []).push(x.frameId), all),
-        {}
-      ),
-      cardBackgrounds: cardBackgrounds.reduce<Record<string, string[]>>(
-        (all, x) => ((all[x.cardId] ??= []).push(x.backgroundId), all),
-        {}
-      ),
+      cardFrames: framesByCard,
+      cardBackgrounds: backgroundsByCard,
       decorationAssets: {
         frames: Object.fromEntries(
           decorationAssets
@@ -1021,8 +1162,9 @@ export async function equipFrame(
       !(
         await rows(
           c,
-          "SELECT frameId FROM avatar_card_frames WHERE cardId=? AND frameId=?",
-          [cardId, id]
+          `SELECT frameId FROM avatar_card_frames WHERE cardId=? AND frameId=?
+           UNION ALL SELECT frameId FROM avatar_gift_frames WHERE studentId=? AND frameId=?`,
+          [cardId, id, studentId, id]
         )
       ).length
     )
@@ -1324,8 +1466,9 @@ export async function equipBackground(
       !(
         await rows(
           c,
-          "SELECT backgroundId FROM avatar_card_backgrounds WHERE cardId=? AND backgroundId=?",
-          [cardId, id]
+          `SELECT backgroundId FROM avatar_card_backgrounds WHERE cardId=? AND backgroundId=?
+           UNION ALL SELECT backgroundId FROM avatar_gift_backgrounds WHERE studentId=? AND backgroundId=?`,
+          [cardId, id, studentId, id]
         )
       ).length
     )
