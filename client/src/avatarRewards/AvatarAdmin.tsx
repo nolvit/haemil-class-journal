@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { modeLabels, type RewardCard } from "@shared/avatarRewards";
+import { shopCategoryLabels } from "@shared/avatarShop";
 import "./rewards.css";
 import "./avatar-theme.css";
 import { ArtworkPortal, type Artwork } from "./FantasyCard";
@@ -307,6 +308,207 @@ async function candidateSimilarity(a: File, b: File) {
       Math.abs(x[i + 2] - y[i + 2]);
   return 1 - difference / ((x.length / 4) * 3 * 255);
 }
+function AvatarGift({
+  students,
+  onSaved,
+}: {
+  students: { id: number; name: string; grade: string }[];
+  onSaved: (studentId: number) => void;
+}) {
+  const [giftStudentId, setGiftStudentId] = useState(0);
+  const [giftImages, setGiftImages] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const gift = trpc.avatarRewards.gift.useMutation({
+    onError: error => toast.error(error.message),
+    onSuccess: result => {
+      const student = students.find(item => item.id === giftStudentId);
+      setGiftImages([]);
+      onSaved(giftStudentId);
+      toast.success(
+        result.notification.sent > 0
+          ? `${student?.name ?? "학생"}에게 선물과 알림을 보냈습니다.`
+          : `${student?.name ?? "학생"}에게 선물했습니다. 등록된 알림 기기는 없습니다.`
+      );
+    },
+  });
+  return (
+    <section className="avatar-gift-admin">
+      <div>
+        <p className="eyebrow">ADMIN GIFT</p>
+        <h2>아바타 선물하기</h2>
+        <p>
+          학생과 이미지 두 장을 선택하면 포인트 차감 없이 바로 전달됩니다. 주문
+          기록에는 관리자 선물로 남습니다.
+        </p>
+      </div>
+      <label>
+        선물 받을 학생
+        <select
+          aria-label="아바타 선물 받을 학생"
+          value={giftStudentId}
+          disabled={gift.isPending || uploading}
+          onChange={event => {
+            setGiftStudentId(Number(event.target.value));
+            setGiftImages([]);
+          }}
+        >
+          <option value={0}>학생을 선택하세요</option>
+          {students.map(student => (
+            <option key={student.id} value={student.id}>
+              {student.name} · {student.grade}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label>
+        선물 이미지 2장
+        <input
+          key={`gift-${giftStudentId}-${giftImages.length === 0 ? "empty" : "selected"}`}
+          aria-label="아바타 선물 이미지 2장"
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          multiple
+          disabled={!giftStudentId || gift.isPending || uploading}
+          onChange={event =>
+            setGiftImages(Array.from(event.target.files ?? []))
+          }
+        />
+      </label>
+      <small>{giftImages.length}장 선택됨 · 각 8MB 이하</small>
+      {!!giftImages.length && (
+        <div className="avatar-gift-preview">
+          {giftImages.slice(0, 2).map((image, index) => (
+            <LocalImagePreview
+              key={`${image.name}-${image.lastModified}`}
+              file={image}
+              alt={`선물 후보 ${index + 1}`}
+            />
+          ))}
+        </div>
+      )}
+      <Button
+        disabled={
+          !giftStudentId ||
+          giftImages.length !== 2 ||
+          gift.isPending ||
+          uploading
+        }
+        onClick={async () => {
+          setUploading(true);
+          try {
+            const similarity = await candidateSimilarity(
+              giftImages[0],
+              giftImages[1]
+            );
+            if (similarity >= 0.93)
+              throw new Error(
+                "두 후보가 너무 비슷해요. 서로 다른 이미지 두 장을 선택해 주세요."
+              );
+            const pair = await Promise.all(giftImages.map(readImage));
+            await gift.mutateAsync({
+              studentId: giftStudentId,
+              images: pair as [(typeof pair)[0], (typeof pair)[0]],
+            });
+          } catch (error) {
+            if (error instanceof Error) toast.error(error.message);
+          } finally {
+            setUploading(false);
+          }
+        }}
+      >
+        {gift.isPending || uploading ? "선물 전달 중…" : "아바타 선물하기"}
+      </Button>
+    </section>
+  );
+}
+function LocalImagePreview({ file, alt }: { file: File; alt: string }) {
+  const [url, setUrl] = useState("");
+  useEffect(() => {
+    const next = URL.createObjectURL(file);
+    setUrl(next);
+    return () => URL.revokeObjectURL(next);
+  }, [file]);
+  return url ? <img src={url} alt={alt} /> : null;
+}
+function ShopItemGift({
+  students,
+  onSaved,
+}: {
+  students: { id: number; name: string; grade: string }[];
+  onSaved: (studentId: number) => void;
+}) {
+  const [giftStudentId, setGiftStudentId] = useState(0);
+  const [itemId, setItemId] = useState("");
+  const catalog = trpc.avatarRewards.adminShopItems.useQuery();
+  const gift = trpc.avatarRewards.giftShopItem.useMutation({
+    onError: error => toast.error(error.message),
+    onSuccess: result => {
+      if (result.duplicate) {
+        toast.info("이미 학생이 소장한 상품입니다.");
+        return;
+      }
+      onSaved(giftStudentId);
+      toast.success(
+        result.notification.sent > 0
+          ? `${result.item.name} 선물과 알림을 보냈습니다.`
+          : `${result.item.name}을 선물했습니다. 등록된 알림 기기는 없습니다.`
+      );
+    },
+  });
+  const items = catalog.data?.filter(item => item.active) ?? [];
+  return (
+    <section className="shop-item-gift-admin">
+      <div>
+        <p className="eyebrow">COLLECTION GIFT</p>
+        <h2>장식·BGM 선물하기</h2>
+        <p>
+          카드 프레임과 카드 배경 그리고 전체 배경과 BGM을 포인트 차감 없이 학생
+          컬렉션에 추가합니다.
+        </p>
+      </div>
+      <div className="shop-item-gift-fields">
+        <label>
+          선물 받을 학생
+          <select
+            aria-label="상점 선물 받을 학생"
+            value={giftStudentId}
+            disabled={gift.isPending}
+            onChange={event => setGiftStudentId(Number(event.target.value))}
+          >
+            <option value={0}>학생을 선택하세요</option>
+            {students.map(student => (
+              <option key={student.id} value={student.id}>
+                {student.name} · {student.grade}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          선물할 상품
+          <select
+            aria-label="선물할 상점 상품"
+            value={itemId}
+            disabled={gift.isPending || catalog.isLoading}
+            onChange={event => setItemId(event.target.value)}
+          >
+            <option value="">상품을 선택하세요</option>
+            {items.map(item => (
+              <option key={`${item.category}-${item.id}`} value={item.id}>
+                [{shopCategoryLabels[item.category]}] {item.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <Button
+        disabled={!giftStudentId || !itemId || gift.isPending}
+        onClick={() => gift.mutate({ studentId: giftStudentId, itemId })}
+      >
+        {gift.isPending ? "선물 전달 중…" : "컬렉션 선물하기"}
+      </Button>
+    </section>
+  );
+}
 function AdminGalleryCrop({
   card,
   onSaved,
@@ -467,6 +669,24 @@ export default function AvatarAdmin() {
       {list.data && (
         <BulkPointAdjustment students={list.data} onSaved={refresh} />
       )}
+      {list.data && (
+        <AvatarGift
+          students={list.data}
+          onSaved={giftStudentId => {
+            setStudentId(giftStudentId);
+            refresh();
+          }}
+        />
+      )}
+      {list.data && (
+        <ShopItemGift
+          students={list.data}
+          onSaved={giftStudentId => {
+            setStudentId(giftStudentId);
+            refresh();
+          }}
+        />
+      )}
       <label>
         학생 선택
         <select
@@ -584,7 +804,10 @@ export default function AvatarAdmin() {
           {snapshot.data.orders.map(o => (
             <section key={o.id}>
               <h2>
-                {modeLabels[o.input.mode]} ·{" "}
+                {o.source === "admin_gift"
+                  ? "관리자 선물"
+                  : modeLabels[o.input.mode]}{" "}
+                ·{" "}
                 {
                   {
                     submitted: "새 주문",
@@ -595,48 +818,57 @@ export default function AvatarAdmin() {
                 }
               </h2>
               <small>
-                {o.createdAt} · {o.price.toLocaleString()}P
+                {o.createdAt} ·{" "}
+                {o.source === "admin_gift"
+                  ? "포인트 차감 없음"
+                  : `${o.price.toLocaleString()}P`}
               </small>
-              <p>
-                {o.input.top} / {o.input.bottom} / {o.input.shoes}
-                <br />
-                헤어: {o.input.hair}
-                <br />
-                배경: {o.input.background}
-                <br />
-                장신구: {o.input.accessories.join(", ") || "없음"}
-                <br />
-                펫: {o.input.pet || "없음"}
-                <br />
-                자세: {o.input.pose || "자연스러운 자세"}
-                <br />
-                기타 요구사항: {o.input.extra || "없음"}
-              </p>
-              <a href={o.masterUrl} target="_blank" rel="noreferrer">
-                주문 당시 마스터 이미지 열기
-              </a>
-              <details>
-                <summary>생성 프롬프트</summary>
-                <textarea
-                  aria-label="생성 프롬프트"
-                  readOnly
-                  value={o.prompt}
-                />
-              </details>
+              {o.source !== "admin_gift" && (
+                <>
+                  <p>
+                    {o.input.top} / {o.input.bottom} / {o.input.shoes}
+                    <br />
+                    헤어: {o.input.hair}
+                    <br />
+                    배경: {o.input.background}
+                    <br />
+                    장신구: {o.input.accessories.join(", ") || "없음"}
+                    <br />
+                    펫: {o.input.pet || "없음"}
+                    <br />
+                    자세: {o.input.pose || "자연스러운 자세"}
+                    <br />
+                    기타 요구사항: {o.input.extra || "없음"}
+                  </p>
+                  <a href={o.masterUrl} target="_blank" rel="noreferrer">
+                    주문 당시 마스터 이미지 열기
+                  </a>
+                  <details>
+                    <summary>생성 프롬프트</summary>
+                    <textarea
+                      aria-label="생성 프롬프트"
+                      readOnly
+                      value={o.prompt}
+                    />
+                  </details>
+                </>
+              )}
               <div className="reward-admin-actions">
-                <Button
-                  variant="outline"
-                  onClick={() =>
-                    navigator.clipboard
-                      .writeText(o.prompt)
-                      .then(() => toast.success("프롬프트를 복사했습니다."))
-                      .catch(() =>
-                        toast.error("프롬프트를 펼쳐 직접 복사해 주세요.")
-                      )
-                  }
-                >
-                  프롬프트 복사
-                </Button>
+                {o.source !== "admin_gift" && (
+                  <Button
+                    variant="outline"
+                    onClick={() =>
+                      navigator.clipboard
+                        .writeText(o.prompt)
+                        .then(() => toast.success("프롬프트를 복사했습니다."))
+                        .catch(() =>
+                          toast.error("프롬프트를 펼쳐 직접 복사해 주세요.")
+                        )
+                    }
+                  >
+                    프롬프트 복사
+                  </Button>
+                )}
                 {(o.status === "submitted" || o.status === "ready") && (
                   <Button
                     variant="outline"
@@ -644,13 +876,15 @@ export default function AvatarAdmin() {
                     onClick={() => {
                       if (
                         window.confirm(
-                          `${o.price}P를 환불하고 주문을 취소하시겠습니까?`
+                          o.source === "admin_gift"
+                            ? "이 아바타 선물을 취소하시겠습니까?"
+                            : `${o.price}P를 환불하고 주문을 취소하시겠습니까?`
                         )
                       )
                         cancel.mutate({ studentId, orderId: o.id });
                     }}
                   >
-                    취소 및 환불
+                    {o.source === "admin_gift" ? "선물 취소" : "취소 및 환불"}
                   </Button>
                 )}
               </div>
@@ -721,6 +955,24 @@ export default function AvatarAdmin() {
               )}
             </section>
           ))}
+          <section>
+            <h2>관리자 컬렉션 선물 기록</h2>
+            <div className="reward-ledger">
+              {snapshot.data.giftHistory.length ? (
+                snapshot.data.giftHistory.map(gift => (
+                  <div key={gift.id}>
+                    <span>
+                      {shopCategoryLabels[gift.category]} · {gift.itemName}
+                      <small>{gift.createdAt}</small>
+                    </span>
+                    <b>선물</b>
+                  </div>
+                ))
+              ) : (
+                <p>아직 컬렉션 상품 선물 기록이 없습니다.</p>
+              )}
+            </div>
+          </section>
           <section>
             <h2>포인트 내역</h2>
             <div className="reward-ledger">

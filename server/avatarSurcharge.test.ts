@@ -90,7 +90,11 @@ vi.mock("mysql2/promise", () => {
     },
   };
 });
-import { submitRewardOrder, cancelRewardOrder } from "./avatarRewardStore";
+import {
+  submitRewardOrder,
+  cancelRewardOrder,
+  countsTowardPaidAvatarOrders,
+} from "./avatarRewardStore";
 const input = {
   top: "상의",
   bottom: "하의",
@@ -119,6 +123,11 @@ beforeEach(() => {
   fake.ledger = [];
 });
 describe("server surcharge transaction boundary", () => {
+  it("does not raise future prices for an admin gift", () => {
+    expect(countsTowardPaidAvatarOrders("admin_gift")).toBe(false);
+    expect(countsTowardPaidAvatarOrders("student_order")).toBe(true);
+    expect(countsTowardPaidAvatarOrders(undefined)).toBe(true);
+  });
   it.each([
     ["original", 50],
     ["wannabe", 150],

@@ -507,6 +507,55 @@
 .bulk-point-adjustment {
   margin-bottom: 22px;
 }
+.reward-admin .avatar-gift-admin {
+  margin-bottom: 22px;
+  border-color: #d6bd70;
+  background:
+    radial-gradient(
+      circle at 100% 0,
+      rgba(229, 199, 112, 0.24),
+      transparent 38%
+    ),
+    linear-gradient(145deg, #fffdf5, #f6f1df);
+  box-shadow: 0 12px 30px rgba(78, 65, 31, 0.08);
+}
+.avatar-gift-admin > label {
+  display: grid;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #315b57;
+}
+.avatar-gift-preview {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 180px));
+  gap: 12px;
+}
+.avatar-gift-preview img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border: 1px solid #d6bd70;
+  border-radius: 14px;
+  background: #eef1eb;
+}
+.reward-admin .shop-item-gift-admin {
+  margin-bottom: 22px;
+  border-color: #a9cbc4;
+  background: linear-gradient(145deg, #f5fbf8, #edf5f2);
+}
+.shop-item-gift-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.shop-item-gift-fields label {
+  display: grid;
+  gap: 7px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #315b57;
+}
 .bulk-point-heading {
   display: flex;
   align-items: flex-start;
@@ -572,6 +621,9 @@
 }
 @media (max-width: 720px) {
   .bulk-point-form {
+    grid-template-columns: 1fr;
+  }
+  .shop-item-gift-fields {
     grid-template-columns: 1fr;
   }
 }

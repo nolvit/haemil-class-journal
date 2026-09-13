@@ -494,6 +494,9 @@ export const avatarOrders = mysqlTable(
   {
     id: varchar("id", { length: 36 }).primaryKey(),
     studentId: int("studentId").notNull(),
+    source: varchar("source", { length: 20 })
+      .default("student_order")
+      .notNull(),
     status: varchar("status", { length: 20 }).notNull(),
     price: int("price").notNull(),
     input: text("input").notNull(),
@@ -556,6 +559,41 @@ export const avatarBackgroundInventory = mysqlTable(
   },
   t => ({
     ownerItem: primaryKey({ columns: [t.studentId, t.backgroundId] }),
+  })
+);
+export const avatarGiftFrames = mysqlTable(
+  "avatar_gift_frames",
+  {
+    studentId: int("studentId").notNull(),
+    frameId: varchar("frameId", { length: 64 }).notNull(),
+    giftedAt: timestamp("giftedAt").defaultNow().notNull(),
+  },
+  t => ({ key: primaryKey({ columns: [t.studentId, t.frameId] }) })
+);
+export const avatarGiftBackgrounds = mysqlTable(
+  "avatar_gift_backgrounds",
+  {
+    studentId: int("studentId").notNull(),
+    backgroundId: varchar("backgroundId", { length: 64 }).notNull(),
+    giftedAt: timestamp("giftedAt").defaultNow().notNull(),
+  },
+  t => ({ key: primaryKey({ columns: [t.studentId, t.backgroundId] }) })
+);
+export const avatarAdminGifts = mysqlTable(
+  "avatar_admin_gifts",
+  {
+    id: varchar("id", { length: 36 }).primaryKey(),
+    studentId: int("studentId").notNull(),
+    itemId: varchar("itemId", { length: 64 }).notNull(),
+    category: varchar("category", { length: 30 }).notNull(),
+    actorUserId: int("actorUserId").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  t => ({
+    studentIndex: index("avatar_admin_gift_student").on(
+      t.studentId,
+      t.createdAt
+    ),
   })
 );
 export const avatarSharing = mysqlTable("avatar_sharing", {

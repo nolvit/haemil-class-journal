@@ -2050,6 +2050,7 @@ export type NotificationDeliveryType =
   | "attendance_check_out"
   | "remaining_two"
   | "total_count"
+  | "avatar_gift"
   | "test";
 
 export async function createNotificationDeliveryLog(input: {
