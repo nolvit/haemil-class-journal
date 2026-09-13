@@ -7,9 +7,8 @@ import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
-import { getPortalFamilyByToken } from "../db";
-import { getStudentNotificationIdentity } from "../db";
-import { sendAdminPush } from "../pushNotifications";
+import { getPortalFamilyByToken, getStudentNotificationIdentity } from "../db";
+import { sendAdminPush, sendStudentPush } from "../pushNotifications";
 import {
   rewardOrderInput,
   rewardAdjustmentInput,
@@ -354,6 +353,77 @@ export const avatarRewardsRouter = router({
     .mutation(async ({ input }) =>
       store.setRewardMaster(input.studentId, await saveImage(input.image))
     ),
+  gift: adminProcedure
+    .input(student.extend({ images: z.tuple([imageInput, imageInput]) }))
+    .mutation(async ({ input }) => {
+      const bytes = input.images.map(validateRewardImage);
+      if (bytes[0].equals(bytes[1]))
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "서로 다른 선물 이미지 두 장을 등록해 주세요.",
+        });
+      const urls = await Promise.all(input.images.map(saveImage));
+      const gift = await store.createAdminGift(
+        input.studentId,
+        urls as [string, string]
+      );
+      let notification = {
+        targetCount: 0,
+        sent: 0,
+        failed: 0,
+        unavailable: false,
+      };
+      try {
+        const student = await getStudentNotificationIdentity(input.studentId);
+        if (student)
+          notification = await sendStudentPush(
+            input.studentId,
+            {
+              title: "스페셜 아바타 선물이 도착했어요",
+              body: `${student.name} 학생을 위한 아바타 두 장이 도착했습니다. 마음에 드는 한 장을 골라 주세요.`,
+              url: `/p/${student.publicToken}`,
+              tag: `avatar-gift-${gift.id}`,
+            },
+            { type: "avatar_gift" }
+          );
+      } catch (error) {
+        console.error("[Avatar gift] student push failed", error);
+      }
+      return { ...gift, notification };
+    }),
+  giftShopItem: adminProcedure
+    .input(student.extend({ itemId: z.string().min(1).max(64) }))
+    .mutation(async ({ input, ctx }) => {
+      const gift = await store.giftShopItem(
+        input.studentId,
+        input.itemId,
+        ctx.user.id
+      );
+      let notification = {
+        targetCount: 0,
+        sent: 0,
+        failed: 0,
+        unavailable: false,
+      };
+      if (!gift.duplicate)
+        try {
+          const student = await getStudentNotificationIdentity(input.studentId);
+          if (student)
+            notification = await sendStudentPush(
+              input.studentId,
+              {
+                title: "해밀월드 선물이 도착했어요",
+                body: `${gift.item.name}이 컬렉션에 추가되었습니다.`,
+                url: `/p/${student.publicToken}`,
+                tag: `shop-gift-${gift.item.category}-${gift.item.id}`,
+              },
+              { type: "avatar_gift" }
+            );
+        } catch (error) {
+          console.error("[Shop gift] student push failed", error);
+        }
+      return { ...gift, notification };
+    }),
   publish: adminProcedure
     .input(order.extend({ images: z.tuple([imageInput, imageInput]) }))
     .mutation(async ({ input }) => {
