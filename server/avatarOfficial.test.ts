@@ -5,6 +5,7 @@ import {
   officialPromptModes,
 } from "../shared/avatarOfficial";
 import {
+  avatarThemePrompt,
   avatarThemePresets,
   avatarThemes,
   type AvatarTheme,
@@ -67,7 +68,35 @@ describe("official avatar administration", () => {
       "wannabe",
       medieval[0]
     );
-    expect(prompt).toContain("grounded historical costume drama");
-    expect(prompt).toContain("Do not introduce magic");
+    expect(prompt).toContain("Grounded historical costume drama");
+    expect(prompt).toContain("No magic");
+  });
+
+  it("provides five presets and explicit directions for all seven themes", () => {
+    expect(avatarThemes).toEqual([
+      "중세유럽",
+      "조선시대",
+      "스쿨룩",
+      "KPOP/무대스타",
+      "스포츠스타",
+      "판타지",
+      "미래",
+    ]);
+    for (const theme of avatarThemes) {
+      expect(avatarThemePresets[theme]).toHaveLength(5);
+      expect(avatarThemePrompt(theme)).toContain("THEME DIRECTION");
+    }
+  });
+
+  it("reserves overt fantasy concepts for the fantasy theme", () => {
+    for (const theme of avatarThemes.filter(theme => theme !== "판타지")) {
+      const combined = avatarThemePresets[theme]
+        .map(Object.values)
+        .flat()
+        .join(" ");
+      expect(combined).not.toMatch(
+        /마법진|슬라임|아기 용|비공정|구름섬|로봇새|시간 터널|반중력|빛 먹는|그림에서 나온/
+      );
+    }
   });
 });
