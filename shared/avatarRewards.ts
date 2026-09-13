@@ -49,6 +49,7 @@ export type RewardAccount = {
 export type RewardOrder = {
   id: string;
   studentId: number;
+  source: "student_order" | "admin_gift";
   status: "submitted" | "ready" | "completed" | "cancelled";
   price: number;
   input: RewardOrderInput;
@@ -74,6 +75,13 @@ export type RewardSnapshot = {
   orders: RewardOrder[];
   cards: RewardCard[];
   ledger: { id: number; delta: number; reason: string; createdAt: string }[];
+  giftHistory: {
+    id: string;
+    itemId: string;
+    itemName: string;
+    category: import("./avatarShop").ShopCategory;
+    createdAt: string;
+  }[];
 };
 export const rewardAdjustmentInput = z.object({
   studentId: z.number().int().positive(),
