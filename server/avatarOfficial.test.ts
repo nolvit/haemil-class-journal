@@ -53,4 +53,21 @@ describe("official avatar administration", () => {
       }
     }
   });
+
+  it("keeps medieval Europe grounded and distinct from fantasy", () => {
+    const medieval = avatarThemePresets["중세유럽"];
+    const combined = medieval.map(Object.values).flat().join(" ");
+    expect(combined).toContain("리넨");
+    expect(combined).toContain("중세 장터");
+    expect(combined).toContain("목조 범선");
+    expect(combined).not.toMatch(/마법진|슬라임|아기 용|비공정|빛나는/);
+
+    const prompt = buildOfficialCharacterPrompt(
+      "중세유럽",
+      "wannabe",
+      medieval[0]
+    );
+    expect(prompt).toContain("grounded historical costume drama");
+    expect(prompt).toContain("Do not introduce magic");
+  });
 });
