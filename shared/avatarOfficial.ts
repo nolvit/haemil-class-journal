@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { avatarThemes, type AvatarTheme } from "./avatarThemes";
+import {
+  avatarThemeDirections,
+  avatarThemes,
+  type AvatarTheme,
+} from "./avatarThemes";
 
 export const officialCharacterInput = z.object({
   name: z.string().trim().min(1).max(40),
@@ -43,11 +47,6 @@ const modeDirection: Record<OfficialPromptMode, string> = {
     "SUPERSTAR: preserve recognizable identity while creating a dramatic premium hero transformation with cinematic presence.",
 };
 
-const themeDirection: Partial<Record<AvatarTheme, string>> = {
-  중세유럽:
-    "Treat Medieval Europe as a grounded historical costume drama: emphasize period textiles, tailoring, leather goods, stone streets, castles, markets, ports and wooden sailing ships. Do not introduce magic, glowing objects, spell effects, fantasy creatures, floating architecture or steampunk machinery unless the selected design explicitly asks for them.",
-};
-
 export function buildOfficialCharacterPrompt(
   theme: AvatarTheme,
   mode: OfficialPromptMode,
@@ -59,7 +58,7 @@ export function buildOfficialCharacterPrompt(
 Use the supplied official representative character image as the single identity reference.
 Create ONE premium semi-webtoon full-body character illustration suitable for a collectible card.
 ${modeDirection[mode]}
-${themeDirection[theme] ?? ""}
+${avatarThemeDirections[theme]}
 
 SELECTED DESIGN
 - Top: ${look.top}
