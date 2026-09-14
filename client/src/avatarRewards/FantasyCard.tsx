@@ -2,7 +2,6 @@ import { toast } from "sonner";
 import { renderCollectionCard, downloadCollectionCard } from "./cardExport";
 import {
   useAvatarBackGuard,
-  AvatarNavigationContext,
 } from "./avatarNavigation";
 import {
   useState,
@@ -67,9 +66,9 @@ export function ArtworkPortal({
     null
   );
   const [error, setError] = useState(false);
-  const inherited = useContext(AvatarNavigationContext);
   const decorationAssets = useContext(CardDecorationAssetsContext);
-  useAvatarBackGuard(!!art, onClose, !inherited);
+  useAvatarBackGuard(!!art, onClose);
+  useAvatarBackGuard(fullscreen, () => setFullscreen(false));
   useEffect(() => {
     setFullscreen(false);
     setView({ scale: 1, x: 0, y: 0 });
