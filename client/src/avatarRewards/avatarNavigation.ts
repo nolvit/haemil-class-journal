@@ -8,12 +8,24 @@ import {
 export const AvatarNavigationContext = createContext(false);
 let suppressNextOverlayPop = false;
 
+export function handleOverlayBack(
+  onClose: () => boolean | void,
+  rearm: () => void
+) {
+  const closed = onClose();
+  if (closed === false) {
+    rearm();
+    return "rearmed" as const;
+  }
+  return "closed" as const;
+}
+
 function overlayPopIsSuppressed() {
   return suppressNextOverlayPop;
 }
 export function useAvatarBackGuard(
   open: boolean,
-  onClose: () => void,
+  onClose: () => boolean | void,
   enabled = true,
   marker = "haemilAvatarOverlay"
 ) {
@@ -48,7 +60,18 @@ export function useAvatarBackGuard(
     body.dataset.avatarOverlay = "open";
     const pop = () => {
       if (overlayPopIsSuppressed()) return;
-      if (history.state?.[marker] !== id) close.current();
+      if (history.state?.[marker] !== id) {
+        handleOverlayBack(close.current, () => {
+          // A nested overlay may be skipped by Android's system Back handling.
+          // If the owner kept itself open after closing that child, restore the
+          // guard immediately so the world cannot fall through to its parent.
+          history.pushState(
+            { ...history.state, [marker]: id },
+            "",
+            location.href
+          );
+        });
+      }
     };
     window.addEventListener("popstate", pop);
     return () => {
