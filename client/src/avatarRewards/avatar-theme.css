@@ -2561,3 +2561,187 @@
     padding: 17px 15px;
   }
 }
+
+
+/* Mobile-safe Korean wrapping and compact collection cards. */
+.avatar-theme :where(
+  h1,
+  h2,
+  h3,
+  h4,
+  p,
+  span,
+  small,
+  strong,
+  b,
+  label,
+  button,
+  summary,
+  legend
+) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+.reward-dialog-scroll,
+.reward-dialog-scroll > *,
+.reward-order,
+.reward-order > * {
+  min-width: 0;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+.collection-avatar-grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 22px 16px;
+}
+.collection-avatar-item {
+  display: grid;
+  min-width: 0;
+  justify-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.collection-avatar-orbit {
+  position: relative;
+  width: 100%;
+}
+.collection-avatar-orbit[aria-current="true"] {
+  outline: 2px solid #efd68e;
+  outline-offset: 5px;
+  box-shadow:
+    0 0 0 4px #172831,
+    0 0 24px #efd68e55;
+}
+.collection-avatar-badge {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 6px;
+  border: 1px solid #f3d88d;
+  border-radius: 999px;
+  color: #15262c;
+  background: #efd68e;
+  font-size: 9px;
+  font-weight: 800;
+  line-height: 1;
+}
+.collection-avatar-name {
+  color: #dce9e3;
+  font-size: 11px;
+  line-height: 1.35;
+}
+.collection-card-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #a68d5d66;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #172b31ed, #091820f2);
+}
+.collection-card-controls > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+.collection-card-controls > div strong {
+  color: #efd68e;
+  font-size: 11px;
+}
+.collection-card-controls > div span {
+  color: #dce9e3;
+  font-size: 13px;
+}
+.collection-card-controls > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+.collection-card-controls > .card-sharing {
+  grid-column: 1 / -1;
+  width: 100%;
+}
+.art-viewport > div {
+  position: relative;
+}
+.card-render-progress {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  width: max-content;
+  max-width: calc(100% - 28px);
+  translate: -50% 0;
+  padding: 7px 12px;
+  border: 1px solid #bca36f88;
+  border-radius: 999px;
+  color: #e7d6a2;
+  background: #0b171ed9;
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+}
+
+@media (max-width: 600px) {
+  .collection-avatar-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 22px 15px;
+  }
+  .reward-random-warning {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .reward-random-warning > * {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .reward-theme-picker {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+    gap: 10px;
+  }
+  .reward-theme-picker label {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .reward-theme-picker select {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .reward-theme-picker > button,
+  .reward-field-heading > button {
+    min-width: 0;
+    max-width: 100%;
+    padding-right: 10px;
+    padding-left: 10px;
+    white-space: nowrap;
+  }
+  .reward-field-heading {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+  }
+  .reward-field-heading label {
+    min-width: max-content;
+    white-space: nowrap;
+  }
+  .reward-field > input {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+}
