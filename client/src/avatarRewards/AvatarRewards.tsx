@@ -157,6 +157,14 @@ export function AvatarRewards({
   };
   const onError = (e: { message: string }) => toast.error(e.message);
   const randomCharge = trpc.avatarRewards.randomCharge.useMutation({ onError });
+  const [masterAvatarRequested, setMasterAvatarRequested] = useState(false);
+  const requestMasterAvatar = trpc.avatarRewards.requestMasterAvatar.useMutation({
+    onError,
+    onSuccess: () => {
+      setMasterAvatarRequested(true);
+      toast.success("첫 번째 아바타 생성 요청을 보냈어요.");
+    },
+  });
   const submit = trpc.avatarRewards.submit.useMutation({
     onError,
     onSuccess: () => {
@@ -198,7 +206,7 @@ export function AvatarRewards({
   const active = data?.orders.find(
     o => o.status === "submitted" || o.status === "ready"
   );
-  const busy = submit.isPending || select.isPending || representative.isPending;
+  const busy = requestMasterAvatar.isPending || submit.isPending || select.isPending || representative.isPending;
   const position = cropY ?? account?.cropY ?? 0;
   const horizontal = cropX ?? account?.cropX ?? 50;
   const cropDirty = cropY !== null || cropX !== null || zoom !== null;
@@ -388,11 +396,18 @@ export function AvatarRewards({
                               }
                             />
                           ) : (
-                            <div className="reward-empty">
+                            <button
+                              type="button"
+                              className="reward-empty"
+                              onClick={() => requestMasterAvatar.mutate(identity)}
+                              disabled={requestMasterAvatar.isPending || masterAvatarRequested}
+                              aria-label="첫 번째 아바타 생성 요청"
+                            >
                               <UserRound size={52} />
                               <p>아직 깨어나지 않은 첫 번째 카드예요.</p>
                               <small>포인트는 수업한 만큼 먼저 쌓여요.</small>
-                            </div>
+                              <strong>{masterAvatarRequested ? "생성 요청을 보냈어요." : "여기를 클릭하시면 첫번째 아바타 생성을 할 수 있습니다."}</strong>
+                            </button>
                           )}
                         </div>
                         <div className="reward-points">
