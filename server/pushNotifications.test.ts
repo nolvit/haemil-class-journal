@@ -26,15 +26,12 @@ describe("parent push notification copy", () => {
     expect(attendancePushPayload("token12345", "김해밀", "check_out", time).title).toContain("하원");
   });
 
-  it("uses the student's custom two-session message", () => {
-    const payload = remainingTwoCountPushPayload(
-      "token12345",
-      "김해밀",
-      "해밀이의 남은 수업은 2회입니다.",
-      120
-    );
+  it("uses the unified two-session message", () => {
+    const payload = remainingTwoCountPushPayload("token12345", "김해밀", 120);
     expect(payload.title).toContain("김해밀");
-    expect(payload.body).toBe("해밀이의 남은 수업은 2회입니다.");
+    expect(payload.body).toBe(
+      "남은 수업이 2회입니다. 다음 수업 등록을 부탁드립니다."
+    );
     expect(payload.url).toBe("/p/token12345");
   });
 });

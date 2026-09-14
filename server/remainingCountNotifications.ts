@@ -4,10 +4,24 @@ import {
 } from "./db";
 import {
   remainingTwoCountPushPayload,
+  sendAdminPush,
   sendStudentPush,
 } from "./pushNotifications";
 
 let dispatchRunning = false;
+
+export function remainingTwoAdminConfirmationPayload(input: {
+  studentName: string;
+  sentCount: number;
+  paymentMethod: string;
+}) {
+  return {
+    title: "원비 납부 알림 발송 결과",
+    body: `${input.studentName}학생. 수신 기기 ${input.sentCount}대. 결제방식 ${input.paymentMethod}. 원비 납부 알림 정상 발송.`,
+    url: "/students",
+    tag: `remaining-two-admin-${input.studentName}-${Date.now()}`,
+  };
+}
 
 export function koreaDateAndHour(now: Date) {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -43,17 +57,37 @@ export async function dispatchRemainingTwoNotifications(now = new Date()) {
         now
       );
       attempted += 1;
-      const result = await sendStudentPush(
-        student.id,
-        remainingTwoCountPushPayload(
-          student.publicToken,
-          student.name,
-          student.message,
-          student.totalCount
-        ),
-        { type: "remaining_two", eventDate: korea.date }
-      );
+      let result = {
+        targetCount: 0,
+        sent: 0,
+        failed: 0,
+        unavailable: false,
+      };
+      try {
+        result = await sendStudentPush(
+          student.id,
+          remainingTwoCountPushPayload(
+            student.publicToken,
+            student.name,
+            student.totalCount
+          ),
+          { type: "remaining_two", eventDate: korea.date }
+        );
+      } catch (error) {
+        console.error("잔여 2회 보호자 알림 발송 실패", error);
+      }
       sent += result.sent;
+      try {
+        await sendAdminPush(
+          remainingTwoAdminConfirmationPayload({
+            studentName: student.name,
+            sentCount: result.sent,
+            paymentMethod: student.paymentMethod,
+          })
+        );
+      } catch (error) {
+        console.error("잔여 2회 관리자 확인 알림 발송 실패", error);
+      }
     }
     return { checked: true, attempted, sent };
   } finally {

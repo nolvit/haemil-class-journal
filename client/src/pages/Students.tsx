@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { getRegistrationCountPreview } from "@shared/studentCountRules";
+import { REMAINING_TWO_ALERT_MESSAGE } from "@shared/remainingCountNotificationRules";
 import {
   getDaysUntilValidUntil,
   getValidUntilAfterTotalCountChange,
@@ -120,7 +121,7 @@ const emptyDraft: StudentDraft = {
   totalCount: 0,
   validUntil: "",
   paymentMethod: "",
-  remainingTwoAlertMessage: "",
+  remainingTwoAlertMessage: REMAINING_TWO_ALERT_MESSAGE,
   classGroupIds: [],
   portalEnabled: false,
 };
@@ -402,8 +403,13 @@ export default function Students() {
                     <span className="font-medium text-[#294A47]">
                       {student.name}
                     </span>
-                    <span className="text-[#A66A19]">
-                      남은 {formatNumber(student.countInfo.remainingCount)}회
+                    <span className="flex items-center gap-2 text-right text-[#A66A19]">
+                      <span>
+                        남은 {formatNumber(student.countInfo.remainingCount)}회
+                      </span>
+                      <span className="rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]">
+                        {student.paymentMethod || "결제방식 미등록"}
+                      </span>
                     </span>
                   </div>
                 ))
@@ -1094,7 +1100,7 @@ function StudentDialog({
             totalCount: student.totalCount,
             validUntil: student.validUntil?.slice(0, 10) ?? "",
             paymentMethod: student.paymentMethod ?? "",
-            remainingTwoAlertMessage: student.remainingTwoAlertMessage ?? "",
+            remainingTwoAlertMessage: REMAINING_TWO_ALERT_MESSAGE,
             classGroupIds: student.classGroups.map(group => group.id),
             portalEnabled: student.portalEnabled,
           }
@@ -1418,19 +1424,13 @@ function StudentDialog({
             <div className="sm:col-span-2">
               <Field label="잔여 2회 보호자 알림 문구">
                 <Textarea
-                  value={draft.remainingTwoAlertMessage}
+                  value={REMAINING_TWO_ALERT_MESSAGE}
                   maxLength={1000}
-                  onChange={event =>
-                    setDraft({
-                      ...draft,
-                      remainingTwoAlertMessage: event.target.value,
-                    })
-                  }
-                  placeholder="예: 남은 수업이 2회입니다. 다음 수업 등록을 부탁드립니다."
+                  readOnly
                 />
                 <p className="text-[11px] leading-4 text-[#71817D]">
-                  문구가 있으면 잔여 횟수가 정확히 2회가 된 날 오후 7시에 한 번
-                  알립니다. 1회·0회에는 발송하지 않습니다.
+                  모든 학생에게 동일하게 등록됩니다. 잔여 횟수가 정확히 2회가 된
+                  날 오후 7시에 한 번 알립니다.
                 </p>
               </Field>
             </div>
