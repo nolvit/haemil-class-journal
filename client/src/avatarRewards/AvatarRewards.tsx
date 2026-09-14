@@ -226,11 +226,19 @@ export function AvatarRewards({
   };
   const scrollRef = useRef<HTMLDivElement>(null);
   const closeAvatar = () => {
-    if (!confirmDiscardCrop()) return;
+    // Android Back can occasionally skip the artwork history entry and reach
+    // this parent dialog directly. In that case the first Back must only close
+    // the enlarged card; returning false asks the parent guard to re-arm itself.
+    if (art) {
+      setArt(null);
+      return false;
+    }
+    if (!confirmDiscardCrop()) return false;
     setOpen(false);
     setArt(null);
     setSelectedCandidate(null);
     setSharingDirtyCards(new Set());
+    return true;
   };
   useAvatarBackGuard(open, closeAvatar);
   useLayoutEffect(() => {
