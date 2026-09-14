@@ -124,19 +124,6 @@ export async function ensureRemainingCountNotificationSchema() {
       PRIMARY KEY (studentId)
     )
   `);
-  const existingStudents = await db.select({ id: students.id }).from(students);
-  if (existingStudents.length)
-    await db
-      .insert(studentRemainingCountNotifications)
-      .values(
-        existingStudents.map(student => ({
-          studentId: student.id,
-          message: REMAINING_TWO_ALERT_MESSAGE,
-        }))
-      )
-      .onDuplicateKeyUpdate({
-        set: { message: REMAINING_TWO_ALERT_MESSAGE },
-      });
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS notification_delivery_logs (
       id int AUTO_INCREMENT NOT NULL,
@@ -881,6 +868,18 @@ export async function listStudents(
     }
   }
   const records = Array.from(result.values());
+  if (records.length)
+    await db
+      .insert(studentRemainingCountNotifications)
+      .values(
+        records.map(student => ({
+          studentId: student.id,
+          message: REMAINING_TWO_ALERT_MESSAGE,
+        }))
+      )
+      .onDuplicateKeyUpdate({
+        set: { message: REMAINING_TWO_ALERT_MESSAGE },
+      });
   const notificationSettings = records.length
     ? await db
         .select()
