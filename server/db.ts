@@ -655,11 +655,13 @@ export async function applyWeeklyAutoUnregisteredDays(today = todayInKorea()) {
         )
         .limit(1);
       if (existing.length) continue;
-      await db.insert(attendanceRecords).values({
+      // 수업일지가 미리 입력된 날짜라면 일반 출결 변경과 동일하게
+      // 수업 내용·과제를 다음 평일로 순차 이관한 뒤 미등록 처리한다.
+      await saveAttendance({
         studentId: student.id,
         journalDate,
         status: "not_registered",
-        recordedByUserId: student.createdByUserId,
+        userId: student.createdByUserId,
       });
       applied++;
     }
@@ -2326,7 +2328,6 @@ export async function saveAttendance(input: {
         let carry = {
           content: source.content,
           homework: source.homework,
-          notes: source.notes,
           isDraft: source.isDraft,
           createdByUserId: source.createdByUserId,
         };
@@ -2348,7 +2349,6 @@ export async function saveAttendance(input: {
           const journalValues = {
             content: carry.content,
             homework: carry.homework,
-            notes: carry.notes,
             isDraft: carry.isDraft,
             updatedByUserId: input.userId,
           };
@@ -2378,7 +2378,6 @@ export async function saveAttendance(input: {
           carry = {
             content: target.content,
             homework: target.homework,
-            notes: target.notes,
             isDraft: target.isDraft,
             createdByUserId: target.createdByUserId,
           };
@@ -2391,7 +2390,6 @@ export async function saveAttendance(input: {
           .set({
             content: "",
             homework: "",
-            notes: "",
             isDraft: false,
             updatedByUserId: input.userId,
           })
