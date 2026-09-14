@@ -47,6 +47,8 @@
 
 /* 보호자 공유: 데스크톱은 기존 표를 유지하고, 모바일만 카드형 정보 밀도를 조정한다. */
 .portal-hero-content { position:static;z-index:1;max-width:min(68%,760px); }
+.portal-hero h1,
+.portal-hero p:not(.eyebrow) { word-break:keep-all;overflow-wrap:break-word; }
 .portal-resource-actions { position:relative;z-index:2;display:flex;max-width:calc(100% - 90px);flex-wrap:wrap;justify-content:flex-start;gap:8px;margin-top:17px;padding-right:0; }
 .portal-attendance-weekdays { display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px; }
 .portal-attendance-weekends { display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-top:7px; }
