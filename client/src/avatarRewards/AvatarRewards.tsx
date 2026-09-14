@@ -37,6 +37,7 @@ import {
   House,
   Store,
   Heart,
+  Crown,
 } from "lucide-react";
 import {
   modeLabels,
@@ -659,105 +660,184 @@ export function AvatarRewards({
                         {collectionTab === "cards" && (
                           <>
                             <p>마음에 드는 카드를 대표로 설정해 보세요.</p>
-                            <div className="universe-grid">
+                            <div className="collection-avatar-grid">
                               {account.masterUrl && (
-                                <FantasyCard
-                                  url={account.masterUrl}
-                                  title="MASTER"
-                                  frame={wardrobe.equipped}
-                                  background={wardrobe.background}
-                                  representative={!account.representativeId}
-                                  selected={selectedCard === "master"}
-                                  onOpen={() => {
-                                    setSelectedCard("master");
-                                    openArt({
-                                      url: account.masterUrl!,
-                                      title: "마스터 아바타",
-                                    });
-                                  }}
-                                >
+                                <article className="collection-avatar-item">
                                   <button
                                     type="button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      representative.mutate({
-                                        ...identity,
-                                        cardId: null,
-                                        cropY: 0,
-                                        cropX: 50,
-                                      })
+                                    className="constellation-orbit collection-avatar-orbit"
+                                    aria-label="마스터 아바타 카드 열기"
+                                    aria-current={
+                                      selectedCard === "master"
+                                        ? "true"
+                                        : undefined
                                     }
+                                    onClick={e => {
+                                      const b =
+                                        e.currentTarget.getBoundingClientRect();
+                                      setSelectedCard("master");
+                                      openArt({
+                                        url: account.masterUrl!,
+                                        title: "마스터 아바타",
+                                        origin: {
+                                          x: b.x,
+                                          y: b.y,
+                                          width: b.width,
+                                          height: b.height,
+                                        },
+                                      });
+                                    }}
                                   >
-                                    {!account.representativeId
-                                      ? "대표 · 마스터"
-                                      : "마스터로 설정"}
+                                    <img
+                                      loading="lazy"
+                                      src={account.masterUrl}
+                                      alt="마스터 아바타 원형 프로필"
+                                      style={{
+                                        objectPosition: `${horizontal}% ${position}%`,
+                                        transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
+                                        transformOrigin: `${horizontal}% ${position}%`,
+                                      }}
+                                    />
+                                    {!account.representativeId && (
+                                      <span className="collection-avatar-badge">
+                                        <Crown size={11} />
+                                        대표
+                                      </span>
+                                    )}
                                   </button>
-                                </FantasyCard>
+                                  <span className="collection-avatar-name">
+                                    마스터
+                                  </span>
+                                </article>
                               )}
-                              {data.cards.map(c => (
-                                <FantasyCard
-                                  key={c.id}
-                                  url={c.url}
-                                  title={`${modeLabels[c.mode as keyof typeof modeLabels]} · ${c.createdAt.slice(0, 10)}`}
-                                  frame={c.frame}
-                                  background={c.background}
-                                  representative={
-                                    account.representativeId === c.id
-                                  }
-                                  selected={selectedCard === c.id}
-                                  onOpen={() => {
-                                    setSelectedCard(c.id);
-                                    openArt({
-                                      url: c.url,
-                                      title: "내 컬렉션",
-                                      frame: c.frame,
-                                      background: c.background,
-                                    });
-                                  }}
-                                >
-                                  <button
-                                    type="button"
-                                    disabled={busy}
-                                    onClick={() =>
-                                      representative.mutate({
-                                        ...identity,
-                                        cardId: c.id,
-                                        cropY: 0,
-                                        cropX: 50,
-                                      })
-                                    }
+                              {data.cards.map((card, index) => {
+                                const sharing = wardrobe.sharing.find(
+                                  value => value.cardId === card.id
+                                );
+                                const isRepresentative =
+                                  account.representativeId === card.id;
+                                return (
+                                  <article
+                                    className="collection-avatar-item"
+                                    key={card.id}
                                   >
-                                    {account.representativeId === c.id
-                                      ? "현재 대표"
-                                      : "대표로 설정"}
-                                  </button>
-                                  {wardrobeQuery.data && (
-                                    <CardSharing
-                                      key={JSON.stringify(
-                                        wardrobe.sharing.find(
-                                          x => x.cardId === c.id
-                                        )
+                                    <button
+                                      type="button"
+                                      className={`constellation-orbit collection-avatar-orbit frame-${card.frame}`}
+                                      aria-label={`스페셜 아바타 ${index + 1} 카드 열기`}
+                                      aria-current={
+                                        selectedCard === card.id
+                                          ? "true"
+                                          : undefined
+                                      }
+                                      onClick={e => {
+                                        const b =
+                                          e.currentTarget.getBoundingClientRect();
+                                        setSelectedCard(card.id);
+                                        openArt({
+                                          url: card.url,
+                                          title: "내 컬렉션",
+                                          frame: card.frame,
+                                          background: card.background,
+                                          origin: {
+                                            x: b.x,
+                                            y: b.y,
+                                            width: b.width,
+                                            height: b.height,
+                                          },
+                                        });
+                                      }}
+                                    >
+                                      <img
+                                        loading="lazy"
+                                        src={card.url}
+                                        alt={`스페셜 아바타 ${index + 1} 원형 프로필`}
+                                        style={{
+                                          objectPosition: `${sharing?.cropX ?? 50}% ${sharing?.cropY ?? 20}%`,
+                                          transform: `scale(${(sharing?.cropZoom ?? 190) / 100})`,
+                                          transformOrigin: `${sharing?.cropX ?? 50}% ${sharing?.cropY ?? 20}%`,
+                                        }}
+                                      />
+                                      {isRepresentative && (
+                                        <span className="collection-avatar-badge">
+                                          <Crown size={11} />
+                                          대표
+                                        </span>
                                       )}
-                                      identity={identity}
-                                      cardId={c.id}
-                                      url={c.url}
-                                      wardrobe={wardrobe}
-                                      onRefresh={() => void refresh()}
-                                      onDirtyChange={dirty =>
-                                        setSharingDirtyCards(current => {
-                                          if (dirty === current.has(c.id))
-                                            return current;
-                                          const next = new Set(current);
-                                          if (dirty) next.add(c.id);
-                                          else next.delete(c.id);
-                                          return next;
+                                    </button>
+                                    <span className="collection-avatar-name">
+                                      스페셜 {index + 1}
+                                    </span>
+                                  </article>
+                                );
+                              })}
+                            </div>
+                            {selectedCard &&
+                              (() => {
+                                const card = data.cards.find(
+                                  value => value.id === selectedCard
+                                );
+                                const isMaster = selectedCard === "master";
+                                if (!isMaster && !card) return null;
+                                const isRepresentative = isMaster
+                                  ? !account.representativeId
+                                  : account.representativeId === card?.id;
+                                return (
+                                  <section className="collection-card-controls">
+                                    <div>
+                                      <strong>선택한 카드</strong>
+                                      <span>
+                                        {isMaster
+                                          ? "마스터 아바타"
+                                          : `스페셜 아바타 ${data.cards.findIndex(value => value.id === card?.id) + 1}`}
+                                      </span>
+                                    </div>
+                                    <Button
+                                      type="button"
+                                      disabled={busy || isRepresentative}
+                                      onClick={() =>
+                                        representative.mutate({
+                                          ...identity,
+                                          cardId: isMaster ? null : card!.id,
+                                          cropY: 0,
+                                          cropX: 50,
                                         })
                                       }
-                                    />
-                                  )}
-                                </FantasyCard>
-                              ))}
-                            </div>
+                                    >
+                                      <Crown size={15} />
+                                      {isRepresentative
+                                        ? "현재 대표"
+                                        : "대표로 설정"}
+                                    </Button>
+                                    {card && wardrobeQuery.data && (
+                                      <CardSharing
+                                        key={JSON.stringify(
+                                          wardrobe.sharing.find(
+                                            value => value.cardId === card.id
+                                          )
+                                        )}
+                                        identity={identity}
+                                        cardId={card.id}
+                                        url={card.url}
+                                        wardrobe={wardrobe}
+                                        onRefresh={() => void refresh()}
+                                        onDirtyChange={dirty =>
+                                          setSharingDirtyCards(current => {
+                                            if (
+                                              dirty === current.has(card.id)
+                                            )
+                                              return current;
+                                            const next = new Set(current);
+                                            if (dirty) next.add(card.id);
+                                            else next.delete(card.id);
+                                            return next;
+                                          })
+                                        }
+                                      />
+                                    )}
+                                  </section>
+                                );
+                              })()}
                             {image && (
                               <div className="reward-crop">
                                 <h3>원형 사진 위치 조정</h3>
