@@ -2498,3 +2498,66 @@
     gap: 12px 8px;
   }
 }
+
+
+/* Keep the arrival banner separate from its candidate cards. */
+.avatar-theme .reward-arrival {
+  display: grid;
+  gap: 18px;
+  margin: 0 0 26px;
+  padding: 0;
+  overflow: visible;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+.avatar-theme .reward-arrival::before {
+  content: none;
+}
+.avatar-theme .reward-arrival-head {
+  display: grid;
+  gap: 8px;
+  padding: 20px;
+  border: 1px solid #e4c77d;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 5%, #fff1a52e, transparent 34%),
+    linear-gradient(135deg, #294642, #142832 70%);
+  box-shadow: 0 8px 28px #0005, inset 0 1px 0 #fff4ce38;
+}
+.avatar-theme .reward-arrival-head > span {
+  justify-self: start;
+  padding: 5px 10px;
+  border-radius: 999px;
+  color: #13262b;
+  background: #f1d68f;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+.avatar-theme .reward-arrival-head h3 {
+  margin: 0;
+  color: #fff0bd;
+  font-size: clamp(20px, 5vw, 27px);
+  line-height: 1.35;
+}
+.avatar-theme .reward-arrival-head p {
+  margin: 0;
+  color: #c8dad5;
+  font-size: 13px;
+  line-height: 1.65;
+}
+@media (max-width: 600px) {
+  .avatar-theme.reward-dialog {
+    padding-top: 72px !important;
+  }
+  .avatar-theme .avatar-bgm-player {
+    top: 12px;
+    right: 10px;
+    transform: none;
+  }
+  .avatar-theme .reward-arrival-head {
+    padding: 17px 15px;
+  }
+}
