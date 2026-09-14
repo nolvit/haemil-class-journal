@@ -403,13 +403,35 @@ export default function Students() {
                     <span className="font-medium text-[#294A47]">
                       {student.name}
                     </span>
-                    <span className="flex items-center gap-2 text-right text-[#A66A19]">
-                      <span>
+                    <span className="flex min-w-0 items-center gap-1.5 text-right text-[#A66A19]">
+                      <span className="whitespace-nowrap">
                         남은 {formatNumber(student.countInfo.remainingCount)}회
                       </span>
-                      <span className="rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]">
+                      <span className="max-w-24 truncate rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]" title={student.paymentMethod || "결제방식 미등록"}>
                         {student.paymentMethod || "결제방식 미등록"}
                       </span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 border-[#D9C28A] bg-[#FFF8DE] text-[#765E10] hover:bg-[#FFF2C9]"
+                        onClick={() => setAdjustmentTarget(student)}
+                        aria-label={`${student.name} 총 횟수 조정`}
+                        title="총 횟수 조정"
+                      >
+                        <SlidersHorizontal className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-7 w-7 shrink-0 border-[#B8D7C6] bg-[#F2F8F4] text-[#2F7154] hover:bg-[#E6F2EA]"
+                        onClick={() => setRegistrationTarget(student)}
+                        aria-label={`${student.name} 등록 횟수 추가`}
+                        title="등록 횟수 추가"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
                     </span>
                   </div>
                 ))
