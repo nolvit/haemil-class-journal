@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { AvatarRewards } from "@/avatarRewards/AvatarRewards";
+import { useAvatarBackGuard } from "@/avatarRewards/avatarNavigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -205,6 +206,25 @@ export default function StudentPortal() {
     url: string;
     alt: string;
   } | null>(null);
+  const [expandedImageView, setExpandedImageView] = useState({
+    scale: 1,
+    x: 0,
+    y: 0,
+  });
+  const expandedImagePointers = useRef(
+    new Map<number, { x: number; y: number }>()
+  );
+  const expandedImageGesture = useRef<{
+    distance: number;
+    scale: number;
+  } | null>(null);
+  useAvatarBackGuard(Boolean(expandedImage), () => setExpandedImage(null));
+  useEffect(() => {
+    if (!expandedImage) return;
+    setExpandedImageView({ scale: 1, x: 0, y: 0 });
+    expandedImagePointers.current.clear();
+    expandedImageGesture.current = null;
+  }, [expandedImage?.url]);
   const viewRecordedRef = useRef(false);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const input = useMemo(
@@ -837,16 +857,88 @@ export default function StudentPortal() {
             if (!open) setExpandedImage(null);
           }}
         >
-          <DialogContent className="max-h-[94vh] max-w-[94vw] border-0 bg-black/95 p-2 sm:max-w-[900px]">
+          <DialogContent className="h-[94dvh] max-h-[94dvh] w-[96vw] max-w-[96vw] overflow-hidden border-0 bg-black/95 p-2 sm:max-w-[900px]">
             <DialogTitle className="sr-only">
               휴강 안내 이미지 크게 보기
             </DialogTitle>
             {expandedImage && (
-              <img
-                src={expandedImage.url}
-                alt={expandedImage.alt}
-                className="max-h-[88vh] w-full object-contain"
-              />
+              <div
+                className="grid h-full w-full touch-none place-items-center overflow-hidden"
+                aria-label="두 손가락으로 확대하고 한 손가락으로 이동할 수 있는 휴강 안내 이미지"
+                onDoubleClick={() =>
+                  setExpandedImageView({ scale: 1, x: 0, y: 0 })
+                }
+                onPointerDown={event => {
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  expandedImagePointers.current.set(event.pointerId, {
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                  if (expandedImagePointers.current.size === 2) {
+                    const [a, b] = Array.from(
+                      expandedImagePointers.current.values()
+                    );
+                    expandedImageGesture.current = {
+                      distance: Math.hypot(a.x - b.x, a.y - b.y),
+                      scale: expandedImageView.scale,
+                    };
+                  }
+                }}
+                onPointerMove={event => {
+                  const previous = expandedImagePointers.current.get(
+                    event.pointerId
+                  );
+                  if (!previous) return;
+                  event.preventDefault();
+                  expandedImagePointers.current.set(event.pointerId, {
+                    x: event.clientX,
+                    y: event.clientY,
+                  });
+                  if (expandedImagePointers.current.size >= 2) {
+                    const [a, b] = Array.from(
+                      expandedImagePointers.current.values()
+                    );
+                    const gesture = expandedImageGesture.current;
+                    if (!gesture || gesture.distance <= 0) return;
+                    const distance = Math.hypot(a.x - b.x, a.y - b.y);
+                    setExpandedImageView(view => ({
+                      ...view,
+                      scale: Math.max(
+                        1,
+                        Math.min(5, (gesture.scale * distance) / gesture.distance)
+                      ),
+                    }));
+                  } else if (expandedImageView.scale > 1) {
+                    setExpandedImageView(view => ({
+                      ...view,
+                      x: view.x + event.clientX - previous.x,
+                      y: view.y + event.clientY - previous.y,
+                    }));
+                  }
+                }}
+                onPointerUp={event => {
+                  expandedImagePointers.current.delete(event.pointerId);
+                  expandedImageGesture.current = null;
+                }}
+                onPointerCancel={event => {
+                  expandedImagePointers.current.delete(event.pointerId);
+                  expandedImageGesture.current = null;
+                }}
+              >
+                <img
+                  src={expandedImage.url}
+                  alt={expandedImage.alt}
+                  draggable={false}
+                  className="max-h-full max-w-full select-none object-contain"
+                  style={{
+                    transform: `translate3d(${expandedImageView.x}px, ${expandedImageView.y}px, 0) scale(${expandedImageView.scale})`,
+                    transformOrigin: "center",
+                  }}
+                />
+                <span className="pointer-events-none absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-black/70 px-3 py-2 text-[11px] text-white/80">
+                  두 손가락으로 확대 · 한 손가락으로 이동 · 두 번 눌러 초기화
+                </span>
+              </div>
             )}
           </DialogContent>
         </Dialog>
