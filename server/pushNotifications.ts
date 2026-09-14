@@ -1,4 +1,5 @@
 import webPush from "web-push";
+import { REMAINING_TWO_ALERT_MESSAGE } from "../shared/remainingCountNotificationRules";
 import * as academyDb from "./db";
 import { ENV } from "./_core/env";
 
@@ -178,12 +179,11 @@ export function attendancePushPayload(
 export function remainingTwoCountPushPayload(
   token: string,
   studentName: string,
-  message: string,
   totalCount: number
 ): ParentPushPayload {
   return {
     title: `${studentName} 학생 수업 횟수 안내`,
-    body: message,
+    body: REMAINING_TWO_ALERT_MESSAGE,
     url: `/p/${token}`,
     tag: `remaining-two-${studentName}-${totalCount}`,
   };
