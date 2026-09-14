@@ -1,5 +1,16 @@
-import { createContext, useEffect, useRef, type RefObject } from "react";
+import {
+  createContext,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  type RefObject,
+} from "react";
 export const AvatarNavigationContext = createContext(false);
+let suppressNextOverlayPop = false;
+
+function overlayPopIsSuppressed() {
+  return suppressNextOverlayPop;
+}
 export function useAvatarBackGuard(
   open: boolean,
   onClose: () => void,
@@ -18,10 +29,13 @@ export function useAvatarBackGuard(
       }
     };
     cleanStale();
-    window.addEventListener("popstate", cleanStale);
-    return () => window.removeEventListener("popstate", cleanStale);
+    const cleanAfterPop = () => {
+      if (!overlayPopIsSuppressed()) cleanStale();
+    };
+    window.addEventListener("popstate", cleanAfterPop);
+    return () => window.removeEventListener("popstate", cleanAfterPop);
   }, [enabled, open, marker]);
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (!open || !enabled) return;
     const id = crypto.randomUUID();
     history.pushState({ ...history.state, [marker]: id }, "", location.href);
@@ -33,6 +47,7 @@ export function useAvatarBackGuard(
     body.style.overscrollBehavior = "none";
     body.dataset.avatarOverlay = "open";
     const pop = () => {
+      if (overlayPopIsSuppressed()) return;
       if (history.state?.[marker] !== id) close.current();
     };
     window.addEventListener("popstate", pop);
@@ -41,7 +56,18 @@ export function useAvatarBackGuard(
       root.style.overscrollBehavior = oldRoot;
       body.style.overscrollBehavior = oldBody;
       delete body.dataset.avatarOverlay;
-      if (history.state?.[marker] === id) history.back();
+      if (history.state?.[marker] === id) {
+        // A button-driven close removes this hook before its history entry.
+        // Suppress the resulting programmatic pop in every parent guard.
+        suppressNextOverlayPop = true;
+        window.addEventListener(
+          "popstate",
+          () => window.setTimeout(() => (suppressNextOverlayPop = false), 0),
+          { once: true }
+        );
+        history.back();
+        window.setTimeout(() => (suppressNextOverlayPop = false), 500);
+      }
     };
   }, [open, enabled, marker]);
 }
