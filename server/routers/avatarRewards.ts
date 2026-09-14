@@ -191,6 +191,16 @@ export const avatarRewardsRouter = router({
   snapshot: studentProcedure.query(({ input }) =>
     store.rewardSnapshot(input.studentId)
   ),
+  requestMasterAvatar: studentProcedure.mutation(async ({ input }) => {
+    const student = await getStudentNotificationIdentity(input.studentId);
+    const delivery = await sendAdminPush({
+      title: "첫 번째 아바타 생성 요청",
+      body: `${student?.name ?? "학생"} 학생이 첫 번째 아바타 생성을 요청했습니다.`,
+      url: "/avatar-rewards",
+      tag: `master-avatar-request-${input.studentId}`,
+    });
+    return { requested: true, delivery };
+  }),
   submit: studentProcedure
     .input(z.object({ order: rewardOrderInput }))
     .mutation(async ({ input }) => {

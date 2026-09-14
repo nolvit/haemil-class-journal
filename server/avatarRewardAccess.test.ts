@@ -11,8 +11,14 @@ import {
   validateRewardImage,
 } from "./routers/avatarRewards";
 import type { TrpcContext } from "./_core/context";
+import { sendAdminPush } from "./pushNotifications";
 vi.mock("./db", () => ({
   getPortalFamilyByToken: vi.fn(async () => [{ id: 1 }]),
+  getStudentNotificationIdentity: vi.fn(async () => ({ name: "해나" })),
+}));
+vi.mock("./pushNotifications", () => ({
+  sendAdminPush: vi.fn(async () => ({ targetCount: 1, sent: 1, failed: 0, unavailable: false })),
+  sendStudentPush: vi.fn(),
 }));
 const input = {
   top: "후드티",
@@ -231,5 +237,21 @@ describe("reward integration boundaries", () => {
         orderId: "11111111-1111-4111-8111-111111111111",
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("sends an admin notification when the first avatar is requested", async () => {
+    const caller = avatarRewardsRouter.createCaller({
+      user: null,
+      req: {},
+      res: {},
+    } as TrpcContext);
+    const result = await caller.requestMasterAvatar({ token: "valid-token", studentId: 1 });
+    expect(result.requested).toBe(true);
+    expect(sendAdminPush).toHaveBeenCalledWith({
+      title: "첫 번째 아바타 생성 요청",
+      body: "해나 학생이 첫 번째 아바타 생성을 요청했습니다.",
+      url: "/avatar-rewards",
+      tag: "master-avatar-request-1",
+    });
   });
 });
