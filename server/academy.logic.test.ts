@@ -68,11 +68,18 @@ describe("수업일지 완성 상태", () => {
     expect(getJournalCompleteness("closed", "", "")).toEqual({ state: "not_required", missingFields: [] });
   });
 
-  it("결석·미등록·공휴일·휴강 상태에는 수업일지 저장을 차단한다", () => {
+  it("결석·미등록 상태에는 수업 내용은 차단하고 비고만 허용한다", () => {
     expect(isJournalWriteBlocked("absent", "방정식 풀이", "문제집 3쪽", "")).toBe(true);
+    expect(isJournalWriteBlocked("absent", "", "", "다음 주 화요일 보강 예정")).toBe(false);
     expect(isJournalWriteBlocked("not_registered", "", "", "")).toBe(false);
+    expect(isJournalWriteBlocked("not_registered", "", "", "보강 일정 협의 중")).toBe(false);
     expect(isJournalWriteBlocked("closed", "방정식 풀이", "", "")).toBe(true);
     expect(isJournalWriteBlocked("present", "방정식 풀이", "문제집 3쪽", "")).toBe(false);
+  });
+
+  it("결석·미등록 처리 때 비고는 남기고 수업 내용·과제만 이관한다", () => {
+    expect(shouldTransferJournalForAttendance("absent", { content: "", homework: "", notes: "화요일 보강" })).toBe(false);
+    expect(shouldTransferJournalForAttendance("not_registered", { content: "연립방정식", homework: "", notes: "" })).toBe(true);
   });
 
   it("월요일 기준으로 평일 수업 주간을 계산한다", () => {
@@ -201,9 +208,9 @@ describe("수업일지 완성 상태", () => {
     ])).toEqual(["2026-08-26", "2026-08-27", "2026-08-28"]);
   });
 
-  it("결석·미등록 전환 시 내용이 있는 수업일지만 다음 수업일로 이관한다", () => {
+  it("결석·미등록 전환 시 수업 내용·과제만 다음 수업일로 이관한다", () => {
     expect(shouldTransferJournalForAttendance("absent", { content: "연립방정식", homework: "3쪽", notes: "" })).toBe(true);
-    expect(shouldTransferJournalForAttendance("not_registered", { content: "", homework: "", notes: "공개 비고" })).toBe(true);
+    expect(shouldTransferJournalForAttendance("not_registered", { content: "", homework: "", notes: "보강 계획" })).toBe(false);
     expect(shouldTransferJournalForAttendance("present", { content: "연립방정식" })).toBe(false);
     expect(shouldTransferJournalForAttendance("closed", { content: "연립방정식" })).toBe(true);
     expect(shouldTransferJournalForAttendance("absent", { content: "", homework: "", notes: "" })).toBe(false);

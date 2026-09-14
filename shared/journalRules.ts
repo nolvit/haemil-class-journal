@@ -87,7 +87,8 @@ export function isJournalWriteBlocked(
   homework: string,
   notes: string,
 ): boolean {
-  const hasJournalValue = Boolean(content.trim() || homework.trim() || notes.trim());
+  // 결석·미등록일에도 보강 계획 등 날짜별 비고는 저장할 수 있다.
+  const hasJournalValue = Boolean(content.trim() || homework.trim());
   return hasJournalValue && (attendanceStatus === "absent" || attendanceStatus === "not_registered" || attendanceStatus === "holiday" || attendanceStatus === "closed");
 }
 
@@ -225,7 +226,8 @@ export function shouldTransferJournalForAttendance(
   status: AttendanceStatus,
   journal: { content?: string | null; homework?: string | null; notes?: string | null },
 ) {
-  const hasJournalValue = Boolean(journal.content?.trim() || journal.homework?.trim() || journal.notes?.trim());
+  // 비고는 결석·미등록 당일의 보강 계획으로 남기고 수업 내용·과제만 이관한다.
+  const hasJournalValue = Boolean(journal.content?.trim() || journal.homework?.trim());
   return hasJournalValue && (status === "absent" || status === "not_registered" || status === "holiday" || status === "closed");
 }
 
