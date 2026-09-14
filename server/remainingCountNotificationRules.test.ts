@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { shouldSendRemainingTwoNotification } from "../shared/remainingCountNotificationRules";
+import {
+  REMAINING_TWO_ALERT_MESSAGE,
+  shouldSendRemainingTwoNotification,
+} from "../shared/remainingCountNotificationRules";
 
 const baseState = {
   portalEnabled: true,
-  message: "남은 수업이 2회입니다.",
+  message: REMAINING_TWO_ALERT_MESSAGE,
   remainingCount: 2,
   totalCount: 12,
   sentTotalCount: null,
