@@ -1794,7 +1794,60 @@
     font-size: 21px;
   }
   .universe-grid {
-    gap: 17px 11px;
+    grid-template-columns: 1fr;
+    gap: 22px;
+  }
+  .universe-grid .fantasy-card {
+    width: 100%;
+    max-width: 430px;
+    margin-inline: auto;
+  }
+  .card-sharing {
+    padding: 12px;
+    font-size: 13px;
+    line-height: 1.6;
+    text-align: left;
+  }
+  .card-sharing summary {
+    min-height: 36px;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 700;
+  }
+  .card-sharing > p {
+    margin: 5px 0 10px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+  .card-sharing .gallery-crop-editor {
+    gap: 12px;
+    padding: 14px;
+  }
+  .card-sharing .gallery-crop-editor label {
+    grid-template-columns: 64px minmax(0, 1fr) 44px;
+    min-height: 32px;
+    gap: 8px;
+    padding: 0;
+    white-space: nowrap;
+  }
+  .card-sharing .gallery-crop-editor input[type="range"] {
+    width: 100%;
+    min-width: 0;
+  }
+  .card-sharing > label {
+    min-height: 38px;
+    padding: 7px 2px;
+    font-size: 13px;
+  }
+  .card-sharing > label input[type="checkbox"] {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+  }
+  .card-sharing > button {
+    min-height: 46px;
+    margin-top: 10px;
+    font-size: 14px;
   }
   .fantasy-card {
     padding: 16px 7px 7px;
