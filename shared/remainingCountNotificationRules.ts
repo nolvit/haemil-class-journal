@@ -6,6 +6,9 @@ export type RemainingTwoNotificationState = {
   sentTotalCount: number | null;
 };
 
+export const REMAINING_TWO_ALERT_MESSAGE =
+  "남은 수업이 2회입니다. 다음 수업 등록을 부탁드립니다.";
+
 export function shouldSendRemainingTwoNotification(
   state: RemainingTwoNotificationState
 ) {
