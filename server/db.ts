@@ -69,7 +69,10 @@ import {
 } from "../shared/journalRules";
 import { getValidUntilAfterTotalCountChange } from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
-import { shouldSendRemainingTwoNotification } from "../shared/remainingCountNotificationRules";
+import {
+  REMAINING_TWO_ALERT_MESSAGE,
+  shouldSendRemainingTwoNotification,
+} from "../shared/remainingCountNotificationRules";
 import { getPushDeviceLabel } from "../shared/pushDeviceLabels";
 import {
   getKoreanHolidayDates,
@@ -120,6 +123,11 @@ export async function ensureRemainingCountNotificationSchema() {
       updatedAt timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
       PRIMARY KEY (studentId)
     )
+  `);
+  await db.execute(sql`
+    INSERT INTO student_remaining_count_notifications (studentId, message)
+    SELECT id, ${REMAINING_TWO_ALERT_MESSAGE} FROM students
+    ON DUPLICATE KEY UPDATE message = VALUES(message)
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS notification_delivery_logs (
@@ -969,7 +977,8 @@ export async function listStudents(
     return {
       ...student,
       remainingTwoAlertMessage:
-        notificationSettingsByStudent.get(student.id)?.message ?? "",
+        notificationSettingsByStudent.get(student.id)?.message ??
+        REMAINING_TWO_ALERT_MESSAGE,
       remainingTwoAlertSentTotalCount:
         notificationSettingsByStudent.get(student.id)?.sentTotalCount ?? null,
       remainingTwoAlertLastAttemptedAt:
@@ -1418,7 +1427,7 @@ export async function createStudent(
   if (!studentId) throw new Error("학생을 생성하지 못했습니다.");
   await db.insert(studentRemainingCountNotifications).values({
     studentId,
-    message: input.remainingTwoAlertMessage || "",
+    message: REMAINING_TWO_ALERT_MESSAGE,
   });
   if (input.classGroupIds.length) {
     await db.insert(studentEnrollments).values(
@@ -1497,10 +1506,10 @@ export async function updateStudent(
       .insert(studentRemainingCountNotifications)
       .values({
         studentId: id,
-        message: input.remainingTwoAlertMessage || "",
+        message: REMAINING_TWO_ALERT_MESSAGE,
       })
       .onDuplicateKeyUpdate({
-        set: { message: input.remainingTwoAlertMessage || "" },
+        set: { message: REMAINING_TWO_ALERT_MESSAGE },
       });
     if (totalCountChanged) {
       await tx.insert(registrationCountHistories).values({
@@ -2029,7 +2038,7 @@ export async function listRemainingTwoNotificationCandidates(
       name: student.name,
       publicToken: student.publicToken,
       totalCount: student.totalCount,
-      message: student.remainingTwoAlertMessage.trim(),
+      paymentMethod: student.paymentMethod?.trim() || "미등록",
     }));
 }
 
