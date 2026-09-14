@@ -1,10 +1,10 @@
 import { createContext, useEffect, useRef, type RefObject } from "react";
 export const AvatarNavigationContext = createContext(false);
-const marker = "haemilAvatarOverlay";
 export function useAvatarBackGuard(
   open: boolean,
   onClose: () => void,
-  enabled = true
+  enabled = true,
+  marker = "haemilAvatarOverlay"
 ) {
   const close = useRef(onClose);
   close.current = onClose;
@@ -20,7 +20,7 @@ export function useAvatarBackGuard(
     cleanStale();
     window.addEventListener("popstate", cleanStale);
     return () => window.removeEventListener("popstate", cleanStale);
-  }, [enabled, open]);
+  }, [enabled, open, marker]);
   useEffect(() => {
     if (!open || !enabled) return;
     const id = crypto.randomUUID();
@@ -43,7 +43,7 @@ export function useAvatarBackGuard(
       delete body.dataset.avatarOverlay;
       if (history.state?.[marker] === id) history.back();
     };
-  }, [open, enabled]);
+  }, [open, enabled, marker]);
 }
 // Consume horizontal gestures even at scroll boundaries so Chromium cannot
 // interpret an exhausted image pan as history navigation. Vertical movement

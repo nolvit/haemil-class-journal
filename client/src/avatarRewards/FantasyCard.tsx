@@ -67,8 +67,13 @@ export function ArtworkPortal({
   );
   const [error, setError] = useState(false);
   const decorationAssets = useContext(CardDecorationAssetsContext);
-  useAvatarBackGuard(!!art, onClose);
-  useAvatarBackGuard(fullscreen, () => setFullscreen(false));
+  useAvatarBackGuard(!!art, onClose, true, "haemilArtworkOverlay");
+  useAvatarBackGuard(
+    fullscreen,
+    () => setFullscreen(false),
+    true,
+    "haemilCardFullscreen"
+  );
   useEffect(() => {
     setFullscreen(false);
     setView({ scale: 1, x: 0, y: 0 });
