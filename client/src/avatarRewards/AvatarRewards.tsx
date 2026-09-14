@@ -191,7 +191,7 @@ export function AvatarRewards({
       setCropY(null);
       setCropX(null);
       void refresh();
-      toast.success("대표 사진을 저장했어요.");
+      toast.success("저장했어요.");
     },
   });
   const data = query.data;
@@ -378,6 +378,65 @@ export function AvatarRewards({
                   <>
                     {page === "home" && (
                       <>
+                        {active?.status === "ready" && (
+                          <section className="reward-arrival">
+                            <h3>
+                              {active.source === "admin_gift"
+                                ? "아바타 선물이 도착했어요!"
+                                : "선택할 아바타가 도착했어요!"}
+                            </h3>
+                            <p>
+                              {active.source === "admin_gift"
+                                ? "원장님이 준비한 두 장 중 마음에 드는 한 장을 골라 주세요. 포인트는 차감되지 않아요."
+                                : "마음에 드는 한 장을 골라 주세요."}
+                            </p>
+                            <div className="universe-grid">
+                              {active.candidates.map((c, i) => (
+                                <FantasyCard
+                                  key={c.id}
+                                  url={c.url}
+                                  title={`후보 ${i + 1}`}
+                                  frame={wardrobe.equipped}
+                                  background={wardrobe.background}
+                                  selected={selectedCandidate === c.id}
+                                  onOpen={() =>
+                                    openArt({
+                                      url: c.url,
+                                      title: `후보 ${i + 1}`,
+                                    })
+                                  }
+                                >
+                                  <button
+                                    type="button"
+                                    aria-label={`후보 ${i + 1}`}
+                                    aria-pressed={selectedCandidate === c.id}
+                                    onClick={() => setSelectedCandidate(c.id)}
+                                  >
+                                    {selectedCandidate === c.id
+                                      ? "선택됨"
+                                      : "이 카드 선택"}
+                                  </button>
+                                </FantasyCard>
+                              ))}
+                            </div>
+                            <Button
+                              disabled={!selectedCandidate || busy}
+                              onClick={() =>
+                                select.mutate({
+                                  ...identity,
+                                  orderId: active.id,
+                                  candidateId: selectedCandidate!,
+                                })
+                              }
+                            >
+                              이 아바타로 확정
+                            </Button>
+                            <small>
+                              확정한 한 장이 컬렉션에 저장되며 선택은 변경할 수
+                              없어요.
+                            </small>
+                          </section>
+                        )}
                         <div className="reward-portrait">
                           {image ? (
                             <FantasyCard
@@ -451,65 +510,6 @@ export function AvatarRewards({
                             창조의 여정이 진행 중이에요. 두 장의 카드가 완성되면
                             빛을 발할 거예요.
                           </div>
-                        )}
-                        {active?.status === "ready" && (
-                          <section className="reward-arrival">
-                            <h3>
-                              {active.source === "admin_gift"
-                                ? "아바타 선물이 도착했어요!"
-                                : "선택할 아바타가 도착했어요!"}
-                            </h3>
-                            <p>
-                              {active.source === "admin_gift"
-                                ? "원장님이 준비한 두 장 중 마음에 드는 한 장을 골라 주세요. 포인트는 차감되지 않아요."
-                                : "마음에 드는 한 장을 골라 주세요."}
-                            </p>
-                            <div className="universe-grid">
-                              {active.candidates.map((c, i) => (
-                                <FantasyCard
-                                  key={c.id}
-                                  url={c.url}
-                                  title={`후보 ${i + 1}`}
-                                  frame={wardrobe.equipped}
-                                  background={wardrobe.background}
-                                  selected={selectedCandidate === c.id}
-                                  onOpen={() =>
-                                    openArt({
-                                      url: c.url,
-                                      title: `후보 ${i + 1}`,
-                                    })
-                                  }
-                                >
-                                  <button
-                                    type="button"
-                                    aria-label={`후보 ${i + 1}`}
-                                    aria-pressed={selectedCandidate === c.id}
-                                    onClick={() => setSelectedCandidate(c.id)}
-                                  >
-                                    {selectedCandidate === c.id
-                                      ? "선택됨"
-                                      : "이 카드 선택"}
-                                  </button>
-                                </FantasyCard>
-                              ))}
-                            </div>
-                            <Button
-                              disabled={!selectedCandidate || busy}
-                              onClick={() =>
-                                select.mutate({
-                                  ...identity,
-                                  orderId: active.id,
-                                  candidateId: selectedCandidate!,
-                                })
-                              }
-                            >
-                              이 아바타로 확정
-                            </Button>
-                            <small>
-                              확정한 한 장이 컬렉션에 저장되며 선택은 변경할 수
-                              없어요.
-                            </small>
-                          </section>
                         )}
                         {!active &&
                           account.balance >= data.nextPrice &&
@@ -823,28 +823,24 @@ export function AvatarRewards({
                                   <output>{zoom ?? wardrobe.cropZoom}%</output>
                                 </label>
                                 <Button
-                                  disabled={zoomMutation.isPending}
-                                  onClick={() =>
-                                    zoomMutation.mutate({
-                                      ...identity,
-                                      zoom: zoom ?? wardrobe.cropZoom,
-                                    })
-                                  }
+                                  className="reward-crop-save"
+                                  disabled={zoomMutation.isPending || busy || !cropDirty}
+                                  onClick={async () => {
+                                    try {
+                                      await zoomMutation.mutateAsync({
+                                        ...identity,
+                                        zoom: zoom ?? wardrobe.cropZoom,
+                                      });
+                                      await representative.mutateAsync({
+                                        ...identity,
+                                        cardId: account.representativeId,
+                                        cropY: position,
+                                        cropX: horizontal,
+                                      });
+                                    } catch {}
+                                  }}
                                 >
-                                  확대 비율 저장
-                                </Button>
-                                <Button
-                                  disabled={busy}
-                                  onClick={() =>
-                                    representative.mutate({
-                                      ...identity,
-                                      cardId: account.representativeId,
-                                      cropY: position,
-                                      cropX: horizontal,
-                                    })
-                                  }
-                                >
-                                  위치 저장
+                                  저장
                                 </Button>
                               </div>
                             )}
