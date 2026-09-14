@@ -901,7 +901,7 @@ export const academyRouter = router({
           throw new TRPCError({
             code: "BAD_REQUEST",
             message:
-              "결석·미등록·공휴일·휴강 상태인 학생의 수업일지는 저장할 수 없습니다. 출석 상태를 먼저 확인해 주세요.",
+              "결석·미등록·공휴일·휴강 상태에는 수업 내용과 과제를 저장할 수 없습니다. 결석·미등록일의 비고는 저장할 수 있습니다.",
           });
         }
         await academyDb.saveLessonJournal({ ...input, userId: ctx.user.id });
