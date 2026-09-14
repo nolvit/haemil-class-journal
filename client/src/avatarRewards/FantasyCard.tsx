@@ -29,6 +29,46 @@ const CardDecorationAssetsContext = createContext<CardDecorationAssets>({
   frames: {},
   backgrounds: {},
 });
+const renderedCardCache = new Map<string, Blob>();
+const pendingCardRenders = new Map<string, Promise<Blob>>();
+
+function renderCardOnce(
+  url: string,
+  frame?: FrameId,
+  background?: BackgroundId,
+  frameAssetUrl?: string,
+  backgroundAssetUrl?: string
+) {
+  const key = JSON.stringify([
+    url,
+    frame,
+    background,
+    frameAssetUrl,
+    backgroundAssetUrl,
+  ]);
+  const cached = renderedCardCache.get(key);
+  if (cached) return Promise.resolve(cached);
+  const pending = pendingCardRenders.get(key);
+  if (pending) return pending;
+  const task = renderCollectionCard(
+    url,
+    frame,
+    background,
+    frameAssetUrl,
+    backgroundAssetUrl
+  )
+    .then(blob => {
+      if (renderedCardCache.size >= 8) {
+        const oldest = renderedCardCache.keys().next().value;
+        if (oldest) renderedCardCache.delete(oldest);
+      }
+      renderedCardCache.set(key, blob);
+      return blob;
+    })
+    .finally(() => pendingCardRenders.delete(key));
+  pendingCardRenders.set(key, task);
+  return task;
+}
 export function CardDecorationAssetsProvider({
   value,
   children,
@@ -90,23 +130,26 @@ export function ArtworkPortal({
       (art.background
         ? decorationAssets.backgrounds[art.background]
         : undefined);
-    renderCollectionCard(
-      art.url,
-      art.frame,
-      art.background,
-      frameAssetUrl,
-      backgroundAssetUrl
-    )
-      .then(blob => {
-        if (disposed) return;
-        objectUrl = URL.createObjectURL(blob);
-        setRendered({ blob, url: objectUrl });
-      })
-      .catch(() => {
-        if (!disposed) setError(true);
-      });
+    const renderTimer = window.setTimeout(() => {
+      renderCardOnce(
+        art.url,
+        art.frame,
+        art.background,
+        frameAssetUrl,
+        backgroundAssetUrl
+      )
+        .then(blob => {
+          if (disposed) return;
+          objectUrl = URL.createObjectURL(blob);
+          setRendered({ blob, url: objectUrl });
+        })
+        .catch(() => {
+          if (!disposed) setError(true);
+        });
+    }, 60);
     return () => {
       disposed = true;
+      window.clearTimeout(renderTimer);
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [
@@ -155,19 +198,25 @@ export function ArtworkPortal({
           type="button"
           className="art-viewport"
           aria-label="카드 전체 화면으로 보기"
-          onClick={() => rendered && setFullscreen(true)}
+          onClick={() => art && setFullscreen(true)}
         >
           <div>
-            {art &&
-              (rendered ? (
-                <img draggable={false} src={rendered.url} alt={art.title} />
-              ) : (
-                <div className="card-render-placeholder" role="status">
-                  {error
-                    ? "이미지를 불러오지 못했어요. 닫은 뒤 다시 열어 주세요."
-                    : "카드를 펼치는 중…"}
-                </div>
-              ))}
+            {art && (
+              <>
+                <img
+                  draggable={false}
+                  src={rendered?.url ?? art.url}
+                  alt={art.title}
+                />
+                {!rendered && (
+                  <span className="card-render-progress" role="status">
+                    {error
+                      ? "카드 장식 없이 원본을 표시하고 있어요."
+                      : "카드 장식을 준비하고 있어요."}
+                  </span>
+                )}
+              </>
+            )}
           </div>
         </button>
         <p className="fullscreen-hint">
@@ -198,7 +247,7 @@ export function ArtworkPortal({
         <p className="av-subtle">
           전체 화면에서 한 손가락으로 이동하고 두 손가락으로 확대해 감상하세요.
         </p>
-        {fullscreen && rendered && (
+        {fullscreen && art && (
           <div
             className="card-fullscreen"
             role="dialog"
@@ -256,7 +305,7 @@ export function ArtworkPortal({
             </button>
             <img
               draggable={false}
-              src={rendered.url}
+              src={rendered?.url ?? art.url}
               alt={art?.title}
               style={{
                 transform: `translate3d(${view.x}px,${view.y}px,0) scale(${view.scale})`,
