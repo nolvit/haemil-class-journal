@@ -51,6 +51,7 @@ export type RewardOrder = {
   studentId: number;
   source: "student_order" | "admin_gift";
   status: "submitted" | "ready" | "completed" | "cancelled";
+  refundReason: string | null;
   price: number;
   input: RewardOrderInput;
   prompt: string;
@@ -58,6 +59,11 @@ export type RewardOrder = {
   createdAt: string;
   candidates: { id: string; url: string }[];
 };
+export const refundReasonInput = z
+  .string()
+  .trim()
+  .min(1, "환불 사유를 입력해 주세요.")
+  .max(140, "환불 사유는 140자 이하로 입력해 주세요.");
 export type RewardCard = {
   id: string;
   url: string;

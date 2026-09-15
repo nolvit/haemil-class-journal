@@ -359,7 +359,11 @@ export async function chargeRewardRandom(
     return { price, balance: a.balance, duplicate: false };
   });
 }
-export async function cancelRewardOrder(studentId: number, orderId: string) {
+export async function cancelRewardOrder(
+  studentId: number,
+  orderId: string,
+  refundReason?: string
+) {
   return transaction(studentId, async (c, a) => {
     const [o] = await rows<RewardOrder>(
       c,
@@ -370,12 +374,16 @@ export async function cancelRewardOrder(studentId: number, orderId: string) {
     if (o.status === "cancelled") return;
     if (o.status === "completed")
       reject("선택이 완료된 주문은 취소할 수 없습니다.");
-    await c.query("UPDATE avatar_orders SET status='cancelled' WHERE id=?", [
-      orderId,
-    ]);
+    const reason = refundReason?.trim() ?? "";
+    if (o.source !== "admin_gift" && o.price > 0 && !reason)
+      reject("환불 사유를 입력해 주세요.");
+    await c.query(
+      "UPDATE avatar_orders SET status='cancelled',refundReason=? WHERE id=?",
+      [reason || null, orderId]
+    );
     if (o.source !== "admin_gift" && o.price > 0) {
       a.balance += o.price;
-      await ledger(c, studentId, o.price, "주문 취소 환불");
+      await ledger(c, studentId, o.price, `주문 취소 환불 · ${reason}`);
     }
   });
 }

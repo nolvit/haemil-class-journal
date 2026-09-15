@@ -45,7 +45,9 @@ vi.mock("mysql2/promise", () => {
       fake.orders.push({
         id: p[0],
         studentId: p[1],
+        source: "student_order",
         status: "submitted",
+        refundReason: null,
         price: p[2],
         input: p[3],
       });
@@ -57,7 +59,9 @@ vi.mock("mysql2/promise", () => {
         [],
       ];
     if (sql.startsWith("UPDATE avatar_orders SET status='cancelled'")) {
-      fake.orders.find(o => o.id === p[0]).status = "cancelled";
+      const order = fake.orders.find(o => o.id === p[1]);
+      order.status = "cancelled";
+      order.refundReason = p[0];
       return [[], []];
     }
     if (sql.startsWith("INSERT INTO reward_ledger")) {
@@ -139,9 +143,11 @@ describe("server surcharge transaction boundary", () => {
       expect(fake.orders[0].price).toBe(price);
       expect(fake.ledger[0].delta).toBe(-price);
       expect(fake.account.balance).toBe(700 - price);
-      await cancelRewardOrder(1, order.id);
+      await cancelRewardOrder(1, order.id, "학생 요청");
       expect(fake.account.balance).toBe(700);
       expect(fake.ledger[1].delta).toBe(price);
+      expect(fake.ledger[1].reason).toBe("주문 취소 환불 · 학생 요청");
+      expect(fake.orders[0].refundReason).toBe("학생 요청");
     }
   );
   it("rejects a base-affordable order whose surcharge exceeds the balance", async () => {
@@ -158,7 +164,24 @@ describe("server surcharge transaction boundary", () => {
     fake.orders = [
       { id: "legacy", studentId: 1, status: "submitted", price: 500 },
     ];
-    await cancelRewardOrder(1, "legacy");
+    await cancelRewardOrder(1, "legacy", "기존 주문 환불");
     expect(fake.account.balance).toBe(700);
+  });
+  it("rejects a paid-order refund without a reason", async () => {
+    fake.orders = [
+      {
+        id: "needs-reason",
+        studentId: 1,
+        source: "student_order",
+        status: "submitted",
+        price: 50,
+      },
+    ];
+    await expect(cancelRewardOrder(1, "needs-reason", "  ")).rejects.toThrow(
+      "환불 사유"
+    );
+    expect(fake.orders[0].status).toBe("submitted");
+    expect(fake.account.balance).toBe(700);
+    expect(fake.ledger).toHaveLength(0);
   });
 });
