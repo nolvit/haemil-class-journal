@@ -61,7 +61,12 @@ export function serveStatic(app: Express) {
   app.use(express.static(distPath));
 
   // Missing library images must never fall through to the SPA document.
-  app.use("/avatar-rewards", (_req, res) => {
+  app.use("/avatar-rewards", (req, res, next) => {
+    if (
+      (req.method === "GET" || req.method === "HEAD") &&
+      isAvatarRewardsSpaEntry(req.originalUrl)
+    )
+      return next();
     res.set("Cache-Control", "no-store").sendStatus(404);
   });
 
@@ -69,4 +74,9 @@ export function serveStatic(app: Express) {
   app.use("*", (_req, res) => {
     res.sendFile(path.resolve(distPath, "index.html"));
   });
+}
+
+export function isAvatarRewardsSpaEntry(originalUrl: string) {
+  const pathname = originalUrl.split("?", 1)[0];
+  return pathname === "/avatar-rewards" || pathname === "/avatar-rewards/";
 }

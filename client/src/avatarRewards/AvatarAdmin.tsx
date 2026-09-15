@@ -122,6 +122,83 @@ function PointAdjustment({
     </section>
   );
 }
+
+function RefundOrderAction({
+  price,
+  pending,
+  onRefund,
+}: {
+  price: number;
+  pending: boolean;
+  onRefund: (reason: string) => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [reason, setReason] = useState("");
+  const normalizedReason = reason.trim();
+
+  if (!open)
+    return (
+      <Button type="button" variant="outline" onClick={() => setOpen(true)}>
+        취소 및 환불
+      </Button>
+    );
+
+  return (
+    <form
+      className="reward-refund-form"
+      onSubmit={async e => {
+        e.preventDefault();
+        if (!normalizedReason) {
+          toast.error("환불 사유를 입력해 주세요.");
+          return;
+        }
+        if (
+          !window.confirm(
+            `${price.toLocaleString()}P를 환불하고 주문을 취소하시겠습니까?\n환불 사유: ${normalizedReason}`
+          )
+        )
+          return;
+        try {
+          await onRefund(normalizedReason);
+          setReason("");
+          setOpen(false);
+        } catch {
+          // Mutation error is displayed by the shared mutation handler.
+        }
+      }}
+    >
+      <label>
+        환불 사유
+        <textarea
+          autoFocus
+          required
+          maxLength={140}
+          value={reason}
+          disabled={pending}
+          placeholder="학생에게도 표시될 환불 사유를 입력해 주세요."
+          onChange={e => setReason(e.target.value)}
+        />
+      </label>
+      <small>{normalizedReason.length}/140</small>
+      <div>
+        <Button type="submit" disabled={pending || !normalizedReason}>
+          {pending ? "처리 중…" : "환불 확정"}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          disabled={pending}
+          onClick={() => {
+            setReason("");
+            setOpen(false);
+          }}
+        >
+          닫기
+        </Button>
+      </div>
+    </form>
+  );
+}
 function BulkPointAdjustment({
   students,
   onSaved,
@@ -624,7 +701,7 @@ export default function AvatarAdmin() {
     onError,
     onSuccess: () => {
       refresh();
-      toast.success("주문을 취소하고 포인트를 환불했습니다.");
+      toast.success("주문 취소 처리를 완료했습니다.");
     },
   });
   const total = list.data?.reduce((n, s) => n + Number(s.newOrders), 0) ?? 0;
@@ -823,6 +900,12 @@ export default function AvatarAdmin() {
                   ? "포인트 차감 없음"
                   : `${o.price.toLocaleString()}P`}
               </small>
+              {o.status === "cancelled" && o.refundReason && (
+                <p className="reward-refund-record">
+                  <b>환불 사유</b>
+                  <span>{o.refundReason}</span>
+                </p>
+              )}
               {o.source !== "admin_gift" && (
                 <>
                   <p>
@@ -870,22 +953,31 @@ export default function AvatarAdmin() {
                   </Button>
                 )}
                 {(o.status === "submitted" || o.status === "ready") && (
-                  <Button
-                    variant="outline"
-                    disabled={cancel.isPending}
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          o.source === "admin_gift"
-                            ? "이 아바타 선물을 취소하시겠습니까?"
-                            : `${o.price}P를 환불하고 주문을 취소하시겠습니까?`
-                        )
-                      )
-                        cancel.mutate({ studentId, orderId: o.id });
-                    }}
-                  >
-                    {o.source === "admin_gift" ? "선물 취소" : "취소 및 환불"}
-                  </Button>
+                  o.source === "admin_gift" ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      disabled={cancel.isPending}
+                      onClick={() => {
+                        if (window.confirm("이 아바타 선물을 취소하시겠습니까?"))
+                          cancel.mutate({ studentId, orderId: o.id });
+                      }}
+                    >
+                      선물 취소
+                    </Button>
+                  ) : (
+                    <RefundOrderAction
+                      price={o.price}
+                      pending={cancel.isPending}
+                      onRefund={refundReason =>
+                        cancel.mutateAsync({
+                          studentId,
+                          orderId: o.id,
+                          refundReason,
+                        })
+                      }
+                    />
+                  )
                 )}
               </div>
               {o.status === "submitted" && (

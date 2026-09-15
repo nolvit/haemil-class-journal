@@ -13,6 +13,7 @@ import {
   rewardOrderInput,
   rewardAdjustmentInput,
   rewardBulkAdjustmentInput,
+  refundReasonInput,
 } from "../../shared/avatarRewards";
 import * as store from "../avatarRewardStore";
 import { storagePut } from "../storage";
@@ -43,6 +44,7 @@ const studentProcedure = publicProcedure
   });
 const student = z.object({ studentId: z.number().int().positive() });
 const order = student.extend({ orderId: z.string().uuid() });
+const cancellation = order.extend({ refundReason: refundReasonInput.optional() });
 const imageInput = z.object({
   data: z.string().min(1).max(12_000_000),
   mime: z.enum(["image/png", "image/jpeg", "image/webp"]),
@@ -354,9 +356,13 @@ export const avatarRewardsRouter = router({
       )
     ),
   cancel: adminProcedure
-    .input(order)
+    .input(cancellation)
     .mutation(({ input }) =>
-      store.cancelRewardOrder(input.studentId, input.orderId)
+      store.cancelRewardOrder(
+        input.studentId,
+        input.orderId,
+        input.refundReason
+      )
     ),
   master: adminProcedure
     .input(student.extend({ image: imageInput }))
