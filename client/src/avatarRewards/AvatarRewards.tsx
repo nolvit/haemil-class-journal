@@ -159,13 +159,14 @@ export function AvatarRewards({
   const onError = (e: { message: string }) => toast.error(e.message);
   const randomCharge = trpc.avatarRewards.randomCharge.useMutation({ onError });
   const [masterAvatarRequested, setMasterAvatarRequested] = useState(false);
-  const requestMasterAvatar = trpc.avatarRewards.requestMasterAvatar.useMutation({
-    onError,
-    onSuccess: () => {
-      setMasterAvatarRequested(true);
-      toast.success("첫 번째 아바타 생성 요청을 보냈어요.");
-    },
-  });
+  const requestMasterAvatar =
+    trpc.avatarRewards.requestMasterAvatar.useMutation({
+      onError,
+      onSuccess: () => {
+        setMasterAvatarRequested(true);
+        toast.success("첫 번째 아바타 생성 요청을 보냈어요.");
+      },
+    });
   const submit = trpc.avatarRewards.submit.useMutation({
     onError,
     onSuccess: () => {
@@ -207,7 +208,11 @@ export function AvatarRewards({
   const active = data?.orders.find(
     o => o.status === "submitted" || o.status === "ready"
   );
-  const busy = requestMasterAvatar.isPending || submit.isPending || select.isPending || representative.isPending;
+  const busy =
+    requestMasterAvatar.isPending ||
+    submit.isPending ||
+    select.isPending ||
+    representative.isPending;
   const position = cropY ?? account?.cropY ?? 0;
   const horizontal = cropX ?? account?.cropX ?? 50;
   const cropDirty = cropY !== null || cropX !== null || zoom !== null;
@@ -470,14 +475,23 @@ export function AvatarRewards({
                             <button
                               type="button"
                               className="reward-empty"
-                              onClick={() => requestMasterAvatar.mutate(identity)}
-                              disabled={requestMasterAvatar.isPending || masterAvatarRequested}
+                              onClick={() =>
+                                requestMasterAvatar.mutate(identity)
+                              }
+                              disabled={
+                                requestMasterAvatar.isPending ||
+                                masterAvatarRequested
+                              }
                               aria-label="첫 번째 아바타 생성 요청"
                             >
                               <UserRound size={52} />
                               <p>아직 깨어나지 않은 첫 번째 카드예요.</p>
                               <small>포인트는 수업한 만큼 먼저 쌓여요.</small>
-                              <strong>{masterAvatarRequested ? "생성 요청을 보냈어요." : "여기를 클릭하시면 첫번째 아바타 생성을 할 수 있습니다."}</strong>
+                              <strong>
+                                {masterAvatarRequested
+                                  ? "생성 요청을 보냈어요."
+                                  : "여기를 클릭하시면 첫번째 아바타 생성을 할 수 있습니다."}
+                              </strong>
                             </button>
                           )}
                         </div>
@@ -659,23 +673,33 @@ export function AvatarRewards({
                         </div>
                         {collectionTab === "cards" && (
                           <>
-                            <p>마음에 드는 카드를 대표로 설정해 보세요.</p>
+                            <p>
+                              한 번 눌러 선택하고 같은 카드를 한 번 더 누르면
+                              크게 열려요.
+                            </p>
                             <div className="collection-avatar-grid">
                               {account.masterUrl && (
                                 <article className="collection-avatar-item">
                                   <button
                                     type="button"
                                     className="constellation-orbit collection-avatar-orbit"
-                                    aria-label="마스터 아바타 카드 열기"
+                                    aria-label={
+                                      selectedCard === "master"
+                                        ? "마스터 아바타 카드 크게 열기"
+                                        : "마스터 아바타 선택"
+                                    }
                                     aria-current={
                                       selectedCard === "master"
                                         ? "true"
                                         : undefined
                                     }
                                     onClick={e => {
+                                      if (selectedCard !== "master") {
+                                        setSelectedCard("master");
+                                        return;
+                                      }
                                       const b =
                                         e.currentTarget.getBoundingClientRect();
-                                      setSelectedCard("master");
                                       openArt({
                                         url: account.masterUrl!,
                                         title: "마스터 아바타",
@@ -724,16 +748,23 @@ export function AvatarRewards({
                                     <button
                                       type="button"
                                       className={`constellation-orbit collection-avatar-orbit frame-${card.frame}`}
-                                      aria-label={`스페셜 아바타 ${index + 1} 카드 열기`}
+                                      aria-label={`스페셜 아바타 ${index + 1} ${
+                                        selectedCard === card.id
+                                          ? "카드 크게 열기"
+                                          : "선택"
+                                      }`}
                                       aria-current={
                                         selectedCard === card.id
                                           ? "true"
                                           : undefined
                                       }
                                       onClick={e => {
+                                        if (selectedCard !== card.id) {
+                                          setSelectedCard(card.id);
+                                          return;
+                                        }
                                         const b =
                                           e.currentTarget.getBoundingClientRect();
-                                        setSelectedCard(card.id);
                                         openArt({
                                           url: card.url,
                                           title: "내 컬렉션",
@@ -823,9 +854,7 @@ export function AvatarRewards({
                                         onRefresh={() => void refresh()}
                                         onDirtyChange={dirty =>
                                           setSharingDirtyCards(current => {
-                                            if (
-                                              dirty === current.has(card.id)
-                                            )
+                                            if (dirty === current.has(card.id))
                                               return current;
                                             const next = new Set(current);
                                             if (dirty) next.add(card.id);
@@ -915,7 +944,9 @@ export function AvatarRewards({
                                 </label>
                                 <Button
                                   className="reward-crop-save"
-                                  disabled={zoomMutation.isPending || busy || !cropDirty}
+                                  disabled={
+                                    zoomMutation.isPending || busy || !cropDirty
+                                  }
                                   onClick={async () => {
                                     try {
                                       await zoomMutation.mutateAsync({
@@ -1224,18 +1255,53 @@ export function AvatarRewards({
                       <p role="status">상점을 불러오는 중…</p>
                     )}
                     {page === "shop" && wardrobeQuery.data && (
-                      <AvatarShop
-                        identity={identity}
-                        wardrobe={wardrobe}
-                        cards={data.cards}
-                        balance={account.balance}
-                        image={
-                          image ??
-                          "/avatar-rewards/avatars/official/official_female_avatar.png"
-                        }
-                        onRefresh={() => void refresh()}
-                        onOpen={openArt}
-                      />
+                      <>
+                        <section className="shop-special-avatar-entry">
+                          <span className="av-kicker">CREATE YOUR AVATAR</span>
+                          <div>
+                            <Sparkles size={24} aria-hidden="true" />
+                            <div>
+                              <strong>스페셜 아바타 만들기</strong>
+                              <small>
+                                {active
+                                  ? active.status === "ready"
+                                    ? "새 아바타가 도착했어요. 홈에서 선택해 주세요."
+                                    : "현재 아바타를 제작하고 있어요."
+                                  : account.balance < data.nextPrice
+                                    ? `${(data.nextPrice - account.balance).toLocaleString()}P 더 모으면 만들 수 있어요.`
+                                    : "원하는 모습과 배경을 직접 골라 새 카드를 만들어 보세요."}
+                              </small>
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            disabled={
+                              !account.masterUrl ||
+                              (!active && account.balance < data.nextPrice)
+                            }
+                            onClick={() => navigate(active ? "home" : "order")}
+                          >
+                            <Sparkles size={16} />
+                            {active
+                              ? active.status === "ready"
+                                ? "도착 카드 확인"
+                                : "제작 현황 확인"
+                              : "제작 화면 열기"}
+                          </Button>
+                        </section>
+                        <AvatarShop
+                          identity={identity}
+                          wardrobe={wardrobe}
+                          cards={data.cards}
+                          balance={account.balance}
+                          image={
+                            image ??
+                            "/avatar-rewards/avatars/official/official_female_avatar.png"
+                          }
+                          onRefresh={() => void refresh()}
+                          onOpen={openArt}
+                        />
+                      </>
                     )}
                     {page === "gallery" && (
                       <AvatarGallery identity={identity} onOpen={openArt} />

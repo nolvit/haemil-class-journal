@@ -1,10 +1,32 @@
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { ListMusic, Music2, Pause, Play, Shuffle, Volume2, VolumeX } from "lucide-react";
+import {
+  ListMusic,
+  Music2,
+  Pause,
+  Play,
+  Shuffle,
+  Volume2,
+  VolumeX,
+  X,
+} from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 
 type Identity = { token: string; studentId: number };
 const playbackKey = "haemil-avatar-bgm-enabled";
+const playlistExclusionKey = (studentId: number) =>
+  `haemil-avatar-bgm-excluded-${studentId}`;
+const readPlaylistExclusions = (key: string) => {
+  if (typeof localStorage === "undefined") return [] as string[];
+  try {
+    const value = JSON.parse(localStorage.getItem(key) ?? "[]");
+    return Array.isArray(value)
+      ? value.filter(item => typeof item === "string")
+      : [];
+  } catch {
+    return [];
+  }
+};
 
 export function AvatarBgmPlayer({
   identity,
@@ -13,32 +35,79 @@ export function AvatarBgmPlayer({
   identity: Identity;
   open: boolean;
 }) {
-  const query = trpc.avatarRewards.bgmState.useQuery(identity, { retry: false });
+  const query = trpc.avatarRewards.bgmState.useQuery(identity, {
+    retry: false,
+  });
   const audio = useRef<HTMLAudioElement>(null);
+  const playlistRef = useRef<HTMLDetailsElement>(null);
+  const exclusionKey = playlistExclusionKey(identity.studentId);
   const ownedTracks = (query.data?.tracks ?? []).filter(track =>
     query.data?.owned.includes(track.id)
   );
+  const [excludedTrackIds, setExcludedTrackIds] = useState<string[]>(() =>
+    readPlaylistExclusions(exclusionKey)
+  );
   const [currentTrackId, setCurrentTrackId] = useState<string | null>(null);
   const [enabled, setEnabled] = useState(
-    () => typeof localStorage !== "undefined" && localStorage.getItem(playbackKey) === "on"
+    () =>
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(playbackKey) === "on"
   );
   const [wantedPlaying, setWantedPlaying] = useState(
-    () => typeof localStorage !== "undefined" && localStorage.getItem(playbackKey) === "on"
+    () =>
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem(playbackKey) === "on"
   );
   const [shuffle, setShuffle] = useState(
-    () => typeof localStorage !== "undefined" && localStorage.getItem("haemil-avatar-bgm-shuffle") === "on"
+    () =>
+      typeof localStorage !== "undefined" &&
+      localStorage.getItem("haemil-avatar-bgm-shuffle") === "on"
   );
   const [playing, setPlaying] = useState(false);
   const [progress, setProgress] = useState(0);
   const equippedId = query.data?.equipped ?? null;
+  const playlistTracks = ownedTracks.filter(
+    track => !excludedTrackIds.includes(track.id)
+  );
   const currentTrack =
-    ownedTracks.find(track => track.id === currentTrackId) ??
-    ownedTracks.find(track => track.id === equippedId) ??
+    playlistTracks.find(track => track.id === currentTrackId) ??
+    playlistTracks.find(track => track.id === equippedId) ??
+    playlistTracks[0] ??
     null;
 
   useEffect(() => {
-    if (!currentTrackId && equippedId) setCurrentTrackId(equippedId);
-  }, [currentTrackId, equippedId]);
+    setExcludedTrackIds(readPlaylistExclusions(exclusionKey));
+  }, [exclusionKey]);
+
+  useEffect(() => {
+    if (equippedId) setCurrentTrackId(equippedId);
+  }, [equippedId]);
+
+  useEffect(() => {
+    const syncEquippedTrack = (event: Event) => {
+      const trackId = (event as CustomEvent<string>).detail;
+      if (!trackId) return;
+      setExcludedTrackIds(current => {
+        const next = current.filter(id => id !== trackId);
+        localStorage.setItem(exclusionKey, JSON.stringify(next));
+        return next;
+      });
+      setCurrentTrackId(trackId);
+    };
+    window.addEventListener("haemil-bgm-equipped", syncEquippedTrack);
+    return () =>
+      window.removeEventListener("haemil-bgm-equipped", syncEquippedTrack);
+  }, [exclusionKey]);
+
+  useEffect(() => {
+    const closePlaylist = (event: PointerEvent) => {
+      const playlist = playlistRef.current;
+      if (playlist?.open && !playlist.contains(event.target as Node))
+        playlist.open = false;
+    };
+    document.addEventListener("pointerdown", closePlaylist);
+    return () => document.removeEventListener("pointerdown", closePlaylist);
+  }, []);
 
   const start = async () => {
     if (!audio.current || !currentTrack) return false;
@@ -53,15 +122,18 @@ export function AvatarBgmPlayer({
   };
 
   const playNext = () => {
-    if (!ownedTracks.length) return;
-    const currentIndex = Math.max(0, ownedTracks.findIndex(track => track.id === currentTrack?.id));
-    let nextIndex = (currentIndex + 1) % ownedTracks.length;
-    if (shuffle && ownedTracks.length > 1) {
-      do nextIndex = Math.floor(Math.random() * ownedTracks.length);
+    if (!playlistTracks.length) return;
+    const currentIndex = Math.max(
+      0,
+      playlistTracks.findIndex(track => track.id === currentTrack?.id)
+    );
+    let nextIndex = (currentIndex + 1) % playlistTracks.length;
+    if (shuffle && playlistTracks.length > 1) {
+      do nextIndex = Math.floor(Math.random() * playlistTracks.length);
       while (nextIndex === currentIndex);
     }
     setProgress(0);
-    setCurrentTrackId(ownedTracks[nextIndex].id);
+    setCurrentTrackId(playlistTracks[nextIndex].id);
     setEnabled(true);
     setWantedPlaying(true);
   };
@@ -102,7 +174,9 @@ export function AvatarBgmPlayer({
         onPause={() => setPlaying(false)}
         onTimeUpdate={event => {
           const node = event.currentTarget;
-          setProgress(node.duration ? (node.currentTime / node.duration) * 100 : 0);
+          setProgress(
+            node.duration ? (node.currentTime / node.duration) * 100 : 0
+          );
         }}
       />
       <button
@@ -141,30 +215,71 @@ export function AvatarBgmPlayer({
           onChange={event => {
             const next = Number(event.currentTarget.value);
             setProgress(next);
-            if (audio.current && Number.isFinite(audio.current.duration) && audio.current.duration > 0)
+            if (
+              audio.current &&
+              Number.isFinite(audio.current.duration) &&
+              audio.current.duration > 0
+            )
               audio.current.currentTime = (audio.current.duration * next) / 100;
           }}
         />
       </div>
-      <details className="bgm-playlist">
-        <summary aria-label="BGM 플레이리스트"><ListMusic size={15} /></summary>
+      <details ref={playlistRef} className="bgm-playlist">
+        <summary aria-label="BGM 플레이리스트">
+          <ListMusic size={15} />
+        </summary>
         <div>
           <strong>내 플레이리스트</strong>
-          {ownedTracks.length ? ownedTracks.map(track => (
-            <button
-              type="button"
-              key={track.id}
-              aria-current={track.id === currentTrack?.id ? "true" : undefined}
-              onClick={() => {
-                setCurrentTrackId(track.id);
-                setEnabled(true);
-                setWantedPlaying(true);
-                localStorage.setItem(playbackKey, "on");
-              }}
-            >
-              {track.title}
-            </button>
-          )) : <small>소장한 BGM이 없어요.</small>}
+          {playlistTracks.length ? (
+            playlistTracks.map(track => (
+              <div className="bgm-playlist-track" key={track.id}>
+                <button
+                  type="button"
+                  className="bgm-playlist-select"
+                  aria-current={
+                    track.id === currentTrack?.id ? "true" : undefined
+                  }
+                  onClick={() => {
+                    setCurrentTrackId(track.id);
+                    setEnabled(true);
+                    setWantedPlaying(true);
+                    localStorage.setItem(playbackKey, "on");
+                    if (playlistRef.current) playlistRef.current.open = false;
+                  }}
+                >
+                  {track.title}
+                </button>
+                <button
+                  type="button"
+                  className="bgm-playlist-remove"
+                  aria-label={`${track.title} 플레이리스트에서 제외`}
+                  onClick={() => {
+                    const nextExcluded = [...excludedTrackIds, track.id];
+                    const remaining = playlistTracks.filter(
+                      candidate => candidate.id !== track.id
+                    );
+                    setExcludedTrackIds(nextExcluded);
+                    localStorage.setItem(
+                      exclusionKey,
+                      JSON.stringify(nextExcluded)
+                    );
+                    if (currentTrack?.id === track.id) {
+                      setProgress(0);
+                      setCurrentTrackId(remaining[0]?.id ?? null);
+                    }
+                  }}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))
+          ) : (
+            <small>
+              {ownedTracks.length
+                ? "재생 목록이 비어 있어요. 컬렉션에서 장착하면 다시 추가돼요."
+                : "소장한 BGM이 없어요."}
+            </small>
+          )}
         </div>
       </details>
       <button
@@ -175,7 +290,10 @@ export function AvatarBgmPlayer({
         onClick={() => {
           const next = !shuffle;
           setShuffle(next);
-          localStorage.setItem("haemil-avatar-bgm-shuffle", next ? "on" : "off");
+          localStorage.setItem(
+            "haemil-avatar-bgm-shuffle",
+            next ? "on" : "off"
+          );
           toast.success(next ? "랜덤 재생을 켰어요." : "순서대로 재생해요.");
         }}
       >
@@ -195,10 +313,15 @@ export function AvatarBgmPlayer({
           setEnabled(true);
           setWantedPlaying(true);
           localStorage.setItem(playbackKey, "on");
-          if (!(await start())) toast.info("음악을 시작하지 못했어요. 다시 눌러 주세요.");
+          if (!(await start()))
+            toast.info("음악을 시작하지 못했어요. 다시 눌러 주세요.");
         }}
       >
-        {playing ? <Pause size={13} aria-hidden="true" /> : <Play size={13} aria-hidden="true" />}
+        {playing ? (
+          <Pause size={13} aria-hidden="true" />
+        ) : (
+          <Play size={13} aria-hidden="true" />
+        )}
       </button>
     </div>
   );
@@ -228,8 +351,13 @@ export function AvatarBgmShop({
   });
   const equip = trpc.avatarRewards.equipBgm.useMutation({
     onError: error => toast.error(error.message),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       void state.refetch();
+      window.dispatchEvent(
+        new CustomEvent("haemil-bgm-equipped", {
+          detail: variables.trackId,
+        })
+      );
       toast.success("해밀월드 BGM을 장착했어요.");
     },
   });
@@ -362,8 +490,13 @@ export function AvatarBgmCollection({ identity }: { identity: Identity }) {
   });
   const equip = trpc.avatarRewards.equipBgm.useMutation({
     onError: error => toast.error(error.message),
-    onSuccess: () => {
+    onSuccess: (_result, variables) => {
       void state.refetch();
+      window.dispatchEvent(
+        new CustomEvent("haemil-bgm-equipped", {
+          detail: variables.trackId,
+        })
+      );
       toast.success("컬렉션에서 선택한 BGM을 장착했어요.");
     },
   });

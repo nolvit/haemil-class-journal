@@ -229,13 +229,22 @@ export function AvatarShop({
   const busy =
     buy.isPending || equip.isPending || buyBg.isPending || equipBg.isPending;
   const products = (
-    collection ? (ownedCatalog.data ?? []) : (catalog.data ?? [])
+    collection
+      ? [
+          ...(catalog.data ?? []).filter(item => item.price === 0),
+          ...(ownedCatalog.data ?? []),
+        ]
+      : (catalog.data ?? [])
   )
     .filter(
       item =>
         !collection ||
         item.category ===
           (category === "frames" ? "card_frame" : "card_background")
+    )
+    .filter(
+      (item, index, items) =>
+        items.findIndex(candidate => candidate.id === item.id) === index
     )
     .map(item => ({
       ...item,
@@ -347,10 +356,11 @@ export function AvatarShop({
             !products.some(
               item =>
                 card &&
-                (category === "frames"
-                  ? (wardrobe.cardFrames[card.id] ?? [])
-                  : (wardrobe.cardBackgrounds[card.id] ?? [])
-                ).includes(item.id)
+                (item.price === 0 ||
+                  (category === "frames"
+                    ? (wardrobe.cardFrames[card.id] ?? [])
+                    : (wardrobe.cardBackgrounds[card.id] ?? [])
+                  ).includes(item.id))
             ) && (
               <p>
                 이 카드에 구매한 {category === "frames" ? "프레임" : "배경"}이
@@ -371,11 +381,12 @@ export function AvatarShop({
             if (
               collection &&
               (!card ||
-                !(
-                  category === "frames"
-                    ? (wardrobe.cardFrames[card.id] ?? [])
-                    : (wardrobe.cardBackgrounds[card.id] ?? [])
-                ).includes(item.id))
+                (item.price !== 0 &&
+                  !(
+                    category === "frames"
+                      ? (wardrobe.cardFrames[card.id] ?? [])
+                      : (wardrobe.cardBackgrounds[card.id] ?? [])
+                  ).includes(item.id)))
             )
               return null;
             return (
