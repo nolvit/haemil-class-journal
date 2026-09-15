@@ -885,6 +885,121 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* Shop avatar entrance, centered bottom navigation and manageable BGM queue. */
+.shop-special-avatar-entry {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 18px;
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid #e3c471;
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 92% 15%, #ffeba633, transparent 36%),
+    linear-gradient(120deg, #284c47, #132831 72%);
+  box-shadow:
+    0 10px 28px #0005,
+    inset 0 1px 0 #fff2bd33;
+}
+.shop-special-avatar-entry > .av-kicker {
+  grid-column: 1 / -1;
+}
+.shop-special-avatar-entry > div {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 13px;
+}
+.shop-special-avatar-entry > div > svg {
+  flex: 0 0 auto;
+  color: #f1d78d;
+  filter: drop-shadow(0 0 9px #f1d78d66);
+}
+.shop-special-avatar-entry > div > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+.shop-special-avatar-entry strong {
+  color: #fff0bd;
+  font-size: 19px;
+}
+.shop-special-avatar-entry small {
+  color: #b9ccc7;
+  font-size: 11px;
+  line-height: 1.55;
+}
+.shop-special-avatar-entry > button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-width: 150px;
+  min-height: 46px;
+  white-space: nowrap;
+}
+.reward-dialog-layout > .reward-links {
+  padding-top: 17px;
+  padding-bottom: calc(23px + env(safe-area-inset-bottom));
+}
+.reward-dialog-layout > .reward-links > button {
+  transform: translateY(-4px);
+}
+.bgm-playlist-track {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 5px;
+}
+.bgm-playlist > div .bgm-playlist-track > button {
+  margin: 0;
+}
+.bgm-playlist > div .bgm-playlist-select {
+  min-width: 0;
+  width: 100%;
+}
+.bgm-playlist > div .bgm-playlist-remove {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: #947f5b66;
+  color: #b8c9c4;
+}
+.bgm-playlist > div .bgm-playlist-remove:hover {
+  color: #ffe1a0;
+  border-color: #d8bd7d;
+}
+
+@media (max-width: 600px) {
+  .shop-special-avatar-entry {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 9px 10px;
+    padding: 15px 13px;
+  }
+  .shop-special-avatar-entry > .av-kicker {
+    grid-column: 1 / -1;
+  }
+  .shop-special-avatar-entry > div {
+    gap: 9px;
+  }
+  .shop-special-avatar-entry strong {
+    font-size: 17px;
+    line-height: 1.25;
+  }
+  .shop-special-avatar-entry small {
+    font-size: 10px;
+  }
+  .shop-special-avatar-entry > button {
+    width: auto;
+    min-width: 112px;
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+}
 .avatar-theme .reward-profile.preview {
   width: 110px;
   height: 110px;
@@ -2323,7 +2438,6 @@
   margin-top: -3px;
 }
 
-
 /* 2026-09 BGM controls, avatar arrival and profile editor refinements */
 .avatar-bgm-player {
   grid-template-columns: auto minmax(150px, 1fr) auto auto auto;
@@ -2393,7 +2507,9 @@
   background:
     radial-gradient(circle at 92% 5%, #fff1a52e, transparent 34%),
     linear-gradient(135deg, #294642, #142832 70%);
-  box-shadow: 0 8px 28px #0005, inset 0 1px 0 #fff4ce38;
+  box-shadow:
+    0 8px 28px #0005,
+    inset 0 1px 0 #fff4ce38;
 }
 .avatar-theme .reward-arrival::before {
   content: "NEW";
@@ -2404,7 +2520,7 @@
   background: #f1d68f;
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: .16em;
+  letter-spacing: 0.16em;
 }
 .avatar-theme .reward-arrival h3 {
   margin: 0;
@@ -2426,7 +2542,9 @@
 .avatar-theme .reward-crop input.avatar-themed-range {
   height: 36px;
 }
-.avatar-theme .reward-crop input.avatar-themed-range::-webkit-slider-runnable-track {
+.avatar-theme
+  .reward-crop
+  input.avatar-themed-range::-webkit-slider-runnable-track {
   height: 16px;
   border-radius: 999px;
 }
@@ -2499,7 +2617,6 @@
   }
 }
 
-
 /* Keep the arrival banner separate from its candidate cards. */
 .avatar-theme .reward-arrival {
   display: grid;
@@ -2524,7 +2641,9 @@
   background:
     radial-gradient(circle at 92% 5%, #fff1a52e, transparent 34%),
     linear-gradient(135deg, #294642, #142832 70%);
-  box-shadow: 0 8px 28px #0005, inset 0 1px 0 #fff4ce38;
+  box-shadow:
+    0 8px 28px #0005,
+    inset 0 1px 0 #fff4ce38;
 }
 .avatar-theme .reward-arrival-head > span {
   justify-self: start;
@@ -2534,7 +2653,7 @@
   background: #f1d68f;
   font-size: 10px;
   font-weight: 900;
-  letter-spacing: .12em;
+  letter-spacing: 0.12em;
 }
 .avatar-theme .reward-arrival-head h3 {
   margin: 0;
@@ -2562,23 +2681,23 @@
   }
 }
 
-
 /* Mobile-safe Korean wrapping and compact collection cards. */
-.avatar-theme :where(
-  h1,
-  h2,
-  h3,
-  h4,
-  p,
-  span,
-  small,
-  strong,
-  b,
-  label,
-  button,
-  summary,
-  legend
-) {
+.avatar-theme
+  :where(
+    h1,
+    h2,
+    h3,
+    h4,
+    p,
+    span,
+    small,
+    strong,
+    b,
+    label,
+    button,
+    summary,
+    legend
+  ) {
   word-break: keep-all;
   overflow-wrap: break-word;
 }
@@ -2744,4 +2863,10 @@
     min-width: 0;
     max-width: 100%;
   }
+}
+
+/* Final navigation spacing override after the legacy mobile rules. */
+.reward-dialog-layout > .reward-links {
+  padding-top: 17px;
+  padding-bottom: calc(23px + env(safe-area-inset-bottom));
 }
