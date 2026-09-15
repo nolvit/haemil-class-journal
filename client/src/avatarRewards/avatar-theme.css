@@ -948,17 +948,68 @@
   transform: translateY(-4px);
 }
 .bgm-playlist-track {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(0, 1fr) 32px;
   align-items: center;
   gap: 5px;
+  border-radius: 10px;
+  touch-action: pan-y;
+  transition:
+    transform 0.16s ease,
+    background-color 0.16s ease,
+    box-shadow 0.16s ease;
+  -webkit-touch-callout: none;
 }
 .bgm-playlist > div .bgm-playlist-track > button {
   margin: 0;
 }
 .bgm-playlist > div .bgm-playlist-select {
+  display: flex;
+  align-items: center;
+  gap: 7px;
   min-width: 0;
   width: 100%;
+}
+.bgm-playlist-select > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bgm-playlist-grip {
+  flex: 0 0 auto;
+  color: #829792;
+}
+.bgm-playlist > div.is-reordering {
+  overflow-y: hidden;
+  overscroll-behavior: none;
+  user-select: none;
+}
+.bgm-playlist > div.is-reordering .bgm-playlist-track {
+  touch-action: none;
+}
+.bgm-playlist-track.is-dragging {
+  z-index: 2;
+  transform: scale(1.025);
+  background: #34504a;
+  box-shadow: 0 8px 22px #0008;
+}
+.bgm-playlist-track.is-dragging .bgm-playlist-select {
+  border-color: #e1c77d;
+  color: #fff0bd;
+}
+.bgm-playlist-hint {
+  display: block;
+  margin: -3px 4px 4px;
+  color: #91a6a0;
+  font-size: 9px;
+  line-height: 1.45;
+  word-break: keep-all;
+}
+body.bgm-playlist-reordering {
+  overflow: hidden !important;
+  overscroll-behavior: none;
 }
 .bgm-playlist > div .bgm-playlist-remove {
   display: grid;
