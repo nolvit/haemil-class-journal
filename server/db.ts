@@ -465,10 +465,39 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     user.role ?? (user.openId === ENV.ownerOpenId ? "admin" : "user");
   if (user.role !== undefined || user.openId === ENV.ownerOpenId)
     updateSet.role = values.role;
-  await db
-    .insert(users)
-    .values(values)
-    .onDuplicateKeyUpdate({ set: updateSet });
+  const writeUser = () =>
+    db
+      .insert(users)
+      .values(values)
+      .onDuplicateKeyUpdate({ set: updateSet });
+
+  try {
+    await writeUser();
+  } catch (error) {
+    // Some Railway preview databases were cloned without preserving the
+    // AUTO_INCREMENT attribute on users.id. Repair only that known schema
+    // drift and retry once so the first local-admin login can create its row.
+    if (!isMissingAutoIncrementUserIdError(error)) throw error;
+    await db.execute(
+      sql`ALTER TABLE users MODIFY COLUMN id INT NOT NULL AUTO_INCREMENT`
+    );
+    await writeUser();
+  }
+}
+
+export function isMissingAutoIncrementUserIdError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as {
+    code?: unknown;
+    message?: unknown;
+    cause?: { code?: unknown; message?: unknown };
+  };
+  const code = candidate.code ?? candidate.cause?.code;
+  const message = String(candidate.message ?? candidate.cause?.message ?? "");
+  return (
+    code === "ER_NO_DEFAULT_FOR_FIELD" &&
+    /(?:field\s+['`]?id['`]?|users\.id).*default/i.test(message)
+  );
 }
 
 export async function getUserByOpenId(openId: string) {
