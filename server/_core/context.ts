@@ -1,8 +1,11 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
 import type { User } from "../../drizzle/schema";
-import { getUserByOpenId, upsertUser } from "../db";
-import { ENV } from "./env";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { sdk } from "./sdk";
+
+// TEST-ONLY: temporary secret for PR #24 Preview. Remove before merging to main.
+const PR_PREVIEW_KEY_HASH =
+  "e767b53a0255b74a83d16bc51d2e0128e822b925658dbb2e572f2527778c3e08";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
@@ -22,17 +25,19 @@ export async function createContext(
     user = null;
   }
 
-  if (!user && isPullRequestPreviewRequest(opts.req)) {
-    const openId = "local:haemil-admin";
-    await upsertUser({
-      openId,
-      name: ENV.adminName,
-      email: ENV.adminEmail || null,
+  if (!user && hasValidPreviewKey(opts.req)) {
+    const now = new Date();
+    user = {
+      id: 1,
+      openId: "preview:haemil-admin",
+      name: "해밀 Preview 관리자",
+      email: null,
       loginMethod: "preview",
       role: "admin",
-      lastSignedIn: new Date(),
-    });
-    user = (await getUserByOpenId(openId)) ?? null;
+      createdAt: now,
+      updatedAt: now,
+      lastSignedIn: now,
+    };
   }
 
   return {
@@ -42,20 +47,11 @@ export async function createContext(
   };
 }
 
-export function isPullRequestPreviewRequest(
-  req: CreateExpressContextOptions["req"]
-) {
-  const forwardedHost = req.headers["x-forwarded-host"];
-  const host = String(
-    (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ??
-      req.headers.host ??
-      req.hostname ??
-      ""
-  )
-    .split(":")[0]
-    .toLowerCase();
-  return (
-    ENV.isPullRequestPreview ||
-    /^web-haemil-class-journal-pr-\d+\.up\.railway\.app$/.test(host)
-  );
+function hasValidPreviewKey(req: CreateExpressContextOptions["req"]) {
+  const rawHeader = req.headers["x-haemil-preview-key"];
+  const key = Array.isArray(rawHeader) ? rawHeader[0] : rawHeader;
+  if (!key) return false;
+  const actual = Buffer.from(createHash("sha256").update(key).digest("hex"));
+  const expected = Buffer.from(PR_PREVIEW_KEY_HASH);
+  return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
