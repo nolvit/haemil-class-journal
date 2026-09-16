@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { trpc } from "@/lib/trpc";
+import { useAttendanceLiveUpdates } from "@/hooks/useAttendanceLiveUpdates";
 import { ArrowRight, BookOpenCheck, CalendarCheck2, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, UserCheck, UserRoundX, Users } from "lucide-react";
 import { dashboardAttendanceHref, dashboardJournalHref, dashboardStudentJournalHref, shouldShowDashboardPendingList } from "@shared/dashboardNavigation";
 import { attendanceStatusBadgeClass, attendanceStatusLabels, attendanceStatusValues, formatAttendanceProgressLabel, formatArrivalTimeForDisplay, type AttendanceStatus } from "../../../shared/journalRules";
@@ -91,12 +92,22 @@ export default function Home() {
   useEffect(() => {
     const refreshElapsedTime = () => setRefreshedAt(new Date());
     const timer = window.setInterval(refreshElapsedTime, 30_000);
-    document.addEventListener("visibilitychange", refreshElapsedTime);
+    const handleVisibilityChange = () => {
+      refreshElapsedTime();
+      if (document.visibilityState === "visible") void refetch();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshElapsedTime);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [refetch]);
+
+  useAttendanceLiveUpdates(event => {
+    if (event.eventDate !== journalDate) return;
+    setRefreshedAt(new Date());
+    void refetch();
+  });
 
   useEffect(() => {
     if (!shouldRestoreScroll.current || isLoading) return;

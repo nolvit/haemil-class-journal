@@ -22,6 +22,7 @@ import {
   sendStudentPush,
   totalCountPushPayload,
 } from "../pushNotifications";
+import { publishAttendanceLiveUpdate } from "../attendanceLiveUpdates";
 
 const isoDate = z
   .string()
@@ -1071,6 +1072,12 @@ export const academyRouter = router({
           input.code,
           input.eventDate
         );
+        publishAttendanceLiveUpdate({
+          studentId: result.studentId,
+          eventDate: input.eventDate,
+          eventType: result.eventType,
+          occurredAt: new Date(result.occurredAt).toISOString(),
+        });
         const student = await academyDb.getStudentNotificationIdentity(
           result.studentId
         );

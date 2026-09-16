@@ -19,6 +19,7 @@ import {
   ensureRewardSchema,
   settleRewardAttendance,
 } from "../avatarRewardStore";
+import { registerAttendanceLiveUpdates } from "../attendanceLiveUpdates";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -135,6 +136,7 @@ async function startServer() {
   });
   registerStorageProxy(app);
   registerOAuthRoutes(app);
+  registerAttendanceLiveUpdates(app);
   // tRPC API
   app.use(
     "/api/trpc",

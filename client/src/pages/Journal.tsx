@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { useAttendanceLiveUpdates } from "@/hooks/useAttendanceLiveUpdates";
 import { attendanceStatusBadgeClass, attendanceStatusLabels, chooseJournalClassId, formatAttendanceProgressLabel, getAdjacentJournalDate, getJournalCompleteness, getMonday, isJournalAttentionDue, HOMEWORK_STATUS_OPTIONS, homeworkStatusDescriptions, type AttendanceStatus, type HomeworkStatusOption } from "@shared/journalRules";
 import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, ClipboardPenLine, Edit3, MessageSquareText, Plus, Save, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -55,16 +56,29 @@ export default function Journal() {
   }, [classFilterInitialized, classGroups.data]);
   const queryInput = useMemo(() => ({ weekAnchor: weekStart, includeWeekend }), [weekStart, includeWeekend]);
   const weekly = trpc.academy.weeklyWorkspace.useQuery(queryInput, { enabled: classFilterInitialized });
+  const utils = trpc.useUtils();
   const today = todayInKorea();
   useEffect(() => {
     const refreshElapsedTime = () => setRefreshedAt(new Date());
     const timer = window.setInterval(refreshElapsedTime, 30_000);
-    document.addEventListener("visibilitychange", refreshElapsedTime);
+    const handleVisibilityChange = () => {
+      refreshElapsedTime();
+      if (document.visibilityState === "visible" && classFilterInitialized)
+        void weekly.refetch();
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
     return () => {
       window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", refreshElapsedTime);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
-  }, []);
+  }, [classFilterInitialized, weekly.refetch]);
+  useAttendanceLiveUpdates(event => {
+    if (getMonday(event.eventDate) !== weekStart || !classFilterInitialized)
+      return;
+    setRefreshedAt(new Date());
+    void weekly.refetch();
+    void utils.academy.workspace.invalidate();
+  });
   const visibleDates = useMemo(() => (attentionOnly ? (weekly.data?.dates ?? []).filter(date => date <= today) : (weekly.data?.dates ?? [])), [attentionOnly, today, weekly.data?.dates]);
   const groups = useMemo(() => {
     const map = new Map<number, WeekGroup>();
@@ -87,7 +101,6 @@ export default function Journal() {
       if (comment.comment.trim()) map.set(comment.classGroupId, true);
     return map;
   }, [weekly.data?.comments]);
-  const utils = trpc.useUtils();
   const saveAttendance = trpc.academy.attendance.save.useMutation({
     onSuccess: (result, variables) => {
       if ("reason" in result && result.reason === "current_journal_conflict") {
