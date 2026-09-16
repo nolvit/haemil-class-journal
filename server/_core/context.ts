@@ -22,7 +22,7 @@ export async function createContext(
     user = null;
   }
 
-  if (!user && ENV.isPullRequestPreview) {
+  if (!user && isPullRequestPreviewRequest(opts.req)) {
     const openId = "local:haemil-admin";
     await upsertUser({
       openId,
@@ -40,4 +40,22 @@ export async function createContext(
     res: opts.res,
     user,
   };
+}
+
+export function isPullRequestPreviewRequest(
+  req: CreateExpressContextOptions["req"]
+) {
+  const forwardedHost = req.headers["x-forwarded-host"];
+  const host = String(
+    (Array.isArray(forwardedHost) ? forwardedHost[0] : forwardedHost) ??
+      req.headers.host ??
+      req.hostname ??
+      ""
+  )
+    .split(":")[0]
+    .toLowerCase();
+  return (
+    ENV.isPullRequestPreview ||
+    /^web-haemil-class-journal-pr-\d+\.up\.railway\.app$/.test(host)
+  );
 }
