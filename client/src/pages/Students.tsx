@@ -65,6 +65,8 @@ type Student = {
   autoUnregisteredWeekdays: string | null;
   lastWeekCount: number;
   totalCount: number;
+  lessonUnitMultiplier: number;
+  lessonUnitEffectiveFrom: string | null;
   validUntil: string | null;
   paymentMethod: string | null;
   remainingTwoAlertMessage: string;
@@ -407,7 +409,10 @@ export default function Students() {
                       <span className="whitespace-nowrap">
                         남은 {formatNumber(student.countInfo.remainingCount)}회
                       </span>
-                      <span className="max-w-24 truncate rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]" title={student.paymentMethod || "결제방식 미등록"}>
+                      <span
+                        className="max-w-24 truncate rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]"
+                        title={student.paymentMethod || "결제방식 미등록"}
+                      >
                         {student.paymentMethod || "결제방식 미등록"}
                       </span>
                       <Button
@@ -840,7 +845,11 @@ function RegistrationCountDialog({
   onConfirm: () => void;
 }) {
   const preview = student
-    ? getRegistrationCountPreview(student.totalCount, student.registrationCount)
+    ? getRegistrationCountPreview(
+        student.totalCount,
+        student.registrationCount,
+        student.lessonUnitMultiplier
+      )
     : null;
   return (
     <Dialog
@@ -854,9 +863,8 @@ function RegistrationCountDialog({
           <p className="eyebrow">ADD REGISTRATION COUNT</p>
           <DialogTitle>등록 횟수를 추가할까요?</DialogTitle>
           <DialogDescription>
-            {student?.name} 학생의 등록 횟수{" "}
-            {formatNumber(student?.registrationCount ?? 0)}회 × 4를 총 횟수에
-            적용합니다.
+            {student?.name} 학생의 등록 횟수 새 상품{" "}
+            {formatNumber(preview?.addedCount ?? 0)}회를 총 횟수에 적용합니다.
           </DialogDescription>
         </DialogHeader>
         {preview && (
@@ -1042,10 +1050,8 @@ function RegistrationHistoryDialog({
                         {formatNumber(item.afterTotalCount)}회
                       </p>
                       <p className="mt-1 text-xs text-[#71817D]">
-                        {manual
-                          ? "관리자 수동 조정"
-                          : `등록 ${formatNumber(item.registrationCount)}회 × 4`}{" "}
-                        · {item.addedCount > 0 ? "+" : ""}
+                        {manual ? "관리자 수동 조정" : "등록 상품 추가"} ·{" "}
+                        {item.addedCount > 0 ? "+" : ""}
                         {formatNumber(item.addedCount)}회
                       </p>
                     </div>
@@ -1117,7 +1123,9 @@ function StudentDialog({
             autoUnregisteredWeekdays: (student.autoUnregisteredWeekdays ?? "")
               .split(",")
               .map(value => Number(value.trim()))
-              .filter(value => Number.isInteger(value) && value >= 1 && value <= 5),
+              .filter(
+                value => Number.isInteger(value) && value >= 1 && value <= 5
+              ),
             lastWeekCount: student.lastWeekCount,
             totalCount: student.totalCount,
             validUntil: student.validUntil?.slice(0, 10) ?? "",
@@ -1280,7 +1288,9 @@ function StudentDialog({
                   onChange={event =>
                     setDraft({
                       ...draft,
-                      attendanceCode: event.target.value.replace(/\D/g, "").slice(0, 4),
+                      attendanceCode: event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 4),
                     })
                   }
                   placeholder="숫자 4자리"

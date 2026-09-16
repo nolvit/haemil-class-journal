@@ -34,4 +34,21 @@ describe("remaining two-session notification rule", () => {
       shouldSendRemainingTwoNotification({ ...baseState, sentTotalCount: 12 })
     ).toBe(false);
   });
+
+  it("sends the two-class alert at four count units for two-unit students", () => {
+    expect(
+      shouldSendRemainingTwoNotification({
+        ...baseState,
+        remainingCount: 4,
+        lessonUnitMultiplier: 2,
+      })
+    ).toBe(true);
+    expect(
+      shouldSendRemainingTwoNotification({
+        ...baseState,
+        remainingCount: 2,
+        lessonUnitMultiplier: 2,
+      })
+    ).toBe(false);
+  });
 });

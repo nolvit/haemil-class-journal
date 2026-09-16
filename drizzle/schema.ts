@@ -106,6 +106,12 @@ export const students = mysqlTable(
     }),
     lastWeekCount: double("lastWeekCount").default(0).notNull(),
     totalCount: double("totalCount").default(0).notNull(),
+    /** 1과목은 1, 초등 통합 및 2과목 통합은 수업일마다 2회 차감한다. */
+    lessonUnitMultiplier: int("lessonUnitMultiplier").default(1).notNull(),
+    /** 이 날짜부터 lessonUnitMultiplier를 적용한다. 이전 출석 이력은 기존 1회 단위를 유지한다. */
+    lessonUnitEffectiveFrom: date("lessonUnitEffectiveFrom", {
+      mode: "string",
+    }),
     validUntil: varchar("validUntil", { length: 32 }),
     paymentMethod: varchar("paymentMethod", { length: 80 }),
     tuitionAlert: varchar("tuitionAlert", { length: 160 }),
@@ -131,6 +137,27 @@ export const students = mysqlTable(
     ),
     familyKeyIndex: index("students_family_key_index").on(table.familyKey),
     activeIndex: index("students_active_index").on(table.active),
+  })
+);
+
+/** 기존 잔여횟수를 새 차감 단위로 전환한 일회성 작업의 감사 기록이다. */
+export const countUnitMigrations = mysqlTable(
+  "count_unit_migrations",
+  {
+    studentId: int("studentId").primaryKey(),
+    effectiveFrom: date("effectiveFrom", { mode: "string" }).notNull(),
+    multiplier: int("multiplier").notNull(),
+    usedCount: double("usedCount").notNull(),
+    beforeRemainingCount: double("beforeRemainingCount").notNull(),
+    afterRemainingCount: double("afterRemainingCount").notNull(),
+    beforeTotalCount: double("beforeTotalCount").notNull(),
+    afterTotalCount: double("afterTotalCount").notNull(),
+    createdAt: timestamp("createdAt").defaultNow().notNull(),
+  },
+  table => ({
+    effectiveFromIndex: index("count_unit_migrations_effective_from_index").on(
+      table.effectiveFrom
+    ),
   })
 );
 

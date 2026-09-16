@@ -1,35 +1,102 @@
 import { describe, expect, it } from "vitest";
-import { attendanceStatusLabels, chooseJournalClassId, chooseRememberedGrade, findJournalTransferConflict, formatArrivalElapsed, getHistoricalLessonCount, formatArrivalTimeForDisplay, formatAttendanceProgressLabel, formatLessonDuration, getAdjacentJournalDate, getBusinessWeekDates, getJournalCompleteness, getJournalDeletionTargetDates, getJournalFocusDates, getJournalInsertionMoves, getMonday, getNextBusinessDate, getPreviousWeekStart, getNextScheduledClassDate, getUnenteredAttendanceDates, getWeeklyDates, isCalendarScheduleVisibleToParent, isDateVisibleToParent, isFinalJournalVisibleToParent, isJournalAttentionDue, isJournalScheduledForParent, isJournalWriteBlocked, normalizeAfternoonArrivalTime, selectableAttendanceStatusValues, shouldPullJournalForAttendance, shouldTransferJournalForAttendance } from "../shared/journalRules";
-import { getClosureDatesInRange, getClosureForDate, hasOverlappingClosureRange, matchesAutomaticCalendarStatus } from "../shared/closureRules";
-import { dashboardAttendanceHref, dashboardJournalHref, dashboardStudentJournalHref, shouldShowDashboardPendingList } from "../shared/dashboardNavigation";
+import {
+  attendanceStatusLabels,
+  chooseJournalClassId,
+  chooseRememberedGrade,
+  findJournalTransferConflict,
+  formatArrivalElapsed,
+  getHistoricalLessonCount,
+  formatArrivalTimeForDisplay,
+  formatAttendanceProgressLabel,
+  formatLessonDuration,
+  getAdjacentJournalDate,
+  getBusinessWeekDates,
+  getJournalCompleteness,
+  getJournalDeletionTargetDates,
+  getJournalFocusDates,
+  getJournalInsertionMoves,
+  getMonday,
+  getNextBusinessDate,
+  getPreviousWeekStart,
+  getNextScheduledClassDate,
+  getUnenteredAttendanceDates,
+  getWeeklyDates,
+  isCalendarScheduleVisibleToParent,
+  isDateVisibleToParent,
+  isFinalJournalVisibleToParent,
+  isJournalAttentionDue,
+  isJournalScheduledForParent,
+  isJournalWriteBlocked,
+  normalizeAfternoonArrivalTime,
+  selectableAttendanceStatusValues,
+  shouldPullJournalForAttendance,
+  shouldTransferJournalForAttendance,
+} from "../shared/journalRules";
+import {
+  getClosureDatesInRange,
+  getClosureForDate,
+  hasOverlappingClosureRange,
+  matchesAutomaticCalendarStatus,
+} from "../shared/closureRules";
+import {
+  dashboardAttendanceHref,
+  dashboardJournalHref,
+  dashboardStudentJournalHref,
+  shouldShowDashboardPendingList,
+} from "../shared/dashboardNavigation";
 import { getRegistrationCountPreview } from "../shared/studentCountRules";
-import { getDaysUntilValidUntil, getValidUntilAfterTotalCountChange, isValidUntilDueSoon } from "../shared/studentExpiryRules";
+import {
+  getDaysUntilValidUntil,
+  getValidUntilAfterTotalCountChange,
+  isValidUntilDueSoon,
+} from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
 import { getMobileSwipeDestination } from "../shared/mobileSwipeNavigation";
-import { countSavedLearningLinks, getOpenableLearningLink } from "../shared/learningLinksRules";
-import { buildParentAttendanceMessage, getAttendanceSessionUnits, getHolidayAdjustedTarget, isAttendancePending } from "../shared/attendanceSummaryRules";
-import { appendClosureNoticeTemplate, getClosureNoticeTemplates } from "../shared/closureNoticeTemplates";
-import { getKoreanHolidayDates, getVerifiedFallbackHoliday, groupKoreanHolidaySchedules, parseOfficialHolidayPayload, shouldAutomaticallyApplyLegalHoliday } from "./koreanHolidays";
+import {
+  countSavedLearningLinks,
+  getOpenableLearningLink,
+} from "../shared/learningLinksRules";
+import {
+  buildParentAttendanceMessage,
+  getAttendanceSessionUnits,
+  getHolidayAdjustedTarget,
+  isAttendancePending,
+} from "../shared/attendanceSummaryRules";
+import {
+  appendClosureNoticeTemplate,
+  getClosureNoticeTemplates,
+} from "../shared/closureNoticeTemplates";
+import {
+  getKoreanHolidayDates,
+  getVerifiedFallbackHoliday,
+  groupKoreanHolidaySchedules,
+  parseOfficialHolidayPayload,
+  shouldAutomaticallyApplyLegalHoliday,
+} from "./koreanHolidays";
 
 describe("과거 주차 수업 횟수", () => {
   it("현재 누계에 이미 적립된 주차를 과거 화면에서 다시 더하지 않는다", () => {
-    expect(getHistoricalLessonCount({
-      currentSettledCount: 35,
-      requestedWeekStart: "2026-08-24",
-      currentWeekStart: "2026-08-31",
-      requestedWeekSessions: 2,
-      laterSettledWeeks: [],
-    })).toBe(35);
+    expect(
+      getHistoricalLessonCount({
+        currentSettledCount: 35,
+        requestedWeekStart: "2026-08-24",
+        currentWeekStart: "2026-08-31",
+        requestedWeekSessions: 2,
+        laterSettledWeeks: [],
+      })
+    ).toBe(35);
   });
 
   it("더 오래된 주차는 그 이후 이미 적립된 주차를 제외해 종료 누계를 복원한다", () => {
-    expect(getHistoricalLessonCount({
-      currentSettledCount: 35,
-      requestedWeekStart: "2026-08-17",
-      currentWeekStart: "2026-08-31",
-      requestedWeekSessions: 3,
-      laterSettledWeeks: [{ weekStart: "2026-08-24", sessionCount: 2 }],
-    })).toBe(33);
+    expect(
+      getHistoricalLessonCount({
+        currentSettledCount: 35,
+        requestedWeekStart: "2026-08-17",
+        currentWeekStart: "2026-08-31",
+        requestedWeekSessions: 3,
+        laterSettledWeeks: [{ weekStart: "2026-08-24", sessionCount: 2 }],
+      })
+    ).toBe(33);
   });
 });
 
@@ -45,18 +112,31 @@ describe("수업일지 완성 상태", () => {
       state: "complete",
       missingFields: [],
     });
-    expect(getJournalCompleteness("present", "", "문제집 3쪽")).toEqual({ state: "attention", missingFields: ["content"] });
-    expect(getJournalCompleteness("not_entered", "분수의 덧셈", "")).toEqual({ state: "complete", missingFields: [] });
-    expect(getJournalCompleteness("not_entered", "", "")).toEqual({ state: "attention", missingFields: ["content"] });
+    expect(getJournalCompleteness("present", "", "문제집 3쪽")).toEqual({
+      state: "attention",
+      missingFields: ["content"],
+    });
+    expect(getJournalCompleteness("not_entered", "분수의 덧셈", "")).toEqual({
+      state: "complete",
+      missingFields: [],
+    });
+    expect(getJournalCompleteness("not_entered", "", "")).toEqual({
+      state: "attention",
+      missingFields: ["content"],
+    });
   });
 
   it("임시 저장 수업일지는 내용이 있어도 최종 저장 전까지 미입력으로 분류한다", () => {
-    expect(getJournalCompleteness("present", "분수의 덧셈", "문제집 3쪽", true)).toEqual({
+    expect(
+      getJournalCompleteness("present", "분수의 덧셈", "문제집 3쪽", true)
+    ).toEqual({
       state: "attention",
       missingFields: [],
       isDraft: true,
     });
-    expect(getJournalCompleteness("present", "분수의 덧셈", "문제집 3쪽", false)).toEqual({ state: "complete", missingFields: [] });
+    expect(
+      getJournalCompleteness("present", "분수의 덧셈", "문제집 3쪽", false)
+    ).toEqual({ state: "complete", missingFields: [] });
   });
 
   it("결석·미등록·공휴일·휴강 학생에게는 일지 입력을 요구하지 않는다", () => {
@@ -64,22 +144,48 @@ describe("수업일지 완성 상태", () => {
       state: "not_required",
       missingFields: [],
     });
-    expect(getJournalCompleteness("holiday", "", "")).toEqual({ state: "not_required", missingFields: [] });
-    expect(getJournalCompleteness("closed", "", "")).toEqual({ state: "not_required", missingFields: [] });
+    expect(getJournalCompleteness("holiday", "", "")).toEqual({
+      state: "not_required",
+      missingFields: [],
+    });
+    expect(getJournalCompleteness("closed", "", "")).toEqual({
+      state: "not_required",
+      missingFields: [],
+    });
   });
 
   it("결석·미등록 상태에는 수업 내용은 차단하고 비고만 허용한다", () => {
-    expect(isJournalWriteBlocked("absent", "방정식 풀이", "문제집 3쪽", "")).toBe(true);
-    expect(isJournalWriteBlocked("absent", "", "", "다음 주 화요일 보강 예정")).toBe(false);
+    expect(
+      isJournalWriteBlocked("absent", "방정식 풀이", "문제집 3쪽", "")
+    ).toBe(true);
+    expect(
+      isJournalWriteBlocked("absent", "", "", "다음 주 화요일 보강 예정")
+    ).toBe(false);
     expect(isJournalWriteBlocked("not_registered", "", "", "")).toBe(false);
-    expect(isJournalWriteBlocked("not_registered", "", "", "보강 일정 협의 중")).toBe(false);
+    expect(
+      isJournalWriteBlocked("not_registered", "", "", "보강 일정 협의 중")
+    ).toBe(false);
     expect(isJournalWriteBlocked("closed", "방정식 풀이", "", "")).toBe(true);
-    expect(isJournalWriteBlocked("present", "방정식 풀이", "문제집 3쪽", "")).toBe(false);
+    expect(
+      isJournalWriteBlocked("present", "방정식 풀이", "문제집 3쪽", "")
+    ).toBe(false);
   });
 
   it("결석·미등록 처리 때 비고는 남기고 수업 내용·과제만 이관한다", () => {
-    expect(shouldTransferJournalForAttendance("absent", { content: "", homework: "", notes: "화요일 보강" })).toBe(false);
-    expect(shouldTransferJournalForAttendance("not_registered", { content: "연립방정식", homework: "", notes: "" })).toBe(true);
+    expect(
+      shouldTransferJournalForAttendance("absent", {
+        content: "",
+        homework: "",
+        notes: "화요일 보강",
+      })
+    ).toBe(false);
+    expect(
+      shouldTransferJournalForAttendance("not_registered", {
+        content: "연립방정식",
+        homework: "",
+        notes: "",
+      })
+    ).toBe(true);
   });
 
   it("월요일 기준으로 평일 수업 주간을 계산한다", () => {
@@ -111,12 +217,29 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("삭제 후 미래 일지는 주말과 차단일을 건너뛰며 현재 날짜부터 당길 날짜를 계산한다", () => {
-    expect(getJournalDeletionTargetDates("2026-08-28", ["2026-09-01", "2026-09-02"], false, new Set(["2026-08-31"]))).toEqual(["2026-08-28", "2026-09-01"]);
-    expect(getJournalDeletionTargetDates("2026-08-28", ["2026-08-30"], true, new Set())).toEqual(["2026-08-28"]);
+    expect(
+      getJournalDeletionTargetDates(
+        "2026-08-28",
+        ["2026-09-01", "2026-09-02"],
+        false,
+        new Set(["2026-08-31"])
+      )
+    ).toEqual(["2026-08-28", "2026-09-01"]);
+    expect(
+      getJournalDeletionTargetDates(
+        "2026-08-28",
+        ["2026-08-30"],
+        true,
+        new Set()
+      )
+    ).toEqual(["2026-08-28"]);
   });
 
   it("수업일지 기본 과목은 영어이고 저장된 과목이 있으면 그 과목을 복원한다", () => {
-    const groups = [{ id: 1, subject: "수학" }, { id: 2, subject: "영어" }];
+    const groups = [
+      { id: 1, subject: "수학" },
+      { id: 2, subject: "영어" },
+    ];
     expect(chooseJournalClassId(groups, undefined)).toBe(2);
     expect(chooseJournalClassId(groups, 1)).toBe(1);
     expect(chooseJournalClassId(groups, 99)).toBe(2);
@@ -129,9 +252,21 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("수업일지는 오늘 기준 전날·오늘·다음날의 3일만 빠르게 표시한다", () => {
-    expect(getJournalFocusDates("2026-08-26", false)).toEqual(["2026-08-25", "2026-08-26", "2026-08-27"]);
-    expect(getJournalFocusDates("2026-08-24", false)).toEqual(["2026-08-21", "2026-08-24", "2026-08-25"]);
-    expect(getJournalFocusDates("2026-08-28", true)).toEqual(["2026-08-27", "2026-08-28", "2026-08-29"]);
+    expect(getJournalFocusDates("2026-08-26", false)).toEqual([
+      "2026-08-25",
+      "2026-08-26",
+      "2026-08-27",
+    ]);
+    expect(getJournalFocusDates("2026-08-24", false)).toEqual([
+      "2026-08-21",
+      "2026-08-24",
+      "2026-08-25",
+    ]);
+    expect(getJournalFocusDates("2026-08-28", true)).toEqual([
+      "2026-08-27",
+      "2026-08-28",
+      "2026-08-29",
+    ]);
   });
 
   it("주말 입력이 꺼진 수업일지 팝업은 전날·다음날 이동에서 토요일과 일요일을 건너뛴다", () => {
@@ -142,17 +277,29 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("수업일지 추가하기는 주말 설정에 따라 이후 기록을 충돌 없이 역순 이동한다", () => {
-    expect(getJournalInsertionMoves(["2026-08-28", "2026-08-31", "2026-09-02"], false)).toEqual([
+    expect(
+      getJournalInsertionMoves(
+        ["2026-08-28", "2026-08-31", "2026-09-02"],
+        false
+      )
+    ).toEqual([
       { sourceDate: "2026-09-02", targetDate: "2026-09-03" },
       { sourceDate: "2026-08-31", targetDate: "2026-09-01" },
       { sourceDate: "2026-08-28", targetDate: "2026-08-31" },
     ]);
-    expect(getJournalInsertionMoves(["2026-08-28", "2026-08-29", "2026-08-30"], false)).toEqual([
+    expect(
+      getJournalInsertionMoves(
+        ["2026-08-28", "2026-08-29", "2026-08-30"],
+        false
+      )
+    ).toEqual([
       { sourceDate: "2026-08-30", targetDate: "2026-09-02" },
       { sourceDate: "2026-08-29", targetDate: "2026-09-01" },
       { sourceDate: "2026-08-28", targetDate: "2026-08-31" },
     ]);
-    expect(getJournalInsertionMoves(["2026-08-28", "2026-08-29", "2026-08-30"], true)).toEqual([
+    expect(
+      getJournalInsertionMoves(["2026-08-28", "2026-08-29", "2026-08-30"], true)
+    ).toEqual([
       { sourceDate: "2026-08-30", targetDate: "2026-08-31" },
       { sourceDate: "2026-08-29", targetDate: "2026-08-30" },
       { sourceDate: "2026-08-28", targetDate: "2026-08-29" },
@@ -161,20 +308,30 @@ describe("수업일지 완성 상태", () => {
 
   it("수업일지 추가하기는 법정공휴일과 수동 휴강일도 건너뛰어 다음 입력 가능 날짜로 이동한다", () => {
     const unavailableDates = new Set(["2026-09-23", "2026-09-24"]);
-    expect(getJournalInsertionMoves(["2026-09-21", "2026-09-22"], false, unavailableDates)).toEqual([
+    expect(
+      getJournalInsertionMoves(
+        ["2026-09-21", "2026-09-22"],
+        false,
+        unavailableDates
+      )
+    ).toEqual([
       { sourceDate: "2026-09-22", targetDate: "2026-09-25" },
       { sourceDate: "2026-09-21", targetDate: "2026-09-22" },
     ]);
-    expect(getJournalInsertionMoves(["2026-09-22"], true, unavailableDates)).toEqual([
-      { sourceDate: "2026-09-22", targetDate: "2026-09-25" },
-    ]);
+    expect(
+      getJournalInsertionMoves(["2026-09-22"], true, unavailableDates)
+    ).toEqual([{ sourceDate: "2026-09-22", targetDate: "2026-09-25" }]);
   });
 
   it("보호자에게는 미래 실제 출석을 공개하지 않고 미래 일정 안내만 공개한다", () => {
     expect(isDateVisibleToParent("2026-08-26", "2026-08-26")).toBe(true);
     expect(isDateVisibleToParent("2026-08-27", "2026-08-26")).toBe(false);
-    expect(isCalendarScheduleVisibleToParent("2026-09-24", "2026-08-27", true)).toBe(true);
-    expect(isCalendarScheduleVisibleToParent("2026-09-24", "2026-08-27", false)).toBe(false);
+    expect(
+      isCalendarScheduleVisibleToParent("2026-09-24", "2026-08-27", true)
+    ).toBe(true);
+    expect(
+      isCalendarScheduleVisibleToParent("2026-09-24", "2026-08-27", false)
+    ).toBe(false);
   });
 
   it("미래 날짜라도 최종 저장 수업일지는 예정으로 공개하고 임시 저장은 숨긴다", () => {
@@ -185,55 +342,141 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("보호자 수업 예정 표시는 당일 등원 전까지 유지한다", () => {
-    expect(isJournalScheduledForParent("2026-09-05", "2026-09-04", undefined, null)).toBe(true);
-    expect(isJournalScheduledForParent("2026-09-05", "2026-09-04", "holiday", null)).toBe(false);
-    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "not_entered", null)).toBe(true);
-    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "present", "15:20")).toBe(false);
-    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "absent", null)).toBe(false);
-    expect(isJournalScheduledForParent("2026-09-03", "2026-09-04", "not_entered", null)).toBe(false);
+    expect(
+      isJournalScheduledForParent("2026-09-05", "2026-09-04", undefined, null)
+    ).toBe(true);
+    expect(
+      isJournalScheduledForParent("2026-09-05", "2026-09-04", "holiday", null)
+    ).toBe(false);
+    expect(
+      isJournalScheduledForParent(
+        "2026-09-04",
+        "2026-09-04",
+        "not_entered",
+        null
+      )
+    ).toBe(true);
+    expect(
+      isJournalScheduledForParent(
+        "2026-09-04",
+        "2026-09-04",
+        "present",
+        "15:20"
+      )
+    ).toBe(false);
+    expect(
+      isJournalScheduledForParent("2026-09-04", "2026-09-04", "absent", null)
+    ).toBe(false);
+    expect(
+      isJournalScheduledForParent(
+        "2026-09-03",
+        "2026-09-04",
+        "not_entered",
+        null
+      )
+    ).toBe(false);
   });
 
   it("평일 일괄 입력은 미입력인 날짜만 출석 처리 대상으로 고른다", () => {
-    const dates = ["2026-08-24", "2026-08-25", "2026-08-26", "2026-08-27", "2026-08-28"];
-    expect(getUnenteredAttendanceDates(dates, [
-      { journalDate: "2026-08-24", status: "absent" },
-      { journalDate: "2026-08-25", status: "present" },
-      { journalDate: "2026-08-26", status: "not_registered" },
-      { journalDate: "2026-08-27", status: "not_entered" },
-    ])).toEqual(["2026-08-27", "2026-08-28"]);
-    expect(getUnenteredAttendanceDates(dates, [
-      { journalDate: "2026-08-24", status: "holiday" },
-      { journalDate: "2026-08-25", status: "closed" },
-      { journalDate: "2026-08-26", status: "not_entered" },
-    ])).toEqual(["2026-08-26", "2026-08-27", "2026-08-28"]);
+    const dates = [
+      "2026-08-24",
+      "2026-08-25",
+      "2026-08-26",
+      "2026-08-27",
+      "2026-08-28",
+    ];
+    expect(
+      getUnenteredAttendanceDates(dates, [
+        { journalDate: "2026-08-24", status: "absent" },
+        { journalDate: "2026-08-25", status: "present" },
+        { journalDate: "2026-08-26", status: "not_registered" },
+        { journalDate: "2026-08-27", status: "not_entered" },
+      ])
+    ).toEqual(["2026-08-27", "2026-08-28"]);
+    expect(
+      getUnenteredAttendanceDates(dates, [
+        { journalDate: "2026-08-24", status: "holiday" },
+        { journalDate: "2026-08-25", status: "closed" },
+        { journalDate: "2026-08-26", status: "not_entered" },
+      ])
+    ).toEqual(["2026-08-26", "2026-08-27", "2026-08-28"]);
   });
 
   it("결석·미등록 전환 시 수업 내용·과제만 다음 수업일로 이관한다", () => {
-    expect(shouldTransferJournalForAttendance("absent", { content: "연립방정식", homework: "3쪽", notes: "" })).toBe(true);
-    expect(shouldTransferJournalForAttendance("not_registered", { content: "", homework: "", notes: "보강 계획" })).toBe(false);
-    expect(shouldTransferJournalForAttendance("present", { content: "연립방정식" })).toBe(false);
-    expect(shouldTransferJournalForAttendance("closed", { content: "연립방정식" })).toBe(true);
-    expect(shouldTransferJournalForAttendance("absent", { content: "", homework: "", notes: "" })).toBe(false);
+    expect(
+      shouldTransferJournalForAttendance("absent", {
+        content: "연립방정식",
+        homework: "3쪽",
+        notes: "",
+      })
+    ).toBe(true);
+    expect(
+      shouldTransferJournalForAttendance("not_registered", {
+        content: "",
+        homework: "",
+        notes: "보강 계획",
+      })
+    ).toBe(false);
+    expect(
+      shouldTransferJournalForAttendance("present", { content: "연립방정식" })
+    ).toBe(false);
+    expect(
+      shouldTransferJournalForAttendance("closed", { content: "연립방정식" })
+    ).toBe(true);
+    expect(
+      shouldTransferJournalForAttendance("absent", {
+        content: "",
+        homework: "",
+        notes: "",
+      })
+    ).toBe(false);
     expect(getNextBusinessDate("2026-08-28")).toBe("2026-08-31");
     expect(getNextBusinessDate("2026-08-29")).toBe("2026-08-31");
-    expect(getNextScheduledClassDate("2026-08-26", [1, 3, 5])).toBe("2026-08-28");
-    expect(getNextScheduledClassDate("2026-08-28", [1, 3, 5])).toBe("2026-08-31");
+    expect(getNextScheduledClassDate("2026-08-26", [1, 3, 5])).toBe(
+      "2026-08-28"
+    );
+    expect(getNextScheduledClassDate("2026-08-28", [1, 3, 5])).toBe(
+      "2026-08-31"
+    );
     expect(shouldPullJournalForAttendance("absent", "present")).toBe(true);
-    expect(shouldPullJournalForAttendance("not_registered", "makeup_double")).toBe(true);
+    expect(
+      shouldPullJournalForAttendance("not_registered", "makeup_double")
+    ).toBe(true);
     expect(shouldPullJournalForAttendance("closed", "present")).toBe(true);
     expect(shouldPullJournalForAttendance("present", "makeup")).toBe(false);
-    expect(findJournalTransferConflict(
-      [{ classGroupId: 1, content: "연립방정식" }, { classGroupId: 2, notes: "공개 비고" }],
-      [{ classGroupId: 1, content: "다음 수업 내용" }, { classGroupId: 2, content: "" }],
-    )).toBe(1);
-    expect(findJournalTransferConflict([{ classGroupId: 1, content: "연립방정식" }], [{ classGroupId: 1, content: "" }])).toBeNull();
+    expect(
+      findJournalTransferConflict(
+        [
+          { classGroupId: 1, content: "연립방정식" },
+          { classGroupId: 2, notes: "공개 비고" },
+        ],
+        [
+          { classGroupId: 1, content: "다음 수업 내용" },
+          { classGroupId: 2, content: "" },
+        ]
+      )
+    ).toBe(1);
+    expect(
+      findJournalTransferConflict(
+        [{ classGroupId: 1, content: "연립방정식" }],
+        [{ classGroupId: 1, content: "" }]
+      )
+    ).toBeNull();
   });
 
   it("미입력 전용 목록은 오늘과 과거 날짜만 대상으로 한다", () => {
-    expect(isJournalAttentionDue("2026-08-24", "2026-08-24", "attention")).toBe(true);
-    expect(isJournalAttentionDue("2026-08-21", "2026-08-24", "attention")).toBe(true);
-    expect(isJournalAttentionDue("2026-08-28", "2026-08-24", "attention")).toBe(false);
-    expect(isJournalAttentionDue("2026-08-24", "2026-08-24", "complete")).toBe(false);
+    expect(isJournalAttentionDue("2026-08-24", "2026-08-24", "attention")).toBe(
+      true
+    );
+    expect(isJournalAttentionDue("2026-08-21", "2026-08-24", "attention")).toBe(
+      true
+    );
+    expect(isJournalAttentionDue("2026-08-28", "2026-08-24", "attention")).toBe(
+      false
+    );
+    expect(isJournalAttentionDue("2026-08-24", "2026-08-24", "complete")).toBe(
+      false
+    );
   });
 
   it("업무 현황은 새로고침 시점의 등원 경과 시간을 한국 시간 기준으로 표시한다", () => {
@@ -242,13 +485,45 @@ describe("수업일지 완성 상태", () => {
     expect(normalizeAfternoonArrivalTime("12:15")).toBe("12:15");
     expect(formatArrivalTimeForDisplay("15:15")).toBe("3:15");
     expect(formatArrivalTimeForDisplay("3:15")).toBe("3:15");
-    expect(formatArrivalElapsed("3:30", "2026-08-26", now, "2026-08-26")).toBe("등원 후 1시간 0분");
-    expect(formatArrivalElapsed("15:30", "2026-08-26", now, "2026-08-26")).toBe("등원 후 1시간 0분");
-    expect(formatArrivalElapsed("3:15", "2026-08-25", now, "2026-08-26")).toBe("등원 3:15");
-    expect(formatArrivalElapsed(null, "2026-08-26", now, "2026-08-26")).toBeNull();
-    expect(formatAttendanceProgressLabel("absent", null, "2026-08-26", now, "2026-08-26")).toBe("결석");
-    expect(formatAttendanceProgressLabel("not_registered", null, "2026-08-26", now, "2026-08-26")).toBe("미등록");
-    expect(formatAttendanceProgressLabel("not_entered", null, "2026-08-26", now, "2026-08-26")).toBe("—");
+    expect(formatArrivalElapsed("3:30", "2026-08-26", now, "2026-08-26")).toBe(
+      "등원 후 1시간 0분"
+    );
+    expect(formatArrivalElapsed("15:30", "2026-08-26", now, "2026-08-26")).toBe(
+      "등원 후 1시간 0분"
+    );
+    expect(formatArrivalElapsed("3:15", "2026-08-25", now, "2026-08-26")).toBe(
+      "등원 3:15"
+    );
+    expect(
+      formatArrivalElapsed(null, "2026-08-26", now, "2026-08-26")
+    ).toBeNull();
+    expect(
+      formatAttendanceProgressLabel(
+        "absent",
+        null,
+        "2026-08-26",
+        now,
+        "2026-08-26"
+      )
+    ).toBe("결석");
+    expect(
+      formatAttendanceProgressLabel(
+        "not_registered",
+        null,
+        "2026-08-26",
+        now,
+        "2026-08-26"
+      )
+    ).toBe("미등록");
+    expect(
+      formatAttendanceProgressLabel(
+        "not_entered",
+        null,
+        "2026-08-26",
+        now,
+        "2026-08-26"
+      )
+    ).toBe("—");
   });
 
   it("하원 후에는 등원 경과 대신 실제 수업 시간을 표시한다", () => {
@@ -280,24 +555,47 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("업무 현황의 미입력 대상은 학생·과목·날짜를 유지한 입력 화면 URL을 만든다", () => {
-    expect(dashboardAttendanceHref("2026-08-24", 23)).toBe("/attendance?date=2026-08-24&studentId=23");
-    expect(dashboardJournalHref("2026-08-24", 23, 7)).toBe("/journal?date=2026-08-24&studentId=23&classGroupId=7");
-    expect(dashboardStudentJournalHref("2026-08-24", 23)).toBe("/journal?date=2026-08-24&studentId=23");
+    expect(dashboardAttendanceHref("2026-08-24", 23)).toBe(
+      "/attendance?date=2026-08-24&studentId=23"
+    );
+    expect(dashboardJournalHref("2026-08-24", 23, 7)).toBe(
+      "/journal?date=2026-08-24&studentId=23&classGroupId=7"
+    );
+    expect(dashboardStudentJournalHref("2026-08-24", 23)).toBe(
+      "/journal?date=2026-08-24&studentId=23"
+    );
     expect(shouldShowDashboardPendingList(1)).toBe(true);
     expect(shouldShowDashboardPendingList(10)).toBe(true);
     expect(shouldShowDashboardPendingList(11)).toBe(false);
   });
 
   it("등록 횟수 추가 확인 창은 적용 전후 총 횟수와 추가분을 계산한다", () => {
-    expect(getRegistrationCountPreview(20, 5)).toEqual({ beforeTotalCount: 20, addedCount: 20, afterTotalCount: 40 });
-    expect(getRegistrationCountPreview(10.5, 2.5)).toEqual({ beforeTotalCount: 10.5, addedCount: 10, afterTotalCount: 20.5 });
+    expect(getRegistrationCountPreview(20, 5)).toEqual({
+      beforeTotalCount: 20,
+      addedCount: 22,
+      afterTotalCount: 42,
+    });
+    expect(getRegistrationCountPreview(20, 5, 2)).toEqual({
+      beforeTotalCount: 20,
+      addedCount: 44,
+      afterTotalCount: 64,
+    });
+    expect(getRegistrationCountPreview(10.5, 2.5)).toEqual({
+      beforeTotalCount: 10.5,
+      addedCount: 10,
+      afterTotalCount: 20.5,
+    });
   });
 
   it("모바일 가로 쓸기는 업무 현황·출석 관리·수업 일지 사이에서만 이동한다", () => {
     expect(getMobileSwipeDestination("/attendance", -100, 8)).toBe("/journal");
     expect(getMobileSwipeDestination("/attendance", 100, 8)).toBe("/");
-    expect(getMobileSwipeDestination("/journal", -100, 8)).toBe("/learning-links");
-    expect(getMobileSwipeDestination("/classes", -100, 8)).toBe("/parent-links");
+    expect(getMobileSwipeDestination("/journal", -100, 8)).toBe(
+      "/learning-links"
+    );
+    expect(getMobileSwipeDestination("/classes", -100, 8)).toBe(
+      "/parent-links"
+    );
     expect(getMobileSwipeDestination("/", 100, 8)).toBeNull();
     expect(getMobileSwipeDestination("/parent-links", -100, 8)).toBeNull();
     expect(getMobileSwipeDestination("/attendance", 50, 3)).toBeNull();
@@ -305,13 +603,23 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("수학 단원 평가 링크를 포함해 저장된 학습 링크 수를 계산한다", () => {
-    expect(countSavedLearningLinks({ vocabularyResultUrl: "https://example.com/word", englishSpeakingUrl: "", mathUnitEvaluationUrl: "https://example.com/math" })).toBe(2);
+    expect(
+      countSavedLearningLinks({
+        vocabularyResultUrl: "https://example.com/word",
+        englishSpeakingUrl: "",
+        mathUnitEvaluationUrl: "https://example.com/math",
+      })
+    ).toBe(2);
     expect(countSavedLearningLinks({ mathUnitEvaluationUrl: "  " })).toBe(0);
   });
 
   it("학습 링크 열기는 프로토콜을 보완하고 HTTP(S) 주소만 허용한다", () => {
-    expect(getOpenableLearningLink("example.com/result")).toBe("https://example.com/result");
-    expect(getOpenableLearningLink(" https://example.com/speaking ")).toBe("https://example.com/speaking");
+    expect(getOpenableLearningLink("example.com/result")).toBe(
+      "https://example.com/result"
+    );
+    expect(getOpenableLearningLink(" https://example.com/speaking ")).toBe(
+      "https://example.com/speaking"
+    );
     expect(getOpenableLearningLink("javascript:alert(1)")).toBeNull();
     expect(getOpenableLearningLink("not a url")).toBeNull();
     expect(getOpenableLearningLink("")).toBeNull();
@@ -328,17 +636,31 @@ describe("수업일지 완성 상태", () => {
       { date: "2026-09-26", name: "추석", holiday: true },
       { date: "2026-09-23", name: "추분", holiday: false },
     ]);
-    expect(parsed.map(item => item.date)).toEqual(["2026-02-16", "2026-02-17", "2026-02-18", "2026-06-03", "2026-09-24", "2026-09-25", "2026-09-26"]);
-    expect(parsed.find(item => item.date === "2026-06-03")?.name).toBe("제9회 전국동시지방선거");
+    expect(parsed.map(item => item.date)).toEqual([
+      "2026-02-16",
+      "2026-02-17",
+      "2026-02-18",
+      "2026-06-03",
+      "2026-09-24",
+      "2026-09-25",
+      "2026-09-26",
+    ]);
+    expect(parsed.find(item => item.date === "2026-06-03")?.name).toBe(
+      "제9회 전국동시지방선거"
+    );
     expect(getVerifiedFallbackHoliday("2025-01-27")?.name).toBe("임시공휴일");
     expect(getVerifiedFallbackHoliday("2026-02-16")?.name).toBe("설날");
     expect(getVerifiedFallbackHoliday("2026-02-17")?.name).toBe("설날");
     expect(getVerifiedFallbackHoliday("2026-02-18")?.name).toBe("설날");
-    expect(getVerifiedFallbackHoliday("2026-06-03")?.name).toBe("제9회 전국동시지방선거");
+    expect(getVerifiedFallbackHoliday("2026-06-03")?.name).toBe(
+      "제9회 전국동시지방선거"
+    );
     expect(getVerifiedFallbackHoliday("2026-09-24")?.name).toBe("추석");
     expect(getVerifiedFallbackHoliday("2026-09-25")?.name).toBe("추석");
     expect(getVerifiedFallbackHoliday("2026-09-26")?.name).toBe("추석");
-    expect(getVerifiedFallbackHoliday("2026-08-17")?.name).toBe("광복절 (대체공휴일)");
+    expect(getVerifiedFallbackHoliday("2026-08-17")?.name).toBe(
+      "광복절 (대체공휴일)"
+    );
     expect(getVerifiedFallbackHoliday("2026-08-18")).toBeNull();
     expect(shouldAutomaticallyApplyLegalHoliday("2026-09-25")).toBe(true);
     expect(shouldAutomaticallyApplyLegalHoliday("2026-09-26")).toBe(false);
@@ -346,7 +668,11 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("업무 화면의 공휴일 판정은 외부 요청 없이 로컬 연도 데이터로 즉시 조회한다", async () => {
-    const dates = await getKoreanHolidayDates(["2026-06-03", "2026-09-24", "2026-08-29"]);
+    const dates = await getKoreanHolidayDates([
+      "2026-06-03",
+      "2026-09-24",
+      "2026-08-29",
+    ]);
     expect(dates.get("2026-06-03")?.name).toContain("지방선거");
     expect(dates.get("2026-09-24")?.name).toBe("추석");
     expect(dates.has("2026-08-29")).toBe(false);
@@ -360,18 +686,42 @@ describe("수업일지 완성 상태", () => {
       { date: "2026-10-05", name: "개천절 (대체공휴일)", source: "official" },
     ]);
     expect(schedules).toEqual([
-      { id: "2026-09-24:2026-09-26:추석", name: "추석", startDate: "2026-09-24", endDate: "2026-09-26", dates: ["2026-09-24", "2026-09-25", "2026-09-26"] },
-      { id: "2026-10-05:2026-10-05:개천절 (대체공휴일)", name: "개천절 (대체공휴일)", startDate: "2026-10-05", endDate: "2026-10-05", dates: ["2026-10-05"] },
+      {
+        id: "2026-09-24:2026-09-26:추석",
+        name: "추석",
+        startDate: "2026-09-24",
+        endDate: "2026-09-26",
+        dates: ["2026-09-24", "2026-09-25", "2026-09-26"],
+      },
+      {
+        id: "2026-10-05:2026-10-05:개천절 (대체공휴일)",
+        name: "개천절 (대체공휴일)",
+        startDate: "2026-10-05",
+        endDate: "2026-10-05",
+        dates: ["2026-10-05"],
+      },
     ]);
   });
 
   it("안내 문구 템플릿은 선택한 일정명을 채우고 기존 문구를 보존한다", () => {
-    const holidayTemplate = getClosureNoticeTemplates("legal_holiday").find(template => template.id === "holiday-greeting");
-    const closureTemplate = getClosureNoticeTemplates("closure").find(template => template.id === "closure-vacation");
+    const holidayTemplate = getClosureNoticeTemplates("legal_holiday").find(
+      template => template.id === "holiday-greeting"
+    );
+    const closureTemplate = getClosureNoticeTemplates("closure").find(
+      template => template.id === "closure-vacation"
+    );
     expect(holidayTemplate).toBeDefined();
     expect(closureTemplate).toBeDefined();
-    expect(appendClosureNoticeTemplate("", holidayTemplate!, { name: "추석" })).toBe("추석을 맞아 가족과 함께 따뜻하고 풍성한 시간 보내시길 바랍니다.");
-    expect(appendClosureNoticeTemplate("기존 안내입니다.", closureTemplate!, { name: "여름방학 휴강" })).toBe("기존 안내입니다.\n여름방학 휴강 기간에는 정규 수업이 없습니다. 즐겁고 안전한 방학 보내세요.");
+    expect(
+      appendClosureNoticeTemplate("", holidayTemplate!, { name: "추석" })
+    ).toBe("추석을 맞아 가족과 함께 따뜻하고 풍성한 시간 보내시길 바랍니다.");
+    expect(
+      appendClosureNoticeTemplate("기존 안내입니다.", closureTemplate!, {
+        name: "여름방학 휴강",
+      })
+    ).toBe(
+      "기존 안내입니다.\n여름방학 휴강 기간에는 정규 수업이 없습니다. 즐겁고 안전한 방학 보내세요."
+    );
   });
 
   it("공휴일은 선택 목록에서 제외하고 휴강은 포함한다", () => {
@@ -380,13 +730,32 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("연속 휴강의 날짜와 겹침 여부를 일관되게 계산한다", () => {
-    const closure = { id: 7, startDate: "2026-09-24", endDate: "2026-09-26", name: "추석 연휴 휴강" };
+    const closure = {
+      id: 7,
+      startDate: "2026-09-24",
+      endDate: "2026-09-26",
+      name: "추석 연휴 휴강",
+    };
     expect(getClosureForDate("2026-09-25", [closure])?.id).toBe(7);
     expect(getClosureForDate("2026-09-27", [closure])).toBeNull();
-    expect(getClosureDatesInRange(closure, ["2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"])).toEqual(["2026-09-24", "2026-09-25", "2026-09-26"]);
-    expect(hasOverlappingClosureRange("2026-09-25", "2026-09-27", [closure])).toBe(true);
-    expect(hasOverlappingClosureRange("2026-09-27", "2026-09-28", [closure])).toBe(false);
-    expect(hasOverlappingClosureRange("2026-09-25", "2026-09-27", [closure], 7)).toBe(false);
+    expect(
+      getClosureDatesInRange(closure, [
+        "2026-09-23",
+        "2026-09-24",
+        "2026-09-25",
+        "2026-09-26",
+        "2026-09-27",
+      ])
+    ).toEqual(["2026-09-24", "2026-09-25", "2026-09-26"]);
+    expect(
+      hasOverlappingClosureRange("2026-09-25", "2026-09-27", [closure])
+    ).toBe(true);
+    expect(
+      hasOverlappingClosureRange("2026-09-27", "2026-09-28", [closure])
+    ).toBe(false);
+    expect(
+      hasOverlappingClosureRange("2026-09-25", "2026-09-27", [closure], 7)
+    ).toBe(false);
     expect(matchesAutomaticCalendarStatus("holiday", "holiday")).toBe(true);
     expect(matchesAutomaticCalendarStatus("closed", "closed")).toBe(true);
     expect(matchesAutomaticCalendarStatus("present", "holiday")).toBe(false);
@@ -406,11 +775,57 @@ describe("수업일지 완성 상태", () => {
     expect(getAttendanceSessionUnits("makeup")).toBe(1.5);
     expect(getAttendanceSessionUnits("makeup_double")).toBe(2);
     expect(getAttendanceSessionUnits("closed")).toBe(0);
-    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 5, attendanceDayCount: 4, makeupCount: 0, makeupDoubleCount: 1 })).toBe("이번 주 출석은 5회 목표 중 5회입니다. 출석일은 4일이나 보강×2로 목표 수업 횟수에 도달했습니다. 훌륭해요!");
-    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 4.5, attendanceDayCount: 4, makeupCount: 1, makeupDoubleCount: 0 })).toBe("이번 주 출석은 5회 목표 중 4.5회입니다. 출석일은 4일이나 보강으로 비록 목표 수업 횟수에 도달하지 못했지만 잘했어요!");
-    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 3, attendanceDayCount: 3, makeupCount: 0, makeupDoubleCount: 0 })).toBe("이번 주 출석은 5회 목표 중 3회입니다. 출석률을 더 높여봅시다!");
-    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 2, attendanceDayCount: 2, makeupCount: 0, makeupDoubleCount: 0, isFridayAttendanceComplete: false })).toBe("이번 주 출석은 5회 목표 중 2회입니다.");
-    expect(buildParentAttendanceMessage({ target: 5, sessionCount: 2, attendanceDayCount: 2, makeupCount: 0, makeupDoubleCount: 0, isFridayAttendanceComplete: true })).toBe("이번 주 출석은 5회 목표 중 2회입니다. 출석률을 더 높여봅시다!");
+    expect(
+      buildParentAttendanceMessage({
+        target: 5,
+        sessionCount: 5,
+        attendanceDayCount: 4,
+        makeupCount: 0,
+        makeupDoubleCount: 1,
+      })
+    ).toBe(
+      "이번 주 출석은 5회 목표 중 5회입니다. 출석일은 4일이나 보강×2로 목표 수업 횟수에 도달했습니다. 훌륭해요!"
+    );
+    expect(
+      buildParentAttendanceMessage({
+        target: 5,
+        sessionCount: 4.5,
+        attendanceDayCount: 4,
+        makeupCount: 1,
+        makeupDoubleCount: 0,
+      })
+    ).toBe(
+      "이번 주 출석은 5회 목표 중 4.5회입니다. 출석일은 4일이나 보강으로 비록 목표 수업 횟수에 도달하지 못했지만 잘했어요!"
+    );
+    expect(
+      buildParentAttendanceMessage({
+        target: 5,
+        sessionCount: 3,
+        attendanceDayCount: 3,
+        makeupCount: 0,
+        makeupDoubleCount: 0,
+      })
+    ).toBe("이번 주 출석은 5회 목표 중 3회입니다. 출석률을 더 높여봅시다!");
+    expect(
+      buildParentAttendanceMessage({
+        target: 5,
+        sessionCount: 2,
+        attendanceDayCount: 2,
+        makeupCount: 0,
+        makeupDoubleCount: 0,
+        isFridayAttendanceComplete: false,
+      })
+    ).toBe("이번 주 출석은 5회 목표 중 2회입니다.");
+    expect(
+      buildParentAttendanceMessage({
+        target: 5,
+        sessionCount: 2,
+        attendanceDayCount: 2,
+        makeupCount: 0,
+        makeupDoubleCount: 0,
+        isFridayAttendanceComplete: true,
+      })
+    ).toBe("이번 주 출석은 5회 목표 중 2회입니다. 출석률을 더 높여봅시다!");
   });
 });
 
@@ -432,19 +847,61 @@ describe("학생 만료확인일", () => {
 
 describe("원비 자동 산정", () => {
   const standards = [
-    { schoolLevel: "elementary", monthlySessionCount: 12, subjectCountTier: 0, tuition: 150000 },
-    { schoolLevel: "elementary", monthlySessionCount: 20, subjectCountTier: 0, tuition: 250000 },
-    { schoolLevel: "middle", monthlySessionCount: 16, subjectCountTier: 1, tuition: 160000 },
-    { schoolLevel: "middle", monthlySessionCount: 16, subjectCountTier: 2, tuition: 290000 },
-    { schoolLevel: "high", monthlySessionCount: 20, subjectCountTier: 1, tuition: 250000 },
-    { schoolLevel: "high", monthlySessionCount: 20, subjectCountTier: 2, tuition: 480000 },
+    {
+      schoolLevel: "elementary",
+      monthlySessionCount: 12,
+      subjectCountTier: 0,
+      tuition: 150000,
+    },
+    {
+      schoolLevel: "elementary",
+      monthlySessionCount: 20,
+      subjectCountTier: 0,
+      tuition: 250000,
+    },
+    {
+      schoolLevel: "middle",
+      monthlySessionCount: 16,
+      subjectCountTier: 1,
+      tuition: 160000,
+    },
+    {
+      schoolLevel: "middle",
+      monthlySessionCount: 16,
+      subjectCountTier: 2,
+      tuition: 290000,
+    },
+    {
+      schoolLevel: "high",
+      monthlySessionCount: 20,
+      subjectCountTier: 1,
+      tuition: 250000,
+    },
+    {
+      schoolLevel: "high",
+      monthlySessionCount: 20,
+      subjectCountTier: 2,
+      tuition: 480000,
+    },
   ];
 
   it("학년·주당 등록 횟수·수강 과목 수에 맞는 원비를 자동으로 찾는다", () => {
-    expect(getAutomaticTuitionMatch("초5", 3, 2, standards)).toMatchObject({ tuition: 150000, label: "초등학생 · 5과목 패키지 · 월 12회" });
-    expect(getAutomaticTuitionMatch("중2", 4, 1, standards)).toMatchObject({ tuition: 160000, label: "중학생 · 1과목 · 월 16회" });
-    expect(getAutomaticTuitionMatch("중2", 4, 3, standards)).toMatchObject({ tuition: 290000, label: "중학생 · 2과목 이상 · 월 16회" });
-    expect(getAutomaticTuitionMatch("고1", 5, 2, standards)).toMatchObject({ tuition: 480000, label: "고등학생 · 2과목 이상 · 월 20회" });
+    expect(getAutomaticTuitionMatch("초5", 3, 2, standards)).toMatchObject({
+      tuition: 150000,
+      label: "초등학생 · 5과목 패키지 · 28회 상품",
+    });
+    expect(getAutomaticTuitionMatch("중2", 4, 1, standards)).toMatchObject({
+      tuition: 160000,
+      label: "중학생 · 1과목 · 18회 상품",
+    });
+    expect(getAutomaticTuitionMatch("중2", 4, 3, standards)).toMatchObject({
+      tuition: 290000,
+      label: "중학생 · 2과목 이상 · 36회 상품",
+    });
+    expect(getAutomaticTuitionMatch("고1", 5, 2, standards)).toMatchObject({
+      tuition: 480000,
+      label: "고등학생 · 2과목 이상 · 44회 상품",
+    });
   });
 
   it("수강 과목이 없거나 기준표에 없는 월 수업 횟수에는 자동 원비를 제안하지 않는다", () => {

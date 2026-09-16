@@ -1,5 +1,7 @@
+import { getRegistrationPackageCount } from "./studentCountPolicy";
+
 export const tuitionSchoolLevels = ["elementary", "middle", "high"] as const;
-export type TuitionSchoolLevel = typeof tuitionSchoolLevels[number];
+export type TuitionSchoolLevel = (typeof tuitionSchoolLevels)[number];
 export type TuitionMode = "automatic" | "manual";
 
 export type TuitionStandardValue = {
@@ -28,7 +30,10 @@ export function getMonthlySessionCount(registrationCount: number) {
   return Math.round(registrationCount * 4);
 }
 
-export function getSubjectCountTier(schoolLevel: TuitionSchoolLevel, subjectCount: number) {
+export function getSubjectCountTier(
+  schoolLevel: TuitionSchoolLevel,
+  subjectCount: number
+) {
   return schoolLevel === "elementary" ? 0 : subjectCount <= 1 ? 1 : 2;
 }
 
@@ -36,25 +41,42 @@ export function getAutomaticTuitionMatch(
   grade: string,
   registrationCount: number,
   subjectCount: number,
-  standards: TuitionStandardValue[],
+  standards: TuitionStandardValue[]
 ): AutomaticTuitionMatch | null {
   if (subjectCount < 1) return null;
   const schoolLevel = getTuitionSchoolLevel(grade);
   const monthlySessionCount = getMonthlySessionCount(registrationCount);
   const subjectCountTier = getSubjectCountTier(schoolLevel, subjectCount);
-  const standard = standards.find(item => (
-    item.schoolLevel === schoolLevel
-    && Number(item.monthlySessionCount) === monthlySessionCount
-    && Number(item.subjectCountTier) === subjectCountTier
-  ));
+  const standard = standards.find(
+    item =>
+      item.schoolLevel === schoolLevel &&
+      Number(item.monthlySessionCount) === monthlySessionCount &&
+      Number(item.subjectCountTier) === subjectCountTier
+  );
   if (!standard) return null;
-  const schoolLabel = schoolLevel === "elementary" ? "초등학생" : schoolLevel === "middle" ? "중학생" : "고등학생";
-  const subjectLabel = schoolLevel === "elementary" ? "5과목 패키지" : subjectCountTier === 1 ? "1과목" : "2과목 이상";
+  const schoolLabel =
+    schoolLevel === "elementary"
+      ? "초등학생"
+      : schoolLevel === "middle"
+        ? "중학생"
+        : "고등학생";
+  const subjectLabel =
+    schoolLevel === "elementary"
+      ? "5과목 패키지"
+      : subjectCountTier === 1
+        ? "1과목"
+        : "2과목 이상";
+  const lessonUnitMultiplier =
+    schoolLevel === "elementary" || subjectCountTier === 2 ? 2 : 1;
+  const packageCount = getRegistrationPackageCount(
+    registrationCount,
+    lessonUnitMultiplier
+  );
   return {
     schoolLevel,
     monthlySessionCount,
     subjectCountTier,
     tuition: Number(standard.tuition),
-    label: `${schoolLabel} · ${subjectLabel} · 월 ${monthlySessionCount}회`,
+    label: `${schoolLabel} · ${subjectLabel} · ${packageCount}회 상품`,
   };
 }

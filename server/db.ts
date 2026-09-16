@@ -73,6 +73,11 @@ import {
   REMAINING_TWO_ALERT_MESSAGE,
   shouldSendRemainingTwoNotification,
 } from "../shared/remainingCountNotificationRules";
+import {
+  getAttendanceCountUnits,
+  getLessonUnitMultiplierForPlan,
+  getRegistrationPackageCount,
+} from "../shared/studentCountPolicy";
 import { getPushDeviceLabel } from "../shared/pushDeviceLabels";
 import {
   getKoreanHolidayDates,
@@ -519,11 +524,17 @@ export async function settlePreviousWeekCounts(today = todayInKorea()) {
   const weekDates = getBusinessWeekDates(weekStart);
   const [studentRows, attendanceRows, accrualRows] = await Promise.all([
     db
-      .select({ id: students.id, lastWeekCount: students.lastWeekCount })
+      .select({
+        id: students.id,
+        lastWeekCount: students.lastWeekCount,
+        lessonUnitMultiplier: students.lessonUnitMultiplier,
+        lessonUnitEffectiveFrom: students.lessonUnitEffectiveFrom,
+      })
       .from(students),
     db
       .select({
         studentId: attendanceRecords.studentId,
+        journalDate: attendanceRecords.journalDate,
         status: attendanceRecords.status,
       })
       .from(attendanceRecords)
@@ -538,9 +549,23 @@ export async function settlePreviousWeekCounts(today = todayInKorea()) {
       .where(eq(weeklyCountAccruals.weekStart, weekStart)),
   ]);
   const sessionsByStudent = new Map<number, number>();
+  const policyByStudent = new Map(
+    studentRows.map(student => [
+      student.id,
+      {
+        lessonUnitMultiplier: student.lessonUnitMultiplier,
+        lessonUnitEffectiveFrom: student.lessonUnitEffectiveFrom,
+      },
+    ])
+  );
   for (const attendance of attendanceRows) {
-    const units = getAttendanceSessionUnits(
-      attendance.status as AttendanceStatus
+    const units = getAttendanceCountUnits(
+      attendance.status as AttendanceStatus,
+      attendance.journalDate,
+      policyByStudent.get(attendance.studentId) ?? {
+        lessonUnitMultiplier: 1,
+        lessonUnitEffectiveFrom: null,
+      }
     );
     sessionsByStudent.set(
       attendance.studentId,
@@ -769,6 +794,8 @@ export async function listStudents(
       autoUnregisteredWeekdays: students.autoUnregisteredWeekdays,
       lastWeekCount: students.lastWeekCount,
       totalCount: students.totalCount,
+      lessonUnitMultiplier: students.lessonUnitMultiplier,
+      lessonUnitEffectiveFrom: students.lessonUnitEffectiveFrom,
       validUntil: students.validUntil,
       paymentMethod: students.paymentMethod,
       tuitionAlert: students.tuitionAlert,
@@ -817,6 +844,8 @@ export async function listStudents(
       autoUnregisteredWeekdays: string | null;
       lastWeekCount: number;
       totalCount: number;
+      lessonUnitMultiplier: number;
+      lessonUnitEffectiveFrom: string | null;
       validUntil: string | null;
       paymentMethod: string | null;
       tuitionAlert: string | null;
@@ -847,6 +876,8 @@ export async function listStudents(
         autoUnregisteredWeekdays: row.autoUnregisteredWeekdays,
         lastWeekCount: Number(row.lastWeekCount ?? 0),
         totalCount: Number(row.totalCount ?? 0),
+        lessonUnitMultiplier: Number(row.lessonUnitMultiplier ?? 1),
+        lessonUnitEffectiveFrom: row.lessonUnitEffectiveFrom,
         validUntil: row.validUntil,
         paymentMethod: row.paymentMethod,
         tuitionAlert: row.tuitionAlert,
@@ -953,6 +984,7 @@ export async function listStudents(
     ? await db
         .select({
           studentId: attendanceRecords.studentId,
+          journalDate: attendanceRecords.journalDate,
           status: attendanceRecords.status,
         })
         .from(attendanceRecords)
@@ -965,8 +997,14 @@ export async function listStudents(
     : [];
   const weeklySessions = new Map<number, number>();
   for (const record of attendance) {
-    const increment = getAttendanceSessionUnits(
-      record.status as AttendanceStatus
+    const student = result.get(record.studentId);
+    const increment = getAttendanceCountUnits(
+      record.status as AttendanceStatus,
+      record.journalDate,
+      {
+        lessonUnitMultiplier: student?.lessonUnitMultiplier ?? 1,
+        lessonUnitEffectiveFrom: student?.lessonUnitEffectiveFrom ?? null,
+      }
     );
     weeklySessions.set(
       record.studentId,
@@ -977,11 +1015,13 @@ export async function listStudents(
     const afterCount =
       student.lastWeekCount + (weeklySessions.get(student.id) ?? 0);
     const remainingCount = student.totalCount - afterCount;
+    const weeklyCountAlertThreshold =
+      student.registrationCount * student.lessonUnitMultiplier;
     const dynamicAlert =
       remainingCount <= 0
         ? "미납★☆"
-        : remainingCount < student.registrationCount
-          ? `발송 ${Number(remainingCount.toFixed(1))}일★`
+        : remainingCount < weeklyCountAlertThreshold
+          ? `발송 ${Number(remainingCount.toFixed(1))}회★`
           : "";
     return {
       ...student,
@@ -1408,6 +1448,10 @@ export async function createStudent(
 ) {
   const db = await requireDb();
   const tuition = await resolveStudentTuition(input);
+  const lessonUnitMultiplier = getLessonUnitMultiplierForPlan(
+    input.grade,
+    new Set(input.classGroupIds).size
+  );
   const attendanceCode = await generateUniqueAttendanceCode();
   const inserted = await db
     .insert(students)
@@ -1424,6 +1468,8 @@ export async function createStudent(
       autoUnregisteredWeekdays: input.autoUnregisteredWeekdays || null,
       lastWeekCount: input.lastWeekCount,
       totalCount: input.totalCount,
+      lessonUnitMultiplier,
+      lessonUnitEffectiveFrom: todayInKorea(),
       validUntil: input.validUntil || null,
       paymentMethod: input.paymentMethod || null,
       portalEnabled: input.portalEnabled,
@@ -1642,7 +1688,10 @@ export async function addStudentRegistrationCount(id: number, userId: number) {
         "등록 횟수가 0입니다. 학생 정보에서 등록 횟수를 먼저 입력해 주세요."
       );
     const oldTotal = Number(student.totalCount ?? 0);
-    const added = registrationCount * 4;
+    const added = getRegistrationPackageCount(
+      registrationCount,
+      Number(student.lessonUnitMultiplier ?? 1)
+    );
     const newTotal = oldTotal + added;
     await tx
       .update(students)
@@ -2040,6 +2089,7 @@ export async function listRemainingTwoNotificationCandidates(
         remainingCount: student.countInfo.remainingCount,
         totalCount: student.totalCount,
         sentTotalCount: student.remainingTwoAlertSentTotalCount,
+        lessonUnitMultiplier: student.lessonUnitMultiplier,
       })
     )
     .map(student => ({
@@ -3025,6 +3075,8 @@ export async function getPublicStudentWeek(
       registrationCount: students.registrationCount,
       lastWeekCount: students.lastWeekCount,
       totalCount: students.totalCount,
+      lessonUnitMultiplier: students.lessonUnitMultiplier,
+      lessonUnitEffectiveFrom: students.lessonUnitEffectiveFrom,
       vocabularyResultUrl: students.vocabularyResultUrl,
       englishSpeakingUrl: students.englishSpeakingUrl,
       mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
@@ -3220,6 +3272,15 @@ export async function getPublicStudentWeek(
     (total, attendance) => total + getAttendanceSessionUnits(attendance.status),
     0
   );
+  const weekCountUnits = businessAttendances.reduce(
+    (total, attendance) =>
+      total +
+      getAttendanceCountUnits(attendance.status, attendance.journalDate, {
+        lessonUnitMultiplier: Number(student.lessonUnitMultiplier ?? 1),
+        lessonUnitEffectiveFrom: student.lessonUnitEffectiveFrom,
+      }),
+    0
+  );
   const excludedWeekdayCount = businessAttendances.filter(
     attendance =>
       attendance.status === "holiday" || attendance.status === "closed"
@@ -3252,7 +3313,7 @@ export async function getPublicStudentWeek(
     currentSettledCount: Number(student.lastWeekCount ?? 0),
     requestedWeekStart: weekStart,
     currentWeekStart,
-    requestedWeekSessions: weekSessions,
+    requestedWeekSessions: weekCountUnits,
     laterSettledWeeks: laterSettledWeeks.map(item => ({
       weekStart: item.weekStart,
       sessionCount: Number(item.sessionCount ?? 0),
