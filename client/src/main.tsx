@@ -85,6 +85,18 @@ const queryClient = new QueryClient({
   },
 });
 
+const previewKeyStorageName = "haemil-pr-preview-key";
+const previewKeyFromUrl = new URLSearchParams(window.location.search).get(
+  "previewKey"
+);
+if (previewKeyFromUrl) {
+  try {
+    sessionStorage.setItem(previewKeyStorageName, previewKeyFromUrl);
+  } catch {
+    // The key remains available in the current URL when storage is blocked.
+  }
+}
+
 const redirectToLoginIfUnauthorized = (error: unknown) => {
   if (!(error instanceof TRPCClientError)) return;
   if (typeof window === "undefined") return;
@@ -121,20 +133,24 @@ const trpcClient = trpc.createClient({
         // (Safari ITP / private browsing / WebView), the runtime mirrors the
         // session into sessionStorage so we can forward it as a Bearer token.
         // The regular OAuth cookie flow keeps working and takes priority server-side.
+        const headers: Record<string, string> = {};
         try {
+          const previewKey =
+            sessionStorage.getItem(previewKeyStorageName) ?? previewKeyFromUrl;
+          if (previewKey) headers["x-haemil-preview-key"] = previewKey;
           const raw = sessionStorage.getItem("manus-cookie");
           if (raw) {
             const prefix = `${COOKIE_NAME}=`;
             const pair = raw.split(";").find(s => s.trim().startsWith(prefix));
             const token = pair?.trim().slice(prefix.length);
             if (token) {
-              return { Authorization: `Bearer ${token}` };
+              headers.Authorization = `Bearer ${token}`;
             }
           }
         } catch {
           // sessionStorage unavailable
         }
-        return {};
+        return headers;
       },
       fetch(input, init) {
         return globalThis.fetch(input, {
