@@ -486,16 +486,24 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 }
 
 export function isMissingAutoIncrementUserIdError(error: unknown): boolean {
-  if (!error || typeof error !== "object") return false;
-  const candidate = error as {
-    code?: unknown;
-    message?: unknown;
-    cause?: { code?: unknown; message?: unknown };
-  };
-  const code = candidate.code ?? candidate.cause?.code;
-  const message = String(candidate.message ?? candidate.cause?.message ?? "");
+  let current: unknown = error;
+  const messages: string[] = [];
+  const codes: unknown[] = [];
+  const visited = new Set<object>();
+  while (current && typeof current === "object" && !visited.has(current)) {
+    visited.add(current);
+    const candidate = current as {
+      code?: unknown;
+      message?: unknown;
+      cause?: unknown;
+    };
+    codes.push(candidate.code);
+    if (candidate.message) messages.push(String(candidate.message));
+    current = candidate.cause;
+  }
+  const message = messages.join(" ");
   return (
-    code === "ER_NO_DEFAULT_FOR_FIELD" &&
+    codes.includes("ER_NO_DEFAULT_FOR_FIELD") &&
     /(?:field\s+['`]?id['`]?|users\.id).*default/i.test(message)
   );
 }
