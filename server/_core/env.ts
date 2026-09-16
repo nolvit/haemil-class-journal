@@ -14,4 +14,9 @@ export const ENV = {
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH ?? "",
   adminName: process.env.ADMIN_NAME ?? "해밀 관리자",
   uploadDir: process.env.UPLOAD_DIR ?? "",
+  isPullRequestPreview:
+    process.env.RAILWAY_ENVIRONMENT_NAME?.startsWith(
+      "haemil-class-journal-pr-"
+    ) === true ||
+    process.env.RAILWAY_GIT_BRANCH === "feat/two-unit-count-transition",
 };
