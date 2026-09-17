@@ -1,25 +1,25 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
-  listRemainingTwoNotificationCandidates,
-  markRemainingTwoNotificationAttempt,
+  listRemainingOneNotificationCandidates,
+  markRemainingOneNotificationAttempt,
 } from "./db";
 import { sendAdminPush, sendStudentPush } from "./pushNotifications";
 import {
-  dispatchRemainingTwoNotifications,
+  dispatchRemainingOneNotifications,
   koreaDateAndHour,
-  remainingTwoAdminConfirmationPayload,
+  remainingOneAdminConfirmationPayload,
 } from "./remainingCountNotifications";
 
 vi.mock("./db", () => ({
-  listRemainingTwoNotificationCandidates: vi.fn(),
-  markRemainingTwoNotificationAttempt: vi.fn(),
+  listRemainingOneNotificationCandidates: vi.fn(),
+  markRemainingOneNotificationAttempt: vi.fn(),
 }));
 vi.mock("./pushNotifications", () => ({
-  remainingTwoCountPushPayload: vi.fn(() => ({
+  remainingOneCountPushPayload: vi.fn(() => ({
     title: "수업 횟수 안내",
     body: "안내",
     url: "/p/token",
-    tag: "remaining-two",
+    tag: "remaining-one",
   })),
   sendStudentPush: vi.fn(),
   sendAdminPush: vi.fn(),
@@ -42,7 +42,7 @@ describe("remaining count notification schedule", () => {
   });
 
   it("reports zero receiving parent devices to the administrator", () => {
-    const payload = remainingTwoAdminConfirmationPayload({
+    const payload = remainingOneAdminConfirmationPayload({
       studentName: "김해밀",
       sentCount: 0,
       paymentMethod: "계좌이체",
@@ -54,7 +54,7 @@ describe("remaining count notification schedule", () => {
   });
 
   it("sends the administrator a confirmation even when zero devices receive it", async () => {
-    vi.mocked(listRemainingTwoNotificationCandidates).mockResolvedValue([
+    vi.mocked(listRemainingOneNotificationCandidates).mockResolvedValue([
       {
         id: 7,
         name: "김해밀",
@@ -63,7 +63,7 @@ describe("remaining count notification schedule", () => {
         paymentMethod: "계좌이체",
       },
     ]);
-    vi.mocked(markRemainingTwoNotificationAttempt).mockResolvedValue(undefined);
+    vi.mocked(markRemainingOneNotificationAttempt).mockResolvedValue(undefined);
     vi.mocked(sendStudentPush).mockResolvedValue({
       targetCount: 0,
       sent: 0,
@@ -77,7 +77,7 @@ describe("remaining count notification schedule", () => {
       unavailable: false,
     });
 
-    await dispatchRemainingTwoNotifications(
+    await dispatchRemainingOneNotifications(
       new Date("2026-09-02T10:00:00.000Z")
     );
 

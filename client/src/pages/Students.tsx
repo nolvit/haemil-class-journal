@@ -17,7 +17,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { getRegistrationCountPreview } from "@shared/studentCountRules";
-import { REMAINING_TWO_ALERT_MESSAGE } from "@shared/remainingCountNotificationRules";
+import { REMAINING_ONE_ALERT_MESSAGE } from "@shared/remainingCountNotificationRules";
 import {
   getDaysUntilValidUntil,
   getValidUntilAfterTotalCountChange,
@@ -121,7 +121,7 @@ const emptyDraft: StudentDraft = {
   totalCount: 0,
   validUntil: "",
   paymentMethod: "",
-  remainingTwoAlertMessage: REMAINING_TWO_ALERT_MESSAGE,
+  remainingTwoAlertMessage: REMAINING_ONE_ALERT_MESSAGE,
   classGroupIds: [],
   portalEnabled: false,
 };
@@ -1122,7 +1122,7 @@ function StudentDialog({
             totalCount: student.totalCount,
             validUntil: student.validUntil?.slice(0, 10) ?? "",
             paymentMethod: student.paymentMethod ?? "",
-            remainingTwoAlertMessage: REMAINING_TWO_ALERT_MESSAGE,
+            remainingTwoAlertMessage: REMAINING_ONE_ALERT_MESSAGE,
             classGroupIds: student.classGroups.map(group => group.id),
             portalEnabled: student.portalEnabled,
           }
@@ -1444,14 +1444,14 @@ function StudentDialog({
               />
             </Field>
             <div className="sm:col-span-2">
-              <Field label="잔여 2회 보호자 알림 문구">
+              <Field label="잔여 1회 보호자 알림 문구">
                 <Textarea
-                  value={REMAINING_TWO_ALERT_MESSAGE}
+                  value={REMAINING_ONE_ALERT_MESSAGE}
                   maxLength={1000}
                   readOnly
                 />
                 <p className="text-[11px] leading-4 text-[#71817D]">
-                  모든 학생에게 동일하게 등록됩니다. 잔여 횟수가 정확히 2회가 된
+                  모든 학생에게 동일하게 등록됩니다. 잔여 횟수가 정확히 1회가 된
                   날 오후 7시에 한 번 알립니다.
                 </p>
               </Field>

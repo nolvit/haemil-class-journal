@@ -14,7 +14,7 @@ import {
   settlePreviousWeekCounts,
   applyWeeklyAutoUnregisteredDays,
 } from "../db";
-import { dispatchRemainingTwoNotifications } from "../remainingCountNotifications";
+import { dispatchRemainingOneNotifications } from "../remainingCountNotifications";
 import {
   ensureRewardSchema,
   settleRewardAttendance,
@@ -85,12 +85,12 @@ async function startServer() {
     60 * 60 * 1000
   );
   autoUnregisteredWeekdaysTimer.unref();
-  void dispatchRemainingTwoNotifications().catch(error =>
-    console.error("잔여 2회 보호자 알림 확인 실패", error)
+  void dispatchRemainingOneNotifications().catch(error =>
+    console.error("잔여 1회 보호자 알림 확인 실패", error)
   );
   const remainingCountNotificationTimer = setInterval(() => {
-    void dispatchRemainingTwoNotifications().catch(error =>
-      console.error("잔여 2회 보호자 알림 확인 실패", error)
+    void dispatchRemainingOneNotifications().catch(error =>
+      console.error("잔여 1회 보호자 알림 확인 실패", error)
     );
   }, 60 * 1000);
   remainingCountNotificationTimer.unref();

@@ -70,8 +70,8 @@ import {
 import { getValidUntilAfterTotalCountChange } from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
 import {
-  REMAINING_TWO_ALERT_MESSAGE,
-  shouldSendRemainingTwoNotification,
+  REMAINING_ONE_ALERT_MESSAGE,
+  shouldSendRemainingOneNotification,
 } from "../shared/remainingCountNotificationRules";
 import { getPushDeviceLabel } from "../shared/pushDeviceLabels";
 import {
@@ -123,6 +123,14 @@ export async function ensureRemainingCountNotificationSchema() {
       updatedAt timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
       PRIMARY KEY (studentId)
     )
+  `);
+  await db.execute(sql`
+    UPDATE student_remaining_count_notifications
+    SET
+      message = ${REMAINING_ONE_ALERT_MESSAGE},
+      sentTotalCount = NULL,
+      lastAttemptedAt = NULL
+    WHERE message <> ${REMAINING_ONE_ALERT_MESSAGE}
   `);
   await db.execute(sql`
     CREATE TABLE IF NOT EXISTS notification_delivery_logs (
@@ -876,11 +884,11 @@ export async function listStudents(
       .values(
         records.map(student => ({
           studentId: student.id,
-          message: REMAINING_TWO_ALERT_MESSAGE,
+          message: REMAINING_ONE_ALERT_MESSAGE,
         }))
       )
       .onDuplicateKeyUpdate({
-        set: { message: REMAINING_TWO_ALERT_MESSAGE },
+        set: { message: REMAINING_ONE_ALERT_MESSAGE },
       });
   const notificationSettings = records.length
     ? await db
@@ -987,7 +995,7 @@ export async function listStudents(
       ...student,
       remainingTwoAlertMessage:
         notificationSettingsByStudent.get(student.id)?.message ??
-        REMAINING_TWO_ALERT_MESSAGE,
+        REMAINING_ONE_ALERT_MESSAGE,
       remainingTwoAlertSentTotalCount:
         notificationSettingsByStudent.get(student.id)?.sentTotalCount ?? null,
       remainingTwoAlertLastAttemptedAt:
@@ -1436,7 +1444,7 @@ export async function createStudent(
   if (!studentId) throw new Error("학생을 생성하지 못했습니다.");
   await db.insert(studentRemainingCountNotifications).values({
     studentId,
-    message: REMAINING_TWO_ALERT_MESSAGE,
+    message: REMAINING_ONE_ALERT_MESSAGE,
   });
   if (input.classGroupIds.length) {
     await db.insert(studentEnrollments).values(
@@ -1515,10 +1523,10 @@ export async function updateStudent(
       .insert(studentRemainingCountNotifications)
       .values({
         studentId: id,
-        message: REMAINING_TWO_ALERT_MESSAGE,
+        message: REMAINING_ONE_ALERT_MESSAGE,
       })
       .onDuplicateKeyUpdate({
-        set: { message: REMAINING_TWO_ALERT_MESSAGE },
+        set: { message: REMAINING_ONE_ALERT_MESSAGE },
       });
     if (totalCountChanged) {
       await tx.insert(registrationCountHistories).values({
@@ -2028,13 +2036,13 @@ export async function getStudentNotificationIdentity(studentId: number) {
   return result[0] ?? null;
 }
 
-export async function listRemainingTwoNotificationCandidates(
+export async function listRemainingOneNotificationCandidates(
   today = todayInKorea()
 ) {
   const studentRows = await listStudents(today, true);
   return studentRows
     .filter(student =>
-      shouldSendRemainingTwoNotification({
+      shouldSendRemainingOneNotification({
         portalEnabled: student.portalEnabled,
         message: student.remainingTwoAlertMessage,
         remainingCount: student.countInfo.remainingCount,
@@ -2051,7 +2059,7 @@ export async function listRemainingTwoNotificationCandidates(
     }));
 }
 
-export async function markRemainingTwoNotificationAttempt(
+export async function markRemainingOneNotificationAttempt(
   studentId: number,
   totalCount: number,
   attemptedAt: Date
@@ -2067,6 +2075,7 @@ export type NotificationDeliveryType =
   | "attendance_check_in"
   | "attendance_check_out"
   | "remaining_two"
+  | "remaining_one"
   | "total_count"
   | "avatar_gift"
   | "test";

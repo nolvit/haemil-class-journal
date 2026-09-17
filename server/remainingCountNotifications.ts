@@ -1,16 +1,16 @@
 import {
-  listRemainingTwoNotificationCandidates,
-  markRemainingTwoNotificationAttempt,
+  listRemainingOneNotificationCandidates,
+  markRemainingOneNotificationAttempt,
 } from "./db";
 import {
-  remainingTwoCountPushPayload,
+  remainingOneCountPushPayload,
   sendAdminPush,
   sendStudentPush,
 } from "./pushNotifications";
 
 let dispatchRunning = false;
 
-export function remainingTwoAdminConfirmationPayload(input: {
+export function remainingOneAdminConfirmationPayload(input: {
   studentName: string;
   sentCount: number;
   paymentMethod: string;
@@ -19,7 +19,7 @@ export function remainingTwoAdminConfirmationPayload(input: {
     title: "원비 납부 알림 발송 결과",
     body: `${input.studentName}학생. 수신 기기 ${input.sentCount}대. 결제방식 ${input.paymentMethod}. 원비 납부 알림 정상 발송.`,
     url: "/students",
-    tag: `remaining-two-admin-${input.studentName}-${Date.now()}`,
+    tag: `remaining-one-admin-${input.studentName}-${Date.now()}`,
   };
 }
 
@@ -40,7 +40,7 @@ export function koreaDateAndHour(now: Date) {
   };
 }
 
-export async function dispatchRemainingTwoNotifications(now = new Date()) {
+export async function dispatchRemainingOneNotifications(now = new Date()) {
   const korea = koreaDateAndHour(now);
   if (korea.hour !== 19 || dispatchRunning)
     return { checked: false, attempted: 0, sent: 0 };
@@ -49,9 +49,9 @@ export async function dispatchRemainingTwoNotifications(now = new Date()) {
   let attempted = 0;
   let sent = 0;
   try {
-    const candidates = await listRemainingTwoNotificationCandidates(korea.date);
+    const candidates = await listRemainingOneNotificationCandidates(korea.date);
     for (const student of candidates) {
-      await markRemainingTwoNotificationAttempt(
+      await markRemainingOneNotificationAttempt(
         student.id,
         student.totalCount,
         now
@@ -66,27 +66,27 @@ export async function dispatchRemainingTwoNotifications(now = new Date()) {
       try {
         result = await sendStudentPush(
           student.id,
-          remainingTwoCountPushPayload(
+          remainingOneCountPushPayload(
             student.publicToken,
             student.name,
             student.totalCount
           ),
-          { type: "remaining_two", eventDate: korea.date }
+          { type: "remaining_one", eventDate: korea.date }
         );
       } catch (error) {
-        console.error("잔여 2회 보호자 알림 발송 실패", error);
+        console.error("잔여 1회 보호자 알림 발송 실패", error);
       }
       sent += result.sent;
       try {
         await sendAdminPush(
-          remainingTwoAdminConfirmationPayload({
+          remainingOneAdminConfirmationPayload({
             studentName: student.name,
             sentCount: result.sent,
             paymentMethod: student.paymentMethod,
           })
         );
       } catch (error) {
-        console.error("잔여 2회 관리자 확인 알림 발송 실패", error);
+        console.error("잔여 1회 관리자 확인 알림 발송 실패", error);
       }
     }
     return { checked: true, attempted, sent };

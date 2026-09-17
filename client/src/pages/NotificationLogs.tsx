@@ -13,6 +13,7 @@ type NotificationType =
   | "attendance_check_in"
   | "attendance_check_out"
   | "remaining_two"
+  | "remaining_one"
   | "total_count"
   | "avatar_gift"
   | "test";
@@ -36,6 +37,7 @@ const typeLabels: Record<NotificationType, string> = {
   attendance_check_in: "등원",
   attendance_check_out: "하원",
   remaining_two: "잔여 2회",
+  remaining_one: "잔여 1회",
   total_count: "총 횟수 변경",
   avatar_gift: "해밀월드 선물",
   test: "테스트",

@@ -1,4 +1,4 @@
-export type RemainingTwoNotificationState = {
+export type RemainingOneNotificationState = {
   portalEnabled: boolean;
   message: string;
   remainingCount: number;
@@ -6,16 +6,16 @@ export type RemainingTwoNotificationState = {
   sentTotalCount: number | null;
 };
 
-export const REMAINING_TWO_ALERT_MESSAGE =
-  "남은 수업이 2회입니다. 다음 수업 등록을 부탁드립니다.";
+export const REMAINING_ONE_ALERT_MESSAGE =
+  "남은 수업이 1회입니다. 다음 수업 등록을 부탁드립니다.";
 
-export function shouldSendRemainingTwoNotification(
-  state: RemainingTwoNotificationState
+export function shouldSendRemainingOneNotification(
+  state: RemainingOneNotificationState
 ) {
   return (
     state.portalEnabled &&
     state.message.trim().length > 0 &&
-    Math.abs(state.remainingCount - 2) < 0.001 &&
+    Math.abs(state.remainingCount - 1) < 0.001 &&
     state.sentTotalCount !== state.totalCount
   );
 }

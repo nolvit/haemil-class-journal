@@ -1,5 +1,5 @@
 import webPush from "web-push";
-import { REMAINING_TWO_ALERT_MESSAGE } from "../shared/remainingCountNotificationRules";
+import { REMAINING_ONE_ALERT_MESSAGE } from "../shared/remainingCountNotificationRules";
 import * as academyDb from "./db";
 import { ENV } from "./_core/env";
 
@@ -176,15 +176,15 @@ export function attendancePushPayload(
   };
 }
 
-export function remainingTwoCountPushPayload(
+export function remainingOneCountPushPayload(
   token: string,
   studentName: string,
   totalCount: number
 ): ParentPushPayload {
   return {
     title: `${studentName} 학생 수업 횟수 안내`,
-    body: REMAINING_TWO_ALERT_MESSAGE,
+    body: REMAINING_ONE_ALERT_MESSAGE,
     url: `/p/${token}`,
-    tag: `remaining-two-${studentName}-${totalCount}`,
+    tag: `remaining-one-${studentName}-${totalCount}`,
   };
 }

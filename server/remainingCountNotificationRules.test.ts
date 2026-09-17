@@ -1,37 +1,37 @@
 import { describe, expect, it } from "vitest";
 import {
-  REMAINING_TWO_ALERT_MESSAGE,
-  shouldSendRemainingTwoNotification,
+  REMAINING_ONE_ALERT_MESSAGE,
+  shouldSendRemainingOneNotification,
 } from "../shared/remainingCountNotificationRules";
 
 const baseState = {
   portalEnabled: true,
-  message: REMAINING_TWO_ALERT_MESSAGE,
-  remainingCount: 2,
+  message: REMAINING_ONE_ALERT_MESSAGE,
+  remainingCount: 1,
   totalCount: 12,
   sentTotalCount: null,
 };
 
-describe("remaining two-session notification rule", () => {
-  it("sends only when exactly two sessions remain", () => {
-    expect(shouldSendRemainingTwoNotification(baseState)).toBe(true);
+describe("remaining one-session notification rule", () => {
+  it("sends only when exactly one session remains", () => {
+    expect(shouldSendRemainingOneNotification(baseState)).toBe(true);
     expect(
-      shouldSendRemainingTwoNotification({ ...baseState, remainingCount: 1 })
+      shouldSendRemainingOneNotification({ ...baseState, remainingCount: 2 })
     ).toBe(false);
     expect(
-      shouldSendRemainingTwoNotification({ ...baseState, remainingCount: 0 })
+      shouldSendRemainingOneNotification({ ...baseState, remainingCount: 0 })
     ).toBe(false);
   });
 
   it("requires a portal, a custom message, and a new count cycle", () => {
     expect(
-      shouldSendRemainingTwoNotification({ ...baseState, portalEnabled: false })
+      shouldSendRemainingOneNotification({ ...baseState, portalEnabled: false })
     ).toBe(false);
     expect(
-      shouldSendRemainingTwoNotification({ ...baseState, message: "  " })
+      shouldSendRemainingOneNotification({ ...baseState, message: "  " })
     ).toBe(false);
     expect(
-      shouldSendRemainingTwoNotification({ ...baseState, sentTotalCount: 12 })
+      shouldSendRemainingOneNotification({ ...baseState, sentTotalCount: 12 })
     ).toBe(false);
   });
 });
