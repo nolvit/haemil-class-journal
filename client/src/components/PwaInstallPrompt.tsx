@@ -328,7 +328,6 @@ export function ParentNotificationPrompt({ token }: { token: string }) {
 
 function ParentNotificationSettings({ token }: { token: string }) {
   const { user, loading: authLoading } = useAuth();
-  const [standalone, setStandalone] = useState(getPwaInstallSnapshot().installed);
   const checkVersion = useRef(0);
   const changingSubscription = useRef(false);
   const [state, setState] = useState<
@@ -377,7 +376,6 @@ function ParentNotificationSettings({ token }: { token: string }) {
       const update = (value: typeof state) => {
         if (!cancelled && version === checkVersion.current) setState(value);
       };
-      setStandalone(getPwaInstallSnapshot().installed);
       update("idle");
       if (authLoading || user?.role === "admin") return;
       if (!("Notification" in window) || !("serviceWorker" in navigator) || !("PushManager" in window)) {
@@ -419,14 +417,16 @@ function ParentNotificationSettings({ token }: { token: string }) {
     void restore();
     window.addEventListener("focus", restore);
     document.addEventListener("visibilitychange", restore);
-    const displayMode = window.matchMedia("(display-mode: standalone)");
-    displayMode.addEventListener("change", restore);
+    const displayModes = ["standalone", "fullscreen"].map(mode =>
+      window.matchMedia(`(display-mode: ${mode})`)
+    );
+    displayModes.forEach(mode => mode.addEventListener?.("change", restore));
     return () => {
       cancelled = true;
       ++checkVersion.current;
       window.removeEventListener("focus", restore);
       document.removeEventListener("visibilitychange", restore);
-      displayMode.removeEventListener("change", restore);
+      displayModes.forEach(mode => mode.removeEventListener?.("change", restore));
     };
   }, [token, config.data?.available, authLoading, user?.role]);
   const enable = async () => {
@@ -534,7 +534,9 @@ function ParentNotificationSettings({ token }: { token: string }) {
     }
   };
   if (user?.role === "admin") return null;
-  const configured = standalone && state === "enabled";
+  // Push registration is independent of installation/display mode. Android
+  // browsers can receive push too, and fullscreen PWAs are not standalone.
+  const configured = state === "enabled";
   return (
     <details open={configured && !awaitingConfirmation ? undefined : true} key={configured ? "configured" : "setup"}>
       <summary className={configured ? "cursor-pointer py-2 text-xs text-[#657570]" : "hidden"}>알림 관리 · 테스트 알림 / 다시 연결</summary>

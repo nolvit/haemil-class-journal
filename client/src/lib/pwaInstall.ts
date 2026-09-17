@@ -12,13 +12,15 @@ type PwaInstallListener = (snapshot: PwaInstallSnapshot) => void;
 
 let initialized = false;
 let deferredPrompt: BeforeInstallPromptEvent | null = null;
-let installed = false;
 const listeners = new Set<PwaInstallListener>();
+const APP_DISPLAY_MODES = ["standalone", "fullscreen"] as const;
 
-function standaloneMode() {
+function appDisplayMode() {
   const iosNavigator = navigator as Navigator & { standalone?: boolean };
   return (
-    window.matchMedia("(display-mode: standalone)").matches ||
+    APP_DISPLAY_MODES.some(mode =>
+      window.matchMedia(`(display-mode: ${mode})`).matches
+    ) ||
     iosNavigator.standalone === true
   );
 }
@@ -26,7 +28,8 @@ function standaloneMode() {
 function snapshot(): PwaInstallSnapshot {
   return {
     promptAvailable: Boolean(deferredPrompt),
-    installed: standaloneMode(),
+    // This describes the current window, not an installation in another tab.
+    installed: appDisplayMode(),
   };
 }
 
@@ -38,24 +41,20 @@ function notify() {
 export function initializePwaInstallCapture() {
   if (initialized) return;
   initialized = true;
-  installed = standaloneMode();
   window.addEventListener("beforeinstallprompt", event => {
     event.preventDefault();
     deferredPrompt = event as BeforeInstallPromptEvent;
     notify();
   });
   window.addEventListener("appinstalled", () => {
-    installed = true;
     deferredPrompt = null;
     notify();
   });
-  const displayMode = window.matchMedia("(display-mode: standalone)");
   window.addEventListener("focus", notify);
   document.addEventListener("visibilitychange", notify);
-  displayMode.addEventListener?.("change", () => {
-    installed = standaloneMode();
-    notify();
-  });
+  for (const mode of APP_DISPLAY_MODES) {
+    window.matchMedia(`(display-mode: ${mode})`).addEventListener?.("change", notify);
+  }
 }
 
 export function getPwaInstallSnapshot() {
