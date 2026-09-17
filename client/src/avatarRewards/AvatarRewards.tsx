@@ -213,8 +213,30 @@ export function AvatarRewards({
     submit.isPending ||
     select.isPending ||
     representative.isPending;
-  const position = cropY ?? account?.cropY ?? 0;
-  const horizontal = cropX ?? account?.cropX ?? 50;
+  const cropCardId = selectedCard === "master" ? null : selectedCard ?? account?.representativeId ?? null;
+  const cropCard = data?.cards.find(card => card.id === cropCardId);
+  const cropImage = cropCard?.url ?? account?.masterUrl;
+  const cropSharing = wardrobe.sharing.find(item => item.cardId === cropCardId);
+  const position = cropY ?? (cropCardId ? cropSharing?.cropY ?? 20 : account?.cropY ?? 0);
+  const horizontal = cropX ?? (cropCardId ? cropSharing?.cropX ?? 50 : account?.cropX ?? 50);
+  const cropScale = zoom ?? (cropCardId ? cropSharing?.cropZoom ?? 190 : wardrobe.cropZoom);
+  const saveCrop = trpc.avatarRewards.cardCrop.useMutation({
+    onError,
+    onSuccess: async () => {
+      await refresh();
+      setCropY(null);
+      setCropX(null);
+      setZoom(null);
+      toast.success("원형 사진 위치를 저장했어요.");
+    },
+  });
+  const chooseCropCard = (id: string) => {
+    if (saveCrop.isPending || !confirmDiscardCrop()) return;
+    setCropY(null);
+    setCropX(null);
+    setZoom(null);
+    setSelectedCard(id);
+  };
   const cropDirty = cropY !== null || cropX !== null || zoom !== null;
   const hasUnsavedCrop = cropDirty || sharingDirtyCards.size > 0;
   const confirmDiscardCrop = () =>
@@ -695,7 +717,7 @@ export function AvatarRewards({
                                     }
                                     onClick={e => {
                                       if (selectedCard !== "master") {
-                                        setSelectedCard("master");
+                                        chooseCropCard("master");
                                         return;
                                       }
                                       const b =
@@ -760,7 +782,7 @@ export function AvatarRewards({
                                       }
                                       onClick={e => {
                                         if (selectedCard !== card.id) {
-                                          setSelectedCard(card.id);
+                                          chooseCropCard(card.id);
                                           return;
                                         }
                                         const b =
@@ -830,8 +852,8 @@ export function AvatarRewards({
                                         representative.mutate({
                                           ...identity,
                                           cardId: isMaster ? null : card!.id,
-                                          cropY: 0,
-                                          cropX: 50,
+                                          cropY: cropSharing?.cropY ?? 0,
+                                          cropX: cropSharing?.cropX ?? 50,
                                         })
                                       }
                                     >
@@ -867,7 +889,7 @@ export function AvatarRewards({
                                   </section>
                                 );
                               })()}
-                            {image && (
+                            {cropImage && (
                               <div className="reward-crop">
                                 <h3>원형 사진 위치 조정</h3>
                                 <button
@@ -876,17 +898,17 @@ export function AvatarRewards({
                                   aria-label="원형 사진 크게 보기"
                                   onClick={() =>
                                     openArt({
-                                      url: image,
+                                      url: cropImage,
                                       title: "원형 사진 원본",
                                     })
                                   }
                                 >
                                   <img
-                                    src={image}
+                                    src={cropImage}
                                     alt="원형 사진 미리보기"
                                     style={{
                                       objectPosition: `${horizontal}% ${position}%`,
-                                      transform: `scale(${(zoom ?? wardrobe.cropZoom) / 100})`,
+                                      transform: `scale(${(cropScale) / 100})`,
                                       transformOrigin: `${horizontal}% ${position}%`,
                                     }}
                                   />
@@ -930,9 +952,9 @@ export function AvatarRewards({
                                     min="100"
                                     max="500"
                                     step="10"
-                                    value={zoom ?? wardrobe.cropZoom}
+                                    value={cropScale}
                                     style={themedRangeStyle(
-                                      zoom ?? wardrobe.cropZoom,
+                                      cropScale,
                                       100,
                                       500
                                     )}
@@ -940,24 +962,21 @@ export function AvatarRewards({
                                       setZoom(Number(e.target.value))
                                     }
                                   />
-                                  <output>{zoom ?? wardrobe.cropZoom}%</output>
+                                  <output>{cropScale}%</output>
                                 </label>
                                 <Button
                                   className="reward-crop-save"
                                   disabled={
-                                    zoomMutation.isPending || busy || !cropDirty
+                                    saveCrop.isPending || busy || !cropDirty
                                   }
                                   onClick={async () => {
                                     try {
-                                      await zoomMutation.mutateAsync({
+                                      await saveCrop.mutateAsync({
                                         ...identity,
-                                        zoom: zoom ?? wardrobe.cropZoom,
-                                      });
-                                      await representative.mutateAsync({
-                                        ...identity,
-                                        cardId: account.representativeId,
-                                        cropY: position,
+                                        cardId: cropCardId,
                                         cropX: horizontal,
+                                        cropY: position,
+                                        cropZoom: cropScale,
                                       });
                                     } catch {}
                                   }}

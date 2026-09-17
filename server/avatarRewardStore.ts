@@ -1487,3 +1487,28 @@ export async function equipBackground(
     );
   });
 }
+
+
+export async function setStudentCardCrop(
+  studentId: number,
+  v: { cardId: string | null; cropX: number; cropY: number; cropZoom: number }
+) {
+  return transaction(studentId, async (c, account) => {
+    if (v.cardId) {
+      if (!(await rows(c, "SELECT id FROM avatar_collection WHERE id=? AND studentId=?", [v.cardId, studentId])).length)
+        reject("내 컬렉션만 조정할 수 있어요.");
+      await c.query(
+        "INSERT INTO avatar_sharing(cardId,cropX,cropY,cropZoom) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE cropX=VALUES(cropX),cropY=VALUES(cropY),cropZoom=VALUES(cropZoom)",
+        [v.cardId, v.cropX, v.cropY, v.cropZoom]
+      );
+    }
+    if (account.representativeId === v.cardId || !v.cardId) {
+      account.cropX = v.cropX;
+      account.cropY = v.cropY;
+      await c.query(
+        "INSERT INTO avatar_wardrobe(studentId,cropZoom) VALUES(?,?) ON DUPLICATE KEY UPDATE cropZoom=VALUES(cropZoom)",
+        [studentId, v.cropZoom]
+      );
+    }
+  });
+}

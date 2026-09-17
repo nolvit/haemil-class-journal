@@ -239,6 +239,14 @@ export const avatarRewardsRouter = router({
         input.candidateId
       )
     ),
+  cardCrop: studentProcedure
+    .input(z.object({
+      cardId: z.string().uuid().nullable(),
+      cropX: z.number().int().min(0).max(100),
+      cropY: z.number().int().min(0).max(100),
+      cropZoom: z.number().int().min(100).max(500),
+    }))
+    .mutation(({ input }) => store.setStudentCardCrop(input.studentId, input)),
   representative: studentProcedure
     .input(
       z.object({
