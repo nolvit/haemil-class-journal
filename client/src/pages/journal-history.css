@@ -9,6 +9,10 @@
 .history-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .history-action { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 13px; border: 1px solid #d6dcd4; border-radius: 8px; background: #fffefa; color: #355347; font: inherit; font-size: 12px; font-weight: 600; text-decoration: none; cursor: pointer; }
 .history-action:hover { background: #eff3ec; }
+.history-resource-action { border-color: #b8cbbf; background: #edf4ec; color: #315b45; }
+.history-resource-action:hover { border-color: #8da994; background: #e1eee0; }
+.history-resource-action[data-resource="speaking"] { border-color: #d9c89f; background: #f5ecd5; color: #715c2c; }
+.history-resource-action[data-resource="speaking"]:hover { border-color: #c5ad72; background: #eee0bd; }
 .history-action:disabled { opacity: .5; cursor: wait; }
 .history-guide { display: flex; align-items: flex-start; gap: 8px; max-width: 1760px; margin: 0 auto 16px; border-left: 3px solid #86a193; padding: 10px 13px; color: #56685f; background: #eeeee7; border-radius: 0 6px 6px 0; font-size: 11px; line-height: 1.7; }
 .history-guide svg { flex-shrink: 0; margin-top: 1px; }

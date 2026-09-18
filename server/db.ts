@@ -1033,6 +1033,9 @@ export async function getJournalWorkspace(
       studentId: students.id,
       studentName: students.name,
       studentGrade: students.grade,
+      vocabularyResultUrl: students.vocabularyResultUrl,
+      englishSpeakingUrl: students.englishSpeakingUrl,
+      mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
       attendanceId: attendanceRecords.id,
       attendanceStatus: attendanceRecords.status,
       attendanceArrivalTime: attendanceRecords.arrivalTime,
@@ -1088,6 +1091,9 @@ export async function getJournalWorkspace(
         id: row.studentId,
         name: row.studentName,
         grade: row.studentGrade,
+        vocabularyResultUrl: row.vocabularyResultUrl,
+        englishSpeakingUrl: row.englishSpeakingUrl,
+        mathUnitEvaluationUrl: row.mathUnitEvaluationUrl,
       },
       attendance: effectiveStatus
         ? {

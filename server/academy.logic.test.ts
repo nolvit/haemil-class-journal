@@ -6,7 +6,7 @@ import { getRegistrationCountPreview } from "../shared/studentCountRules";
 import { getDaysUntilValidUntil, getValidUntilAfterTotalCountChange, isValidUntilDueSoon } from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
 import { getMobileSwipeDestination } from "../shared/mobileSwipeNavigation";
-import { countSavedLearningLinks, getOpenableLearningLink } from "../shared/learningLinksRules";
+import { countSavedLearningLinks, getOpenableLearningLink, getSubjectLearningLinks } from "../shared/learningLinksRules";
 import { buildParentAttendanceMessage, getAttendanceSessionUnits, getHolidayAdjustedTarget, isAttendancePending } from "../shared/attendanceSummaryRules";
 import { appendClosureNoticeTemplate, getClosureNoticeTemplates } from "../shared/closureNoticeTemplates";
 import { getKoreanHolidayDates, getVerifiedFallbackHoliday, groupKoreanHolidaySchedules, parseOfficialHolidayPayload, shouldAutomaticallyApplyLegalHoliday } from "./koreanHolidays";
@@ -315,6 +315,17 @@ describe("수업일지 완성 상태", () => {
     expect(getOpenableLearningLink("javascript:alert(1)")).toBeNull();
     expect(getOpenableLearningLink("not a url")).toBeNull();
     expect(getOpenableLearningLink("")).toBeNull();
+  });
+
+  it("4주 달력은 선택한 과목에 맞는 학습 링크만 보여준다", () => {
+    const links = {
+      vocabularyResultUrl: "https://example.com/word",
+      englishSpeakingUrl: "https://example.com/speaking",
+      mathUnitEvaluationUrl: "https://example.com/math",
+    };
+    expect(getSubjectLearningLinks("중등 수학", links).map(link => link.label)).toEqual(["수학 단원 평가"]);
+    expect(getSubjectLearningLinks("중등 영어", links).map(link => link.label)).toEqual(["단어 암기 결과", "영어 말하기"]);
+    expect(getSubjectLearningLinks("과학", links)).toEqual([]);
   });
 
   it("대한민국 공식 원천의 설날·추석 연휴와 선거일을 공휴일 데이터로 정규화한다", () => {

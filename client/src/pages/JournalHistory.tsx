@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, Check, Copy, RefreshCw } from "lucide-react";
+import { BookMarked, Calculator, CalendarDays, Check, Copy, Mic2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { copyLessonContent } from "@/lib/copyLessonContent";
 import { useAttendanceLiveUpdates } from "@/hooks/useAttendanceLiveUpdates";
 import { attendanceStatusLabels, type AttendanceStatus } from "@shared/journalRules";
+import { getSubjectLearningLinks } from "@shared/learningLinksRules";
 import {
   getJournalHistoryWeeks,
   getKoreanJournalDate,
@@ -16,7 +17,14 @@ import {
 import "./journal-history.css";
 
 type HistoryRow = {
-  student: { id: number; name: string; grade: string };
+  student: {
+    id: number;
+    name: string;
+    grade: string;
+    vocabularyResultUrl?: string | null;
+    englishSpeakingUrl?: string | null;
+    mathUnitEvaluationUrl?: string | null;
+  };
   classGroup: { id: number; subject: string };
   attendance: { status: AttendanceStatus; arrivalTime?: string | null; departureTime?: string | null } | null;
   journal: { content: string; homework: string; notes: string; isDraft?: boolean } | null;
@@ -67,6 +75,9 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   const targetRow = queries.filter(query => !query.isError).flatMap(query => query.data?.days ?? [])
     .flatMap(day => day.rows).find(row => row.student.id === target.studentId && row.classGroup.id === target.classGroupId);
   const title = targetRow ? `${targetRow.student.name} · ${targetRow.classGroup.subject}` : "수업일지";
+  const learningLinks = targetRow
+    ? getSubjectLearningLinks(targetRow.classGroup.subject, targetRow.student)
+    : [];
   const refresh = () => {
     setReferenceDate(getKoreanJournalDate());
     void utils.auth.me.invalidate();
@@ -111,7 +122,10 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
           <h1>{title} <span>최근 4주 수업일지</span></h1>
           <p className="history-subtitle">{targetRow?.student.grade && <>{targetRow.student.grade} · </>}{weeks[3].weekStart} ~ {rangeEnd}<span className="history-readonly">조회 전용</span></p>
         </div>
-        <div className="history-actions"><button type="button" className="history-action" disabled={queries.some(query => query.isFetching)} onClick={refresh}><RefreshCw size={15} aria-hidden="true" />새로고침</button></div>
+        <div className="history-actions">
+          {learningLinks.map(link => <a key={link.kind} href={link.url} target="_blank" rel="noopener noreferrer" className="history-action history-resource-action" data-resource={link.kind}>{link.kind === "math" ? <Calculator size={15} aria-hidden="true" /> : link.kind === "speaking" ? <Mic2 size={15} aria-hidden="true" /> : <BookMarked size={15} aria-hidden="true" />}{link.label}</a>)}
+          <button type="button" className="history-action" disabled={queries.some(query => query.isFetching)} onClick={refresh}><RefreshCw size={15} aria-hidden="true" />새로고침</button>
+        </div>
       </header>
       <div className="history-guide"><CalendarDays size={16} aria-hidden="true" /><p>이번 주와 지난 3주를 보여줍니다. <strong>날짜별 복사 버튼으로 수업 내용만 복사합니다.</strong> 과제와 비고는 제외됩니다.</p></div>
       <p className="history-mobile-hint">달력을 좌우로 밀어 다른 요일을 확인하세요.</p>
