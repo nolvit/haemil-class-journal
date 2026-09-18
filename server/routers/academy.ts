@@ -423,6 +423,25 @@ export const academyRouter = router({
         );
         return result;
       }),
+    importParentPhones: adminProcedure
+      .input(
+        z.object({
+          entries: z
+            .array(
+              z.object({
+                studentId: z.number().int().positive(),
+                phone: z
+                  .string()
+                  .regex(/^0\d{8,10}$/, "전화번호 형식이 올바르지 않습니다."),
+              })
+            )
+            .min(1)
+            .max(300),
+        })
+      )
+      .mutation(({ input }) =>
+        academyDb.importStudentParentPhones(input.entries)
+      ),
     archive: adminProcedure
       .input(z.object({ id: z.number().int().positive() }))
       .mutation(({ input }) => academyDb.archiveStudent(input.id)),

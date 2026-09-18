@@ -19,6 +19,11 @@ import { trpc } from "@/lib/trpc";
 import { getRegistrationCountPreview } from "@shared/studentCountRules";
 import { REMAINING_ONE_ALERT_MESSAGE } from "@shared/remainingCountNotificationRules";
 import {
+  buildParentPhoneImportPreview,
+  parseParentPhoneContacts,
+  type ParentPhoneImportPreview,
+} from "@shared/parentPhoneImport";
+import {
   getDaysUntilValidUntil,
   getValidUntilAfterTotalCountChange,
   isValidUntilDueSoon,
@@ -39,9 +44,10 @@ import {
   ShieldAlert,
   SlidersHorizontal,
   Trash2,
+  Upload,
   UsersRound,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 type CountInfo = {
@@ -178,6 +184,9 @@ export default function Students() {
   const [historyTarget, setHistoryTarget] = useState<Student | null>(null);
   const [level, setLevel] = useState<SchoolLevel>("all");
   const [showInactive, setShowInactive] = useState(false);
+  const [phoneImportPreview, setPhoneImportPreview] =
+    useState<ParentPhoneImportPreview | null>(null);
+  const phoneImportInputRef = useRef<HTMLInputElement>(null);
   const refresh = () => {
     void utils.academy.students.invalidate();
   };
@@ -239,6 +248,15 @@ export default function Students() {
     },
     onError: error => toast.error(error.message),
   });
+  const importParentPhones =
+    trpc.academy.students.importParentPhones.useMutation({
+      onSuccess: result => {
+        refresh();
+        setPhoneImportPreview(null);
+        toast.success(`보호자 연락처 ${result.updated}건을 입력했습니다.`);
+      },
+      onError: error => toast.error(error.message),
+    });
   const registrationHistory =
     trpc.academy.students.registrationHistory.useQuery(
       { studentId: historyTarget?.id ?? 1 },
@@ -327,6 +345,23 @@ export default function Students() {
         ),
     [activeRows]
   );
+  const handleParentPhoneFile = async (file: File | undefined) => {
+    if (!file) return;
+    try {
+      const contacts = parseParentPhoneContacts(await file.text());
+      if (!contacts.length) {
+        toast.error("학생 이름과 어머님 표기가 있는 연락처를 찾지 못했습니다.");
+        return;
+      }
+      setPhoneImportPreview(
+        buildParentPhoneImportPreview(contacts, activeRows)
+      );
+    } catch {
+      toast.error("연락처 파일을 읽지 못했습니다. VCF 파일인지 확인해 주세요.");
+    } finally {
+      if (phoneImportInputRef.current) phoneImportInputRef.current.value = "";
+    }
+  };
   if (user?.role !== "admin") return <RestrictedPage title="학생 관리" />;
   return (
     <div className="journal-page-shell">
@@ -336,13 +371,33 @@ export default function Students() {
           <h1>학생 관리</h1>
           <p>학생 정보, 수강 과목, 원비와 수업 횟수를 함께 관리합니다.</p>
         </div>
-        <Button
-          className="journal-primary-button"
-          onClick={() => setSelected(null)}
-        >
-          <Plus className="mr-1.5 h-4 w-4" />
-          학생 등록
-        </Button>
+        <div className="flex flex-wrap justify-end gap-2">
+          <input
+            ref={phoneImportInputRef}
+            type="file"
+            accept=".vcf,text/vcard,text/x-vcard"
+            className="hidden"
+            onChange={event =>
+              void handleParentPhoneFile(event.target.files?.[0])
+            }
+          />
+          <Button
+            variant="outline"
+            className="bg-white"
+            disabled={students.isLoading}
+            onClick={() => phoneImportInputRef.current?.click()}
+          >
+            <Upload className="mr-1.5 h-4 w-4" />
+            보호자 연락처 불러오기
+          </Button>
+          <Button
+            className="journal-primary-button"
+            onClick={() => setSelected(null)}
+          >
+            <Plus className="mr-1.5 h-4 w-4" />
+            학생 등록
+          </Button>
+        </div>
       </section>
       <section className="mt-6 grid gap-3 sm:grid-cols-3">
         <Metric
@@ -407,7 +462,10 @@ export default function Students() {
                       <span className="whitespace-nowrap">
                         남은 {formatNumber(student.countInfo.remainingCount)}회
                       </span>
-                      <span className="max-w-24 truncate rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]" title={student.paymentMethod || "결제방식 미등록"}>
+                      <span
+                        className="max-w-24 truncate rounded-md bg-[#F4EEE2] px-1.5 py-0.5 text-[10px] font-semibold text-[#6F6252]"
+                        title={student.paymentMethod || "결제방식 미등록"}
+                      >
                         {student.paymentMethod || "결제방식 미등록"}
                       </span>
                       <Button
@@ -626,7 +684,123 @@ export default function Students() {
         loading={registrationHistory.isLoading}
         onClose={() => setHistoryTarget(null)}
       />
+      <ParentPhoneImportDialog
+        preview={phoneImportPreview}
+        pending={importParentPhones.isPending}
+        onClose={() => setPhoneImportPreview(null)}
+        onConfirm={() => {
+          if (!phoneImportPreview?.matches.length) return;
+          importParentPhones.mutate({
+            entries: phoneImportPreview.matches.map(match => ({
+              studentId: match.studentId,
+              phone: match.phone,
+            })),
+          });
+        }}
+      />
     </div>
+  );
+}
+
+function ParentPhoneImportDialog({
+  preview,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  preview: ParentPhoneImportPreview | null;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  const maskPhone = (phone: string) =>
+    phone.replace(/^(\d{3})(\d{3,4})(\d{4})$/, "$1-$2-****");
+  return (
+    <Dialog open={Boolean(preview)} onOpenChange={open => !open && onClose()}>
+      <DialogContent className="journal-dialog max-h-[90vh] overflow-y-auto sm:max-w-[620px]">
+        <DialogHeader>
+          <p className="eyebrow">VCF CONTACT IMPORT</p>
+          <DialogTitle>보호자 연락처 확인</DialogTitle>
+          <DialogDescription>
+            정확히 일치하고 현재 번호가 비어 있는 재원생만 입력합니다.
+          </DialogDescription>
+        </DialogHeader>
+        {preview && (
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {[
+                ["입력 가능", preview.matches.length],
+                ["기존 번호 있음", preview.alreadyRegistered.length],
+                ["중복 확인", preview.ambiguous.length],
+                ["재원생 불일치", preview.unmatched.length],
+              ].map(([label, count]) => (
+                <div
+                  className="rounded-xl border border-[#E7E1D5] bg-[#FBF9F3] p-3"
+                  key={label}
+                >
+                  <p className="text-[11px] text-[#71817D]">{label}</p>
+                  <strong className="mt-1 block text-xl text-[#294A47]">
+                    {count}건
+                  </strong>
+                </div>
+              ))}
+            </div>
+            <section className="rounded-xl border border-[#D8E7DE] bg-[#F7FBF8] p-4">
+              <h3 className="text-sm font-semibold text-[#2F7154]">
+                입력 예정
+              </h3>
+              {preview.matches.length ? (
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  {preview.matches.map(match => (
+                    <div
+                      className="flex items-center justify-between rounded-lg bg-white px-3 py-2 text-sm"
+                      key={match.studentId}
+                    >
+                      <b className="text-[#294A47]">{match.studentName}</b>
+                      <span className="text-xs text-[#71817D]">
+                        {maskPhone(match.phone)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="mt-2 text-sm text-[#71817D]">
+                  새로 입력할 연락처가 없습니다.
+                </p>
+              )}
+            </section>
+            {(preview.ambiguous.length > 0 || preview.unmatched.length > 0) && (
+              <section className="rounded-xl border border-[#EADDBB] bg-[#FFFDF6] p-4 text-sm">
+                {preview.ambiguous.length > 0 && (
+                  <p>
+                    <b className="text-[#8A6C10]">중복 확인:</b>{" "}
+                    {preview.ambiguous.join(" · ")}
+                  </p>
+                )}
+                {preview.unmatched.length > 0 && (
+                  <p className={preview.ambiguous.length ? "mt-2" : ""}>
+                    <b className="text-[#8A6C10]">재원생 불일치:</b>{" "}
+                    {preview.unmatched.join(" · ")}
+                  </p>
+                )}
+              </section>
+            )}
+          </div>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} disabled={pending}>
+            취소
+          </Button>
+          <Button
+            className="journal-primary-button"
+            onClick={onConfirm}
+            disabled={pending || !preview?.matches.length}
+          >
+            {pending ? "입력 중..." : `${preview?.matches.length ?? 0}건 입력`}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -1117,7 +1291,9 @@ function StudentDialog({
             autoUnregisteredWeekdays: (student.autoUnregisteredWeekdays ?? "")
               .split(",")
               .map(value => Number(value.trim()))
-              .filter(value => Number.isInteger(value) && value >= 1 && value <= 5),
+              .filter(
+                value => Number.isInteger(value) && value >= 1 && value <= 5
+              ),
             lastWeekCount: student.lastWeekCount,
             totalCount: student.totalCount,
             validUntil: student.validUntil?.slice(0, 10) ?? "",
@@ -1280,7 +1456,9 @@ function StudentDialog({
                   onChange={event =>
                     setDraft({
                       ...draft,
-                      attendanceCode: event.target.value.replace(/\D/g, "").slice(0, 4),
+                      attendanceCode: event.target.value
+                        .replace(/\D/g, "")
+                        .slice(0, 4),
                     })
                   }
                   placeholder="숫자 4자리"

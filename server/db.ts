@@ -1012,6 +1012,29 @@ export async function listStudents(
   });
 }
 
+export async function importStudentParentPhones(
+  entries: Array<{ studentId: number; phone: string }>
+) {
+  const db = await requireDb();
+  return db.transaction(async tx => {
+    let updated = 0;
+    for (const entry of entries) {
+      const result = await tx
+        .update(students)
+        .set({ parentPhone: entry.phone })
+        .where(
+          and(
+            eq(students.id, entry.studentId),
+            eq(students.active, true),
+            or(isNull(students.parentPhone), eq(students.parentPhone, ""))
+          )
+        );
+      updated += Number(result[0]?.affectedRows ?? 0);
+    }
+    return { requested: entries.length, updated };
+  });
+}
+
 export async function getJournalWorkspace(
   journalDate: string,
   classGroupId?: number
