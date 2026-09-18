@@ -22,15 +22,25 @@ describe("parent push notification copy", () => {
 
   it("labels check-in and check-out separately", () => {
     const time = new Date("2026-09-01T09:00:00.000Z");
-    expect(attendancePushPayload("token12345", "김해밀", "check_in", time).title).toContain("등원");
-    expect(attendancePushPayload("token12345", "김해밀", "check_out", time).title).toContain("하원");
+    expect(
+      attendancePushPayload("token12345", "김해밀", "check_in", time).title
+    ).toContain("등원");
+    expect(
+      attendancePushPayload("token12345", "김해밀", "check_out", time).title
+    ).toContain("하원");
   });
 
   it("uses the unified one-session message", () => {
-    const payload = remainingOneCountPushPayload("token12345", "김해밀", 120);
+    const payload = remainingOneCountPushPayload(
+      "token12345",
+      "김해밀",
+      120,
+      "계좌이체"
+    );
     expect(payload.title).toContain("김해밀");
-    expect(payload.body).toBe(
-      "남은 수업이 1회입니다. 다음 수업 등록을 부탁드립니다."
+    expect(payload.body).toContain("남은 수업이 1회입니다.");
+    expect(payload.body).toContain(
+      "원비 납부 방법은 계좌이체로 등록되어 있습니다."
     );
     expect(payload.url).toBe("/p/token12345");
   });

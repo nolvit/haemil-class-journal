@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   REMAINING_ONE_ALERT_MESSAGE,
+  shouldAttemptRemainingOneNotification,
   shouldSendRemainingOneNotification,
 } from "../shared/remainingCountNotificationRules";
 
@@ -13,6 +14,15 @@ const baseState = {
 };
 
 describe("remaining one-session notification rule", () => {
+  it("allows Alimtalk by phone even when PWA is disabled", () => {
+    expect(
+      shouldAttemptRemainingOneNotification(
+        { ...baseState, portalEnabled: false },
+        true
+      )
+    ).toBe(true);
+  });
+
   it("sends only when exactly one session remains", () => {
     expect(shouldSendRemainingOneNotification(baseState)).toBe(true);
     expect(

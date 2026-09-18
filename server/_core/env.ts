@@ -14,4 +14,12 @@ export const ENV = {
   adminPasswordHash: process.env.ADMIN_PASSWORD_HASH ?? "",
   adminName: process.env.ADMIN_NAME ?? "해밀 관리자",
   uploadDir: process.env.UPLOAD_DIR ?? "",
+  solapiApiKey: process.env.SOLAPI_API_KEY ?? "",
+  solapiApiSecret: process.env.SOLAPI_API_SECRET ?? "",
+  solapiSenderNumber: process.env.SOLAPI_SENDER_NUMBER ?? "",
+  solapiKakaoPfId: process.env.SOLAPI_KAKAO_PF_ID ?? "",
+  solapiRemainingOneTemplateId:
+    process.env.SOLAPI_REMAINING_ONE_TEMPLATE_ID ?? "",
+  solapiPaymentConfirmedTemplateId:
+    process.env.SOLAPI_PAYMENT_CONFIRMED_TEMPLATE_ID ?? "",
 };

@@ -24,6 +24,7 @@ import {
   closurePeriods,
   InsertUser,
   legalHolidayNotices,
+  kakaoNotificationDeliveries,
   lessonJournals,
   notificationDeliveryLogs,
   parentPortalMonthlyViews,
@@ -71,7 +72,7 @@ import { getValidUntilAfterTotalCountChange } from "../shared/studentExpiryRules
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
 import {
   REMAINING_ONE_ALERT_MESSAGE,
-  shouldSendRemainingOneNotification,
+  shouldAttemptRemainingOneNotification,
 } from "../shared/remainingCountNotificationRules";
 import { getPushDeviceLabel } from "../shared/pushDeviceLabels";
 import {
@@ -149,6 +150,23 @@ export async function ensureRemainingCountNotificationSchema() {
       INDEX notification_delivery_logs_created_index (createdAt),
       INDEX notification_delivery_logs_student_created_index (studentId, createdAt),
       INDEX notification_delivery_logs_event_date_index (eventDate)
+    )
+  `);
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS kakao_notification_deliveries (
+      id int AUTO_INCREMENT NOT NULL,
+      studentId int NOT NULL,
+      notificationType varchar(40) NOT NULL,
+      dedupeKey varchar(160) NOT NULL,
+      status enum('pending','sent','failed','unavailable') DEFAULT 'pending' NOT NULL,
+      providerMessageId varchar(120),
+      errorMessage varchar(500),
+      requestedAt timestamp DEFAULT CURRENT_TIMESTAMP NOT NULL,
+      completedAt timestamp NULL,
+      updatedAt timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP NOT NULL,
+      PRIMARY KEY (id),
+      UNIQUE KEY kakao_notification_deliveries_unique (studentId, notificationType, dedupeKey),
+      INDEX kakao_notification_deliveries_requested_index (requestedAt)
     )
   `);
 }
@@ -1647,6 +1665,9 @@ export async function purgeStudent(id: number) {
       .delete(notificationDeliveryLogs)
       .where(eq(notificationDeliveryLogs.studentId, id));
     await tx
+      .delete(kakaoNotificationDeliveries)
+      .where(eq(kakaoNotificationDeliveries.studentId, id));
+    await tx
       .delete(weeklyCountAccruals)
       .where(eq(weeklyCountAccruals.studentId, id));
     await tx
@@ -2058,6 +2079,7 @@ export async function getStudentNotificationIdentity(studentId: number) {
       name: students.name,
       publicToken: students.publicToken,
       portalEnabled: students.portalEnabled,
+      parentPhone: students.parentPhone,
     })
     .from(students)
     .where(and(eq(students.id, studentId), eq(students.active, true)))
@@ -2065,26 +2087,70 @@ export async function getStudentNotificationIdentity(studentId: number) {
   return result[0] ?? null;
 }
 
+export type KakaoNotificationType = "remaining_one" | "payment_confirmed";
+
+export async function reserveKakaoNotificationDelivery(input: {
+  studentId: number;
+  notificationType: KakaoNotificationType;
+  dedupeKey: string;
+}) {
+  const db = await requireDb();
+  try {
+    const inserted = await db
+      .insert(kakaoNotificationDeliveries)
+      .values({ ...input, status: "pending" })
+      .$returningId();
+    return inserted[0]?.id ?? null;
+  } catch (error: any) {
+    if (error?.code === "ER_DUP_ENTRY" || error?.cause?.code === "ER_DUP_ENTRY")
+      return null;
+    throw error;
+  }
+}
+
+export async function completeKakaoNotificationDelivery(input: {
+  id: number;
+  status: "sent" | "failed" | "unavailable";
+  providerMessageId?: string;
+  errorMessage?: string;
+}) {
+  const db = await requireDb();
+  await db
+    .update(kakaoNotificationDeliveries)
+    .set({
+      status: input.status,
+      providerMessageId: input.providerMessageId || null,
+      errorMessage: input.errorMessage?.slice(0, 500) || null,
+      completedAt: new Date(),
+    })
+    .where(eq(kakaoNotificationDeliveries.id, input.id));
+}
+
 export async function listRemainingOneNotificationCandidates(
   today = todayInKorea()
 ) {
   const studentRows = await listStudents(today, true);
   return studentRows
-    .filter(student =>
-      shouldSendRemainingOneNotification({
-        portalEnabled: student.portalEnabled,
-        message: student.remainingTwoAlertMessage,
-        remainingCount: student.countInfo.remainingCount,
-        totalCount: student.totalCount,
-        sentTotalCount: student.remainingTwoAlertSentTotalCount,
-      })
-    )
+    .filter(student => {
+      return shouldAttemptRemainingOneNotification(
+        {
+          portalEnabled: student.portalEnabled,
+          message: student.remainingTwoAlertMessage,
+          remainingCount: student.countInfo.remainingCount,
+          totalCount: student.totalCount,
+          sentTotalCount: student.remainingTwoAlertSentTotalCount,
+        },
+        Boolean(student.parentPhone?.trim())
+      );
+    })
     .map(student => ({
       id: student.id,
       name: student.name,
       publicToken: student.publicToken,
       totalCount: student.totalCount,
       paymentMethod: student.paymentMethod?.trim() || "미등록",
+      parentPhone: student.parentPhone,
+      portalEnabled: student.portalEnabled,
     }));
 }
 

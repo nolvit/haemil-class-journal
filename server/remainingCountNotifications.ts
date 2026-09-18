@@ -7,6 +7,7 @@ import {
   sendAdminPush,
   sendStudentPush,
 } from "./pushNotifications";
+import { sendRemainingOneAlimtalk } from "./solapiAlimtalk";
 
 let dispatchRunning = false;
 
@@ -63,20 +64,34 @@ export async function dispatchRemainingOneNotifications(now = new Date()) {
         failed: 0,
         unavailable: false,
       };
-      try {
-        result = await sendStudentPush(
-          student.id,
-          remainingOneCountPushPayload(
-            student.publicToken,
-            student.name,
-            student.totalCount
-          ),
-          { type: "remaining_one", eventDate: korea.date }
-        );
-      } catch (error) {
-        console.error("잔여 1회 보호자 알림 발송 실패", error);
+      if (student.portalEnabled) {
+        try {
+          result = await sendStudentPush(
+            student.id,
+            remainingOneCountPushPayload(
+              student.publicToken,
+              student.name,
+              student.totalCount,
+              student.paymentMethod
+            ),
+            { type: "remaining_one", eventDate: korea.date }
+          );
+        } catch (error) {
+          console.error("잔여 1회 보호자 알림 발송 실패", error);
+        }
       }
       sent += result.sent;
+      try {
+        await sendRemainingOneAlimtalk({
+          studentId: student.id,
+          phone: student.parentPhone,
+          studentName: student.name,
+          paymentMethod: student.paymentMethod,
+          totalCount: student.totalCount,
+        });
+      } catch (error) {
+        console.error("잔여 1회 보호자 알림톡 처리 실패", error);
+      }
       try {
         await sendAdminPush(
           remainingOneAdminConfirmationPayload({

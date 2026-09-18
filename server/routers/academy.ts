@@ -22,6 +22,7 @@ import {
   sendStudentPush,
   totalCountPushPayload,
 } from "../pushNotifications";
+import { sendPaymentConfirmedAlimtalk } from "../solapiAlimtalk";
 import { publishAttendanceLiveUpdate } from "../attendanceLiveUpdates";
 
 const isoDate = z
@@ -244,12 +245,27 @@ async function notifyTotalCount(
 ) {
   if (before === after) return;
   const student = await academyDb.getStudentNotificationIdentity(studentId);
-  if (!student?.portalEnabled) return;
-  await sendStudentPush(
-    student.id,
-    totalCountPushPayload(student.publicToken, student.name, before, after),
-    { type: "total_count" }
-  );
+  if (!student) return;
+  if (student.portalEnabled) {
+    await sendStudentPush(
+      student.id,
+      totalCountPushPayload(student.publicToken, student.name, before, after),
+      { type: "total_count" }
+    );
+  }
+  if (after > before) {
+    try {
+      await sendPaymentConfirmedAlimtalk({
+        studentId: student.id,
+        phone: student.parentPhone,
+        studentName: student.name,
+        before,
+        after,
+      });
+    } catch (error) {
+      console.error("원비 납부 확인 알림톡 처리 실패", error);
+    }
+  }
 }
 
 function decodeClosureImage(

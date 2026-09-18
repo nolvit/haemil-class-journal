@@ -1,7 +1,7 @@
 import webPush from "web-push";
-import { REMAINING_ONE_ALERT_MESSAGE } from "../shared/remainingCountNotificationRules";
 import * as academyDb from "./db";
 import { ENV } from "./_core/env";
+import { withEuroRo } from "../shared/koreanParticles";
 
 export type ParentPushPayload = {
   title: string;
@@ -179,11 +179,12 @@ export function attendancePushPayload(
 export function remainingOneCountPushPayload(
   token: string,
   studentName: string,
-  totalCount: number
+  totalCount: number,
+  paymentMethod = "미등록"
 ): ParentPushPayload {
   return {
     title: `${studentName} 학생 수업 횟수 안내`,
-    body: REMAINING_ONE_ALERT_MESSAGE,
+    body: `${studentName} 학생의 남은 수업이 1회입니다. 원비 납부 방법은 ${withEuroRo(paymentMethod)} 등록되어 있습니다. 다음 수업 등록을 부탁드립니다.`,
     url: `/p/${token}`,
     tag: `remaining-one-${studentName}-${totalCount}`,
   };

@@ -242,6 +242,35 @@ export const notificationDeliveryLogs = mysqlTable(
   })
 );
 
+/** 솔라피 알림톡 발송 예약과 결과다. 고유 키로 같은 알림의 재발송을 막는다. */
+export const kakaoNotificationDeliveries = mysqlTable(
+  "kakao_notification_deliveries",
+  {
+    id: int("id").autoincrement().primaryKey(),
+    studentId: int("studentId").notNull(),
+    notificationType: varchar("notificationType", { length: 40 }).notNull(),
+    dedupeKey: varchar("dedupeKey", { length: 160 }).notNull(),
+    status: mysqlEnum("status", ["pending", "sent", "failed", "unavailable"])
+      .default("pending")
+      .notNull(),
+    providerMessageId: varchar("providerMessageId", { length: 120 }),
+    errorMessage: varchar("errorMessage", { length: 500 }),
+    requestedAt: timestamp("requestedAt").defaultNow().notNull(),
+    completedAt: timestamp("completedAt"),
+    updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+  },
+  table => ({
+    deliveryUnique: uniqueIndex("kakao_notification_deliveries_unique").on(
+      table.studentId,
+      table.notificationType,
+      table.dedupeKey
+    ),
+    requestedIndex: index("kakao_notification_deliveries_requested_index").on(
+      table.requestedAt
+    ),
+  })
+);
+
 /** 보호자 공유 페이지의 학생별 월간 열람 횟수다. 월 키가 바뀌면 화면에는 새 달의 0회부터 표시된다. */
 export const parentPortalMonthlyViews = mysqlTable(
   "parent_portal_monthly_views",

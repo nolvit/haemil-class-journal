@@ -19,3 +19,15 @@ export function shouldSendRemainingOneNotification(
     state.sentTotalCount !== state.totalCount
   );
 }
+
+export function shouldAttemptRemainingOneNotification(
+  state: RemainingOneNotificationState,
+  hasParentPhone: boolean
+) {
+  return (
+    (state.portalEnabled || hasParentPhone) &&
+    state.message.trim().length > 0 &&
+    Math.abs(state.remainingCount - 1) < 0.001 &&
+    state.sentTotalCount !== state.totalCount
+  );
+}
