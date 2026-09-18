@@ -12,6 +12,7 @@ const Attendance = lazy(() => import("@/pages/Attendance"));
 const Closures = lazy(() => import("@/pages/Closures"));
 const Classes = lazy(() => import("@/pages/Classes"));
 const Journal = lazy(() => import("@/pages/Journal"));
+const JournalHistory = lazy(() => import("@/pages/JournalHistory"));
 const LearningLinks = lazy(() => import("@/pages/LearningLinks"));
 const ParentLinks = lazy(() => import("@/pages/ParentLinks"));
 const NotificationLogs = lazy(() => import("@/pages/NotificationLogs"));
@@ -75,6 +76,7 @@ function Router() {
             </StaffPage>
           )}
         />
+        <Route path="/journal/history" component={JournalHistory} />
         <Route
           path="/journal"
           component={() => (
