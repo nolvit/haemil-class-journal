@@ -101,6 +101,9 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   });
   const dayLabels = target.includeWeekend ? ["월", "화", "수", "목", "금", "토", "일"] : ["월", "화", "수", "목", "금"];
   const rangeEnd = weeks[0].dates[target.includeWeekend ? 6 : 4];
+  const calendarRows = weeks
+    .map((week, index) => ({ week, query: queries[index] }))
+    .reverse();
   return (
     <main className="history-page">
       <header className="history-heading">
@@ -114,9 +117,9 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
       <p className="history-mobile-hint">달력을 좌우로 밀어 다른 요일을 확인하세요.</p>
       <div className="history-calendar-scroll" role="region" aria-label="최근 4주 수업일지 달력" tabIndex={0}>
         <table className="history-calendar">
-          <caption className="history-sr-only">{title} · 월요일부터 {target.includeWeekend ? "일요일까지 7칸" : "금요일까지 5칸"}씩 4주. 이번 주가 첫 줄입니다.</caption>
+          <caption className="history-sr-only">{title} · 월요일부터 {target.includeWeekend ? "일요일까지 7칸" : "금요일까지 5칸"}씩 4주. 3주 전부터 이번 주까지 날짜순으로 표시합니다.</caption>
           <thead><tr>{dayLabels.map((day, index) => <th key={day} scope="col" data-weekend={index > 4 || undefined}>{day}<span>요일</span></th>)}</tr></thead>
-          <tbody>{weeks.map((week, index) => <HistoryWeekRow key={week.weekStart} week={week} query={queries[index]} target={target} referenceDate={referenceDate} includeWeekend={target.includeWeekend} />)}</tbody>
+          <tbody>{calendarRows.map(({ week, query }) => <HistoryWeekRow key={week.weekStart} week={week} query={query} target={target} referenceDate={referenceDate} includeWeekend={target.includeWeekend} />)}</tbody>
         </table>
       </div>
       <footer className="history-footer">{target.includeWeekend ? "주말 보강 포함" : "월요일~금요일 표시"} · 원래 수업일지의 입력 내용은 변경되지 않습니다. 긴 수업 내용도 생략 없이 표시합니다.</footer>
