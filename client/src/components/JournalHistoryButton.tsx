@@ -5,11 +5,12 @@ import { openJournalHistoryWindow } from "@/lib/journalHistoryWindow";
 type HistoryTarget = {
   student: { id: number; name: string; grade: string };
   classGroup: { id: number; subject: string };
+  includeWeekend: boolean;
 };
 
 /** A real link keeps Ctrl/Cmd-click and the browser's new-tab fallback available. */
-export default function JournalHistoryButton({ student, classGroup }: HistoryTarget) {
-  const href = buildJournalHistoryUrl(student.id, classGroup.id);
+export default function JournalHistoryButton({ student, classGroup, includeWeekend }: HistoryTarget) {
+  const href = buildJournalHistoryUrl(student.id, classGroup.id, includeWeekend);
   const openCalendar = (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
     if (openJournalHistoryWindow(href)) event.preventDefault();

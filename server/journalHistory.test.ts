@@ -107,7 +107,17 @@ describe("standalone history window target", () => {
   it("round-trips the two IDs without carrying personal data", () => {
     const url = buildJournalHistoryUrl(123, 4);
     expect(url).toBe("/journal/history?studentId=123&classGroupId=4");
-    expect(parseJournalHistoryTarget(url.split("?")[1])).toEqual({ studentId: 123, classGroupId: 4 });
+    expect(parseJournalHistoryTarget(url.split("?")[1])).toEqual({ studentId: 123, classGroupId: 4, includeWeekend: false });
+  });
+  it("carries the weekend setting only when it is enabled", () => {
+    const url = buildJournalHistoryUrl(123, 4, true);
+    expect(url).toBe("/journal/history?studentId=123&classGroupId=4&includeWeekend=1");
+    expect(parseJournalHistoryTarget(url.split("?")[1])).toEqual({ studentId: 123, classGroupId: 4, includeWeekend: true });
+  });
+  it("rejects malformed or duplicated weekend settings", () => {
+    for (const value of ["true", "yes", "2", "-1", ""])
+      expect(parseJournalHistoryTarget(`studentId=1&classGroupId=4&includeWeekend=${value}`)).toBe(null);
+    expect(parseJournalHistoryTarget("studentId=1&classGroupId=4&includeWeekend=1&includeWeekend=0")).toBe(null);
   });
   it("rejects missing, zero, negative, fractional, and duplicated IDs", () => {
     for (const query of ["", "studentId=1", "studentId=0&classGroupId=4", "studentId=-1&classGroupId=4", "studentId=1.5&classGroupId=4", "studentId=1&studentId=2&classGroupId=4", "studentId=1&classGroupId=4&classGroupId=5"]) {

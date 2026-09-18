@@ -60,7 +60,11 @@ export function selectJournalHistoryDays<
   }));
 }
 
-export type JournalHistoryTarget = { studentId: number; classGroupId: number };
+export type JournalHistoryTarget = {
+  studentId: number;
+  classGroupId: number;
+  includeWeekend: boolean;
+};
 
 export function parseJournalHistoryTarget(search: string): JournalHistoryTarget | null {
   const query = new URLSearchParams(search);
@@ -72,13 +76,33 @@ export function parseJournalHistoryTarget(search: string): JournalHistoryTarget 
   };
   const studentId = readId("studentId");
   const classGroupId = readId("classGroupId");
-  return studentId !== null && classGroupId !== null ? { studentId, classGroupId } : null;
+  const weekendValues = query.getAll("includeWeekend");
+  if (weekendValues.length > 1) return null;
+  const includeWeekend = weekendValues.length === 1
+    ? weekendValues[0] === "1"
+      ? true
+      : weekendValues[0] === "0"
+        ? false
+        : null
+    : false;
+  return studentId !== null && classGroupId !== null && includeWeekend !== null
+    ? { studentId, classGroupId, includeWeekend }
+    : null;
 }
 
 /** No student names, lesson content, credentials, or parent tokens in the URL. */
-export function buildJournalHistoryUrl(studentId: number, classGroupId: number): string {
+export function buildJournalHistoryUrl(
+  studentId: number,
+  classGroupId: number,
+  includeWeekend = false,
+): string {
   if (![studentId, classGroupId].every(id => Number.isSafeInteger(id) && id > 0)) {
     throw new RangeError("올바른 학생과 과목이 필요합니다.");
   }
-  return `/journal/history?${new URLSearchParams({ studentId: String(studentId), classGroupId: String(classGroupId) })}`;
+  const query = new URLSearchParams({
+    studentId: String(studentId),
+    classGroupId: String(classGroupId),
+  });
+  if (includeWeekend) query.set("includeWeekend", "1");
+  return `/journal/history?${query}`;
 }

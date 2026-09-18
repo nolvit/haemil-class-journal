@@ -46,9 +46,9 @@ function HistoryMessage({ title, text, loading, onRetry }: { title: string; text
   </section></main>;
 }
 
-function useHistoryWeek(weekAnchor: string, classGroupId: number) {
+function useHistoryWeek(weekAnchor: string, classGroupId: number, includeWeekend: boolean) {
   return trpc.academy.weeklyWorkspace.useQuery(
-    { weekAnchor, includeWeekend: true, classGroupId },
+    { weekAnchor, includeWeekend, classGroupId },
     { staleTime: 0, refetchOnMount: "always", refetchOnWindowFocus: true, retry: 1 },
   );
 }
@@ -58,10 +58,10 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   const [referenceDate, setReferenceDate] = useState(getKoreanJournalDate);
   const weeks = useMemo(() => getJournalHistoryWeeks(referenceDate), [referenceDate]);
   // Exactly four unconditional hooks: no hook call inside a variable-length loop.
-  const currentWeek = useHistoryWeek(weeks[0].weekStart, target.classGroupId);
-  const oneWeekAgo = useHistoryWeek(weeks[1].weekStart, target.classGroupId);
-  const twoWeeksAgo = useHistoryWeek(weeks[2].weekStart, target.classGroupId);
-  const threeWeeksAgo = useHistoryWeek(weeks[3].weekStart, target.classGroupId);
+  const currentWeek = useHistoryWeek(weeks[0].weekStart, target.classGroupId, target.includeWeekend);
+  const oneWeekAgo = useHistoryWeek(weeks[1].weekStart, target.classGroupId, target.includeWeekend);
+  const twoWeeksAgo = useHistoryWeek(weeks[2].weekStart, target.classGroupId, target.includeWeekend);
+  const threeWeeksAgo = useHistoryWeek(weeks[3].weekStart, target.classGroupId, target.includeWeekend);
   const queries = [currentWeek, oneWeekAgo, twoWeeksAgo, threeWeeksAgo];
   const utils = trpc.useUtils();
   const targetRow = queries.filter(query => !query.isError).flatMap(query => query.data?.days ?? [])
@@ -70,7 +70,7 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   const refresh = () => {
     setReferenceDate(getKoreanJournalDate());
     void utils.auth.me.invalidate();
-    for (const week of weeks) void utils.academy.weeklyWorkspace.invalidate({ weekAnchor: week.weekStart, includeWeekend: true, classGroupId: target.classGroupId });
+    for (const week of weeks) void utils.academy.weeklyWorkspace.invalidate({ weekAnchor: week.weekStart, includeWeekend: target.includeWeekend, classGroupId: target.classGroupId });
   };
   useEffect(() => {
     const previousTitle = document.title;
@@ -82,7 +82,7 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
     const onFocus = () => {
       setReferenceDate(getKoreanJournalDate());
       void utils.auth.me.invalidate();
-      for (const week of weeks) void utils.academy.weeklyWorkspace.invalidate({ weekAnchor: week.weekStart, includeWeekend: true, classGroupId: target.classGroupId });
+      for (const week of weeks) void utils.academy.weeklyWorkspace.invalidate({ weekAnchor: week.weekStart, includeWeekend: target.includeWeekend, classGroupId: target.classGroupId });
     };
     const onVisibilityChange = () => { if (document.visibilityState === "visible") onFocus(); };
     window.addEventListener("focus", onFocus);
@@ -94,17 +94,19 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
       document.removeEventListener("visibilitychange", onVisibilityChange);
       window.clearInterval(timer);
     };
-  }, [weeks, target.classGroupId, utils]);
+  }, [weeks, target.classGroupId, target.includeWeekend, utils]);
   useAttendanceLiveUpdates(event => {
     const week = weeks.find(item => event.eventDate >= item.weekStart && event.eventDate <= item.weekEnd);
-    if (week) void utils.academy.weeklyWorkspace.invalidate({ weekAnchor: week.weekStart, includeWeekend: true, classGroupId: target.classGroupId });
+    if (week) void utils.academy.weeklyWorkspace.invalidate({ weekAnchor: week.weekStart, includeWeekend: target.includeWeekend, classGroupId: target.classGroupId });
   });
+  const dayLabels = target.includeWeekend ? ["월", "화", "수", "목", "금", "토", "일"] : ["월", "화", "수", "목", "금"];
+  const rangeEnd = weeks[0].dates[target.includeWeekend ? 6 : 4];
   return (
     <main className="history-page">
       <header className="history-heading">
         <div><p className="history-eyebrow">HAEMIL · LESSON CALENDAR</p>
           <h1>{title} <span>최근 4주 수업일지</span></h1>
-          <p className="history-subtitle">{targetRow?.student.grade && <>{targetRow.student.grade} · </>}{weeks[3].weekStart} ~ {weeks[0].weekEnd}<span className="history-readonly">조회 전용</span></p>
+          <p className="history-subtitle">{targetRow?.student.grade && <>{targetRow.student.grade} · </>}{weeks[3].weekStart} ~ {rangeEnd}<span className="history-readonly">조회 전용</span></p>
         </div>
         <div className="history-actions"><button type="button" className="history-action" disabled={queries.some(query => query.isFetching)} onClick={refresh}><RefreshCw size={15} aria-hidden="true" />새로고침</button></div>
       </header>
@@ -112,19 +114,20 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
       <p className="history-mobile-hint">달력을 좌우로 밀어 다른 요일을 확인하세요.</p>
       <div className="history-calendar-scroll" role="region" aria-label="최근 4주 수업일지 달력" tabIndex={0}>
         <table className="history-calendar">
-          <caption className="history-sr-only">{title} · 월요일부터 일요일까지 7칸씩 4주. 이번 주가 첫 줄이며 주말 기록도 포함됩니다.</caption>
-          <thead><tr>{["월", "화", "수", "목", "금", "토", "일"].map((day, index) => <th key={day} scope="col" data-weekend={index > 4 || undefined}>{day}<span>요일</span></th>)}</tr></thead>
-          <tbody>{weeks.map((week, index) => <HistoryWeekRow key={week.weekStart} week={week} query={queries[index]} target={target} referenceDate={referenceDate} />)}</tbody>
+          <caption className="history-sr-only">{title} · 월요일부터 {target.includeWeekend ? "일요일까지 7칸" : "금요일까지 5칸"}씩 4주. 이번 주가 첫 줄입니다.</caption>
+          <thead><tr>{dayLabels.map((day, index) => <th key={day} scope="col" data-weekend={index > 4 || undefined}>{day}<span>요일</span></th>)}</tr></thead>
+          <tbody>{weeks.map((week, index) => <HistoryWeekRow key={week.weekStart} week={week} query={queries[index]} target={target} referenceDate={referenceDate} includeWeekend={target.includeWeekend} />)}</tbody>
         </table>
       </div>
-      <footer className="history-footer">주말 보강 포함 · 원래 수업일지의 입력 내용은 변경되지 않습니다. 긴 수업 내용도 생략 없이 표시합니다.</footer>
+      <footer className="history-footer">{target.includeWeekend ? "주말 보강 포함" : "월요일~금요일 표시"} · 원래 수업일지의 입력 내용은 변경되지 않습니다. 긴 수업 내용도 생략 없이 표시합니다.</footer>
     </main>
   );
 }
 
-function HistoryWeekRow({ week, query, target, referenceDate }: { week: JournalHistoryWeek; query: WeekQuery; target: JournalHistoryTarget; referenceDate: string }) {
-  const days = selectJournalHistoryDays(week, query.data?.days ?? [], target.studentId, target.classGroupId);
-  if (query.isError) return <tr><td colSpan={7} className="history-error"><div role="alert"><b>{week.label} · {week.weekStart} ~ {week.weekEnd}</b><p>기록을 불러오지 못했습니다. 빈 기록이 아닙니다.</p><button type="button" className="history-action" disabled={query.isFetching} onClick={() => void query.refetch()}>다시 불러오기</button></div></td></tr>;
+function HistoryWeekRow({ week, query, target, referenceDate, includeWeekend }: { week: JournalHistoryWeek; query: WeekQuery; target: JournalHistoryTarget; referenceDate: string; includeWeekend: boolean }) {
+  const days = selectJournalHistoryDays(week, query.data?.days ?? [], target.studentId, target.classGroupId).slice(0, includeWeekend ? 7 : 5);
+  const weekEnd = week.dates[includeWeekend ? 6 : 4];
+  if (query.isError) return <tr><td colSpan={includeWeekend ? 7 : 5} className="history-error"><div role="alert"><b>{week.label} · {week.weekStart} ~ {weekEnd}</b><p>기록을 불러오지 못했습니다. 빈 기록이 아닙니다.</p><button type="button" className="history-action" disabled={query.isFetching} onClick={() => void query.refetch()}>다시 불러오기</button></div></td></tr>;
   return <tr data-week={week.label}>{days.map(({ journalDate, row }, index) => <HistoryDay key={journalDate} row={row} journalDate={journalDate} referenceDate={referenceDate} weekLabel={index === 0 ? week.label : undefined} loading={query.isLoading} />)}</tr>;
 }
 
