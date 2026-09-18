@@ -180,11 +180,12 @@ export function remainingOneCountPushPayload(
   token: string,
   studentName: string,
   totalCount: number,
-  paymentMethod = "미등록"
+  paymentMethod = "미등록",
+  tuitionMessage = ""
 ): ParentPushPayload {
   return {
-    title: `${studentName} 학생 수업 횟수 안내`,
-    body: `${studentName} 학생의 남은 수업이 1회입니다. 원비 납부 방법은 ${withEuroRo(paymentMethod)} 등록되어 있습니다. 다음 수업 등록을 부탁드립니다.`,
+    title: `${studentName} 학생 원비 납부 안내`,
+    body: `${studentName} 학생의 남은 수업이 1회입니다.${tuitionMessage ? ` ${tuitionMessage}` : ""} 원비 납부 방법은 ${withEuroRo(paymentMethod)} 등록되어 있습니다. 다음 수업 등록을 부탁드립니다.`,
     url: `/p/${token}`,
     tag: `remaining-one-${studentName}-${totalCount}`,
   };

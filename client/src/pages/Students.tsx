@@ -1538,40 +1538,38 @@ function StudentDialog({
                 주당 횟수 × 4주로 월 수업 횟수를 계산합니다.
               </p>
             </Field>
-            {draft.registrationCount !== 5 && (
-              <Field label="정기 미등록 요일">
-                <div className="flex flex-wrap gap-1.5">
-                  {WEEKDAY_OPTIONS.map(option => {
-                    const checked = draft.autoUnregisteredWeekdays.includes(
-                      option.value
-                    );
-                    return (
-                      <button
-                        type="button"
-                        key={option.value}
-                        aria-pressed={checked}
-                        onClick={() =>
-                          toggleUnregisteredWeekday(option.value, !checked)
-                        }
-                        className={`h-9 rounded-lg border px-3 text-xs font-semibold transition-colors ${
-                          checked
-                            ? "border-[#234E52] bg-[#234E52] text-[#FBF9F2]"
-                            : "border-[#DED8CB] bg-white text-[#556C68] hover:border-[#B8891B]"
-                        }`}
-                      >
-                        {option.label}
-                      </button>
-                    );
-                  })}
-                </div>
-                <p className="text-[11px] leading-4 text-[#71817D]">
-                  선택한 요일은 다음 주(9월 14일)부터 매주 월요일마다 그 주의
-                  출석이 자동으로 "미등록"으로 채워집니다. 이미 입력된
-                  출석·수업일지가 있는 날짜는 바꾸지 않으며, 자동 처리 후에도
-                  언제든 직접 수정할 수 있습니다.
-                </p>
-              </Field>
-            )}
+            <Field label="정기 미등록 요일">
+              <div className="flex flex-wrap gap-1.5">
+                {WEEKDAY_OPTIONS.map(option => {
+                  const checked = draft.autoUnregisteredWeekdays.includes(
+                    option.value
+                  );
+                  return (
+                    <button
+                      type="button"
+                      key={option.value}
+                      aria-pressed={checked}
+                      onClick={() =>
+                        toggleUnregisteredWeekday(option.value, !checked)
+                      }
+                      className={`h-9 rounded-lg border px-3 text-xs font-semibold transition-colors ${
+                        checked
+                          ? "border-[#234E52] bg-[#234E52] text-[#FBF9F2]"
+                          : "border-[#DED8CB] bg-white text-[#556C68] hover:border-[#B8891B]"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-[11px] leading-4 text-[#71817D]">
+                선택한 요일은 매주 미등록으로 채웁니다. 등록 횟수와 원비 자동
+                산정 및 보호자 알림의 횟수 기준에는 영향을 주지 않습니다. 이미
+                입력된 출석·수업일지는 바꾸지 않으며 언제든 직접 수정할 수
+                있습니다.
+              </p>
+            </Field>
             {automaticUnavailable && (
               <p className="sm:col-span-2 rounded-lg bg-[#FFF1B7] px-3 py-2 text-xs leading-5 text-[#765E10]">
                 원비 기준이 없는 조합입니다. 월 원비를 직접 입력하면 개별 원비로

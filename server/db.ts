@@ -2151,6 +2151,10 @@ export async function listRemainingOneNotificationCandidates(
       paymentMethod: student.paymentMethod?.trim() || "미등록",
       parentPhone: student.parentPhone,
       portalEnabled: student.portalEnabled,
+      grade: student.grade,
+      registrationCount: student.registrationCount,
+      tuition: student.tuition,
+      subjectCount: student.classGroups.length,
     }));
 }
 

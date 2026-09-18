@@ -62,18 +62,20 @@ export function remainingOneAlimtalkMessage(input: {
   to: string;
   studentName: string;
   paymentMethod: string;
+  tuitionMessage: string;
 }): SolapiMessage {
-  const { studentName, paymentMethod, config } = input;
+  const { studentName, paymentMethod, tuitionMessage, config } = input;
   const paymentMethodWithParticle = withEuroRo(paymentMethod);
   return {
     to: normalizeSolapiPhone(input.to),
     from: normalizeSolapiPhone(config.senderNumber),
-    text: `수업 횟수 안내\n\n${studentName} 학생의 남은 수업이 1회입니다.\n원비 납부 방법은 ${paymentMethodWithParticle} 등록되어 있습니다.\n다음 수업 등록을 부탁드립니다.`,
+    text: `원비 납부 안내\n\n${studentName} 학생의 남은 수업이 1회입니다.\n${tuitionMessage}\n원비 납부 방법은 ${paymentMethodWithParticle} 등록되어 있습니다.\n다음 수업 등록을 부탁드립니다.`,
     kakaoOptions: {
       pfId: config.pfId,
       templateId: config.remainingOneTemplateId,
       variables: {
         "#{학생명}": studentName,
+        "#{원비안내}": tuitionMessage,
         "#{결제방법}": paymentMethodWithParticle,
       },
     },
@@ -202,6 +204,7 @@ export function sendRemainingOneAlimtalk(input: {
   phone: string | null;
   studentName: string;
   paymentMethod: string;
+  tuitionMessage: string;
   totalCount: number;
 }) {
   return deliverOnce({

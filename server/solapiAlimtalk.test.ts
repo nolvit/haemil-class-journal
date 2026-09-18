@@ -42,12 +42,14 @@ describe("Solapi Alimtalk", () => {
       to: "010-1234-5678",
       studentName: "김해밀",
       paymentMethod: "계좌이체",
+      tuitionMessage: "원비는 중등부 2과목 20회 기준 36만원입니다.",
     });
     expect(message.text).toContain(
       "원비 납부 방법은 계좌이체로 등록되어 있습니다."
     );
     expect(message.kakaoOptions.variables).toEqual({
       "#{학생명}": "김해밀",
+      "#{원비안내}": "원비는 중등부 2과목 20회 기준 36만원입니다.",
       "#{결제방법}": "계좌이체로",
     });
   });

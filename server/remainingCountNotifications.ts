@@ -8,6 +8,7 @@ import {
   sendStudentPush,
 } from "./pushNotifications";
 import { sendRemainingOneAlimtalk } from "./solapiAlimtalk";
+import { buildTuitionNotificationLine } from "../shared/tuitionNotificationRules";
 
 let dispatchRunning = false;
 
@@ -52,6 +53,12 @@ export async function dispatchRemainingOneNotifications(now = new Date()) {
   try {
     const candidates = await listRemainingOneNotificationCandidates(korea.date);
     for (const student of candidates) {
+      const tuitionMessage = buildTuitionNotificationLine({
+        grade: student.grade ?? "",
+        registrationCount: Number(student.registrationCount ?? 0),
+        subjectCount: Number(student.subjectCount ?? 0),
+        tuition: Number(student.tuition ?? 0),
+      });
       await markRemainingOneNotificationAttempt(
         student.id,
         student.totalCount,
@@ -72,7 +79,8 @@ export async function dispatchRemainingOneNotifications(now = new Date()) {
               student.publicToken,
               student.name,
               student.totalCount,
-              student.paymentMethod
+              student.paymentMethod,
+              tuitionMessage
             ),
             { type: "remaining_one", eventDate: korea.date }
           );
@@ -87,6 +95,7 @@ export async function dispatchRemainingOneNotifications(now = new Date()) {
           phone: student.parentPhone,
           studentName: student.name,
           paymentMethod: student.paymentMethod,
+          tuitionMessage,
           totalCount: student.totalCount,
         });
       } catch (error) {
