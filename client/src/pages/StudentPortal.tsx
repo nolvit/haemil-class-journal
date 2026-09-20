@@ -346,18 +346,19 @@ export default function StudentPortal() {
   const renderMobileAttendance = (date: string) => {
     const attendance = attendanceMap.get(date);
     const futureDate = date > todayInKorea();
-    const mobileStatus = mobileAttendanceStatusLabel(attendance?.status);
-    const [firstLine, secondLine] = mobileStatus.split("\n");
     const event =
       attendance?.calendarEvent &&
       attendance.status === attendance.calendarEvent.status
         ? attendance.calendarEvent
         : null;
+    const mobileStatus =
+      event?.name ?? mobileAttendanceStatusLabel(attendance?.status);
+    const [firstLine, secondLine] = mobileStatus.split("\n");
     return (
       <div key={date} className="portal-attendance-day">
         <b>{mobileAttendanceDayLabel(date)}</b>
         <div className="mt-2">
-          {futureDate ? (
+          {futureDate && !event ? (
             <span className="text-sm text-[#A08D78]">—</span>
           ) : (
             <Badge
@@ -375,14 +376,6 @@ export default function StudentPortal() {
             </Badge>
           )}
         </div>
-        {!futureDate && event && (
-          <small
-            className="mt-1 block truncate text-[10px] font-medium text-[#8A6C35]"
-            title={event.name}
-          >
-            {event.name}
-          </small>
-        )}
         {!futureDate && attendance?.arrivalTime && (
           <small className="mt-1 block text-xs text-[#71817D]">
             등원 {formatArrivalTimeForDisplay(attendance.arrivalTime)}
@@ -616,7 +609,11 @@ export default function StudentPortal() {
                     style={{ gridColumn: index + 2, gridRow: 2 }}
                     key={date}
                   >
-                    {futureDate ? (
+                    {futureDate &&
+                    !(
+                      attendance?.calendarEvent &&
+                      attendance.status === attendance.calendarEvent.status
+                    ) ? (
                       <span>—</span>
                     ) : (
                       <div className="portal-attendance-inline">
@@ -905,7 +902,10 @@ export default function StudentPortal() {
                       ...view,
                       scale: Math.max(
                         1,
-                        Math.min(5, (gesture.scale * distance) / gesture.distance)
+                        Math.min(
+                          5,
+                          (gesture.scale * distance) / gesture.distance
+                        )
                       ),
                     }));
                   } else if (expandedImageView.scale > 1) {
