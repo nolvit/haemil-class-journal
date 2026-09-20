@@ -16,6 +16,16 @@ export function isAttendancePending(status: AttendanceStatus | null | undefined)
   return !status || status === "not_entered";
 }
 
+/** 공휴일·휴강을 제외한 마지막 평일의 입력이 끝났는지 확인한다. */
+export function isLastAttendanceDayComplete(
+  statuses: Array<AttendanceStatus | null | undefined>
+) {
+  const lastAttendanceDay = statuses.findLast(
+    status => status !== "holiday" && status !== "closed"
+  );
+  return lastAttendanceDay !== undefined && !isAttendancePending(lastAttendanceDay);
+}
+
 /**
  * 공식 공휴일과 학원 휴강일은 같은 방식으로 주간 목표에서 한 번만 제외한다.
  * 원래 주간 목표가 더 작으면 그 목표를 유지한다.
@@ -30,8 +40,8 @@ export function buildParentAttendanceMessage(input: {
   attendanceDayCount: number;
   makeupCount: number;
   makeupDoubleCount: number;
-  /** 부가 평가는 금요일 출석 상태까지 입력된 주에만 공개한다. */
-  isFridayAttendanceComplete?: boolean;
+  /** 부가 평가는 해당 주의 마지막 출석 가능일 상태까지 입력된 뒤에만 공개한다. */
+  isLastAttendanceDayComplete?: boolean;
 }) {
   const {
     target,
@@ -39,13 +49,13 @@ export function buildParentAttendanceMessage(input: {
     attendanceDayCount,
     makeupCount,
     makeupDoubleCount,
-    isFridayAttendanceComplete = true,
+    isLastAttendanceDayComplete = true,
   } = input;
   const count = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
   if (!target) return "이번 주의 학습 기록을 확인해 주세요.";
 
   const summary = `이번 주 출석은 ${count(target)}회 목표 중 ${count(sessionCount)}회입니다.`;
-  if (!isFridayAttendanceComplete) return summary;
+  if (!isLastAttendanceDayComplete) return summary;
 
   const reachedTarget = sessionCount >= target;
   const hasMakeup = makeupCount > 0 || makeupDoubleCount > 0;

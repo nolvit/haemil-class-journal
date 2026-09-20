@@ -42,6 +42,7 @@ import {
   getAttendanceSessionUnits,
   getHolidayAdjustedTarget,
   isAttendanceDay,
+  isLastAttendanceDayComplete,
   isAttendancePending,
   buildParentAttendanceMessage,
 } from "../shared/attendanceSummaryRules";
@@ -3351,9 +3352,9 @@ export async function getPublicStudentWeek(
     attendanceDayCount,
     makeupCount,
     makeupDoubleCount,
-    // 금요일이 출석·결석·미등록·공휴일 등 최종 상태로 입력된 뒤에만 평가한다.
-    isFridayAttendanceComplete: !isAttendancePending(
-      businessAttendances[4]?.status
+    // 공휴일·휴강을 제외한 마지막 수업 가능일이 입력된 뒤에만 평가한다.
+    isLastAttendanceDayComplete: isLastAttendanceDayComplete(
+      businessAttendances.map(attendance => attendance.status)
     ),
   });
   const lessons = getHistoricalLessonCount({
