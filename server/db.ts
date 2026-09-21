@@ -42,12 +42,13 @@ import {
   getAttendanceSessionUnits,
   getHolidayAdjustedTarget,
   isAttendanceDay,
-  isLastAttendanceDayComplete,
+  isWeeklyAttendanceComplete,
   isAttendancePending,
   buildParentAttendanceMessage,
 } from "../shared/attendanceSummaryRules";
 import {
   getClosureForDate,
+  calendarOverridesAttendance,
   hasOverlappingClosureRange,
 } from "../shared/closureRules";
 import {
@@ -620,7 +621,8 @@ export async function settlePreviousWeekCounts(today = todayInKorea()) {
  * 둔 경우, 그 요일이 포함된 주가 시작되면(월요일부터) 해당 날짜의
  * 출석을 자동으로 "미등록"으로 채워 넣는다.
  *
- * 이미 출석 기록이 있는 날짜는 절대 건드리지 않는다 — 관리자가 자동
+ * 공휴일·휴강은 미등록을 만들지 않는다. 이번 주 공휴일의 기존 미등록은
+ * 공휴일로 정정한다. 그 외 기존 출석 기록은 건드리지 않는다 — 관리자가 자동
  * 처리 이후 상태를 바꾸면 그 값이 항상 우선하며, 이 함수가 나중에
  * 다시 실행돼도 되돌리지 않는다.
  *
@@ -648,6 +650,16 @@ export async function applyWeeklyAutoUnregisteredDays(today = todayInKorea()) {
 
   const db = await requireDb();
   const weekDates = getBusinessWeekDates(weekStart); // [월,화,수,목,금]
+  const calendarEvents = await getCalendarEventsForDates(weekDates);
+  // 이번 주에 이미 자동 입력된 미등록도 공휴일로 정정한다.
+  // 조건부 갱신으로 실제 출석·결석 등 강사가 입력한 상태는 보존한다.
+  for (const [journalDate, event] of Array.from(calendarEvents.entries())) {
+    if (event.status !== "holiday") continue;
+    await db.update(attendanceRecords).set({ status: "holiday" }).where(and(
+      eq(attendanceRecords.journalDate, journalDate),
+      eq(attendanceRecords.status, "not_registered")
+    ));
+  }
   const targets = await db
     .select({
       id: students.id,
@@ -670,7 +682,7 @@ export async function applyWeeklyAutoUnregisteredDays(today = todayInKorea()) {
       .filter(value => Number.isInteger(value) && value >= 1 && value <= 5);
     for (const weekday of weekdays) {
       const journalDate = weekDates[weekday - 1];
-      if (!journalDate) continue;
+      if (!journalDate || calendarEvents.has(journalDate)) continue;
       const existing = await db
         .select({ id: attendanceRecords.id })
         .from(attendanceRecords)
@@ -1116,7 +1128,7 @@ export async function getJournalWorkspace(
   const calendarEvent = await getCalendarEventForDate(journalDate);
   return rows.map(row => {
     const hasManualAttendance = Boolean(
-      row.attendanceId && row.attendanceStatus !== "not_entered"
+      row.attendanceId && !calendarOverridesAttendance(row.attendanceStatus, calendarEvent?.status)
     );
     const effectiveStatus = hasManualAttendance
       ? (row.attendanceStatus as AttendanceStatus)
@@ -1262,7 +1274,7 @@ async function getDashboardWorkspace(journalDate: string) {
   const calendarEvent = await getCalendarEventForDate(journalDate);
   return rows.map(row => {
     const hasManualAttendance = Boolean(
-      row.attendanceId && row.attendanceStatus !== "not_entered"
+      row.attendanceId && !calendarOverridesAttendance(row.attendanceStatus, calendarEvent?.status)
     );
     const effectiveStatus = hasManualAttendance
       ? (row.attendanceStatus as AttendanceStatus)
@@ -3220,7 +3232,7 @@ export async function getPublicStudentWeek(
   }> = allWeekDates.flatMap(journalDate => {
     const stored = storedAttendanceByDate.get(journalDate);
     const calendarEvent = calendarEvents.get(journalDate) ?? null;
-    if (stored && stored.status !== "not_entered")
+    if (stored && !calendarOverridesAttendance(stored.status, calendarEvent?.status))
       return [
         {
           journalDate,
@@ -3352,8 +3364,8 @@ export async function getPublicStudentWeek(
     attendanceDayCount,
     makeupCount,
     makeupDoubleCount,
-    // 공휴일·휴강을 제외한 마지막 수업 가능일이 입력된 뒤에만 평가한다.
-    isLastAttendanceDayComplete: isLastAttendanceDayComplete(
+    // 주간 전체 출석에 미등원·빈칸이 없어야 평가한다.
+    isWeeklyAttendanceComplete: isWeeklyAttendanceComplete(
       businessAttendances.map(attendance => attendance.status)
     ),
   });

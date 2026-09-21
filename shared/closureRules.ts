@@ -33,3 +33,12 @@ export function hasOverlappingClosureRange(
 ) {
   return existing.some(closure => closure.id !== ignoredId && closure.startDate <= endDate && closure.endDate >= startDate);
 }
+
+/** 공휴일은 미등록보다 우선하되 실제 출결 기록은 유지한다. */
+export function calendarOverridesAttendance(
+  storedStatus: string | null | undefined,
+  calendarStatus: string | null | undefined,
+) {
+  return !storedStatus || storedStatus === "not_entered" ||
+    (storedStatus === "not_registered" && calendarStatus === "holiday");
+}

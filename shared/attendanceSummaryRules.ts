@@ -16,14 +16,11 @@ export function isAttendancePending(status: AttendanceStatus | null | undefined)
   return !status || status === "not_entered";
 }
 
-/** 공휴일·휴강을 제외한 마지막 평일의 입력이 끝났는지 확인한다. */
-export function isLastAttendanceDayComplete(
+/** 주간 전체 출결이 입력되어 미등원·빈칸이 하나도 남지 않았는지 확인한다. */
+export function isWeeklyAttendanceComplete(
   statuses: Array<AttendanceStatus | null | undefined>
 ) {
-  const lastAttendanceDay = statuses.findLast(
-    status => status !== "holiday" && status !== "closed"
-  );
-  return lastAttendanceDay !== undefined && !isAttendancePending(lastAttendanceDay);
+  return statuses.length > 0 && statuses.every(status => !isAttendancePending(status));
 }
 
 /**
@@ -40,8 +37,8 @@ export function buildParentAttendanceMessage(input: {
   attendanceDayCount: number;
   makeupCount: number;
   makeupDoubleCount: number;
-  /** 부가 평가는 해당 주의 마지막 출석 가능일 상태까지 입력된 뒤에만 공개한다. */
-  isLastAttendanceDayComplete?: boolean;
+  /** 부가 평가는 해당 주 전체 출석 상태가 입력된 뒤에만 공개한다. */
+  isWeeklyAttendanceComplete?: boolean;
 }) {
   const {
     target,
@@ -49,13 +46,13 @@ export function buildParentAttendanceMessage(input: {
     attendanceDayCount,
     makeupCount,
     makeupDoubleCount,
-    isLastAttendanceDayComplete = true,
+    isWeeklyAttendanceComplete = true,
   } = input;
   const count = (value: number) => Number.isInteger(value) ? String(value) : value.toFixed(1);
   if (!target) return "이번 주의 학습 기록을 확인해 주세요.";
 
   const summary = `이번 주 출석은 ${count(target)}회 목표 중 ${count(sessionCount)}회입니다.`;
-  if (!isLastAttendanceDayComplete) return summary;
+  if (!isWeeklyAttendanceComplete) return summary;
 
   const reachedTarget = sessionCount >= target;
   const hasMakeup = makeupCount > 0 || makeupDoubleCount > 0;
