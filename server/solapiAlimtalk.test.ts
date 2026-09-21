@@ -44,9 +44,9 @@ describe("Solapi Alimtalk", () => {
       paymentMethod: "계좌이체",
       tuitionMessage: "원비는 중등부 2과목 20회 기준 36만원입니다.",
     });
-    expect(message.text).toContain(
-      "원비 납부 방법은 계좌이체로 등록되어 있습니다."
-    );
+    expect(message).not.toHaveProperty("text");
+    expect(message.kakaoOptions.disableSms).toBe(false);
+    expect(message.kakaoOptions.templateId).toBe(config.remainingOneTemplateId);
     expect(message.kakaoOptions.variables).toEqual({
       "#{학생명}": "김해밀",
       "#{원비안내}": "원비는 중등부 2과목 20회 기준 36만원입니다.",
@@ -62,7 +62,9 @@ describe("Solapi Alimtalk", () => {
       before: 100,
       after: 120,
     });
-    expect(message.text).toMatch(/^원비 납부를 확인했습니다/);
+    expect(message).not.toHaveProperty("text");
+    expect(message.kakaoOptions.disableSms).toBe(false);
+    expect(message.kakaoOptions.templateId).toBe(config.paymentConfirmedTemplateId);
     expect(message.kakaoOptions.variables).toMatchObject({
       "#{변경전횟수}": "100",
       "#{변경후횟수}": "120",

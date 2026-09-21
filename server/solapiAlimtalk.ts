@@ -17,10 +17,10 @@ export type SolapiConfig = {
 export type SolapiMessage = {
   to: string;
   from: string;
-  text: string;
   kakaoOptions: {
     pfId: string;
     templateId: string;
+    disableSms: boolean;
     variables: Record<string, string>;
   };
 };
@@ -69,10 +69,12 @@ export function remainingOneAlimtalkMessage(input: {
   return {
     to: normalizeSolapiPhone(input.to),
     from: normalizeSolapiPhone(config.senderNumber),
-    text: `원비 납부 안내\n\n${studentName} 학생의 남은 수업이 1회입니다.\n${tuitionMessage}\n원비 납부 방법은 ${paymentMethodWithParticle} 등록되어 있습니다.\n다음 수업 등록을 부탁드립니다.`,
+    // 제목·본문·고정 웹링크·대체발송 설정은 솔라피에 등록한 템플릿이 관리한다.
+    // 오래된 text를 함께 보내 템플릿의 대체 문자 내용을 덮어쓰지 않는다.
     kakaoOptions: {
       pfId: config.pfId,
       templateId: config.remainingOneTemplateId,
+      disableSms: false,
       variables: {
         "#{학생명}": studentName,
         "#{원비안내}": tuitionMessage,
@@ -93,10 +95,10 @@ export function paymentConfirmedAlimtalkMessage(input: {
   return {
     to: normalizeSolapiPhone(input.to),
     from: normalizeSolapiPhone(config.senderNumber),
-    text: `원비 납부를 확인했습니다\n\n${studentName} 학생의 총 수업 횟수가 ${before}회에서 ${after}회로 변경되었습니다.\n소중한 자녀 믿고 맡겨주셔서 감사드립니다.`,
     kakaoOptions: {
       pfId: config.pfId,
       templateId: config.paymentConfirmedTemplateId,
+      disableSms: false,
       variables: {
         "#{학생명}": studentName,
         "#{변경전횟수}": String(before),

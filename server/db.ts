@@ -3536,3 +3536,16 @@ export async function getWeeklySubjectAnnouncement(
     }
   return { comment: best };
 }
+
+/** Read only: test preparation must not settle attendance or change registrations. */
+export async function getAlimtalkTestStudent() {
+  const db = await requireDb();
+  const matches = await db.select().from(students)
+    .where(and(eq(students.name, "박서율"), eq(students.active, true))).limit(2);
+  if (matches.length !== 1) throw new Error("재원생 박서율이 정확히 1명이어야 시험 발송할 수 있습니다.");
+  const student = matches[0];
+  const groups = await db.select({ subject: classGroups.subject }).from(studentEnrollments)
+    .innerJoin(classGroups, eq(classGroups.id, studentEnrollments.classGroupId))
+    .where(and(eq(studentEnrollments.studentId, student.id), eq(studentEnrollments.active, true), eq(classGroups.active, true)));
+  return { ...student, subjectCount: groups.length };
+}

@@ -1,3 +1,4 @@
+import { previewAlimtalkTest, sendAlimtalkTest } from "../alimtalkTest";
 import { createHash, randomBytes } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -347,6 +348,14 @@ async function assertJournalEditable(
 }
 
 export const academyRouter = router({
+  alimtalkTest: router({
+    preview: adminProcedure.query(() => previewAlimtalkTest()),
+    send: adminProcedure.input(z.object({
+      type: z.enum(["remaining_one", "payment_confirmed"]),
+      revision: z.string().regex(/^[a-f0-9]{64}$/),
+      requestId: z.string().uuid(),
+    }).strict()).mutation(({ input, ctx }) => sendAlimtalkTest(input, ctx.user.id)),
+  }),
   dashboard: adminProcedure
     .input(z.object({ journalDate: isoDate }))
     .query(({ input }) => academyDb.getDashboard(input.journalDate)),

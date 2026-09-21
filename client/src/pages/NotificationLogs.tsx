@@ -153,6 +153,7 @@ export default function NotificationLogs() {
           최근 500건
         </Badge>
       </section>
+      <AlimtalkTest />
       <AdminPushDevices />
       <Card className="journal-surface mt-6 border-[#E2D4A6] bg-[#FFFBEF]">
         <CardContent className="flex gap-3 p-4 text-sm leading-6 text-[#6E5B2B]">
@@ -420,4 +421,41 @@ function SingleLogCard({ log }: { log: NotificationLog }) {
       </CardContent>
     </Card>
   );
+}
+
+function AlimtalkTest() {
+  const preview = trpc.academy.alimtalkTest.preview.useQuery(undefined, { retry: false });
+  const send = trpc.academy.alimtalkTest.send.useMutation({ retry: false });
+  const [type, setType] = useState<"remaining_one" | "payment_confirmed">("remaining_one");
+  const [result, setResult] = useState("");
+  const data = preview.data;
+  return <Card className="journal-surface mt-6">
+    <CardContent className="space-y-4 p-5">
+      <h2 className="font-serif text-xl">알림톡 시험 발송</h2>
+      <p className="text-sm">박서율 학생 전용 · 템플릿 승인 후 사용해 주세요. 등록된 보호자 번호로 실제 알림톡을 보내며 발송 비용이 발생합니다.</p>
+      {preview.error && <p role="alert">{preview.error.message}</p>}
+      {preview.isLoading && <p>시험 정보를 불러오는 중…</p>}
+      {data && <>
+        <p className="font-semibold">수신번호: {data.phone || "미등록"}</p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant={type === "remaining_one" ? "default" : "outline"} disabled={send.isPending} onClick={() => { setType("remaining_one"); setResult(""); }}>원비 납부 안내</Button>
+          <Button variant={type === "payment_confirmed" ? "default" : "outline"} disabled={send.isPending} onClick={() => { setType("payment_confirmed"); setResult(""); }}>원비 납부 확인</Button>
+        </div>
+        <dl className="space-y-2 rounded-xl bg-muted p-4 text-sm">
+          {Object.entries(data.variables[type]).map(([key, value]) => <div key={key} className="flex flex-wrap gap-x-3"><dt className="font-semibold">{key}</dt><dd className="break-words">{value}</dd></div>)}
+        </dl>
+        <p className="text-sm">납부 안내는 잔여 1회 상황을 가정합니다. 납부 확인은 현재 총 횟수에 한 달 등록 횟수를 더한 시험값이며 실제 수업·납부 기록은 변경하지 않습니다. 카카오톡 수신 결과는 휴대폰에서 확인해 주세요. 실패 시 설정에 따라 대체 문자가 발송될 수 있습니다.</p>
+        {!data.ready && <p role="alert">솔라피 설정·보호자 전화번호·등록 횟수를 확인해 주세요.</p>}
+        <Button disabled={!data.ready || send.isPending || preview.isFetching} onClick={async () => {
+          if (!window.confirm(`박서율 보호자 ${data.phone} 번호로 ${type === "remaining_one" ? "원비 납부 안내" : "원비 납부 확인"} 시험 알림톡을 발송할까요?`)) return;
+          setResult("");
+          try {
+            const response = await send.mutateAsync({ type, revision: data.revision, requestId: crypto.randomUUID() });
+            setResult(`솔라피 발송 접수 완료. 실제 수신 여부를 확인해 주세요.${response.providerMessageId ? ` 접수번호: ${response.providerMessageId}` : ""}`);
+          } catch (error) { setResult(error instanceof Error ? error.message : "발송 요청 실패"); }
+        }}>{send.isPending ? "발송 요청 중…" : "시험 알림톡 발송"}</Button>
+      </>}
+      {result && <p role="status" className="break-all text-sm">{result}</p>}
+    </CardContent>
+  </Card>;
 }
