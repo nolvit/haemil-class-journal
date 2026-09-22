@@ -85,7 +85,7 @@ export default function MathProgress() {
                 <tr>
                   {[
                     "학생",
-                    "학습률 · 숙달률",
+                    "학습률 · 평가율",
                     "현재 및 누적 과정",
                     "초기 기준",
                     "확인할 기록",
