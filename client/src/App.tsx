@@ -13,6 +13,7 @@ const Closures = lazy(() => import("@/pages/Closures"));
 const Classes = lazy(() => import("@/pages/Classes"));
 const Journal = lazy(() => import("@/pages/Journal"));
 const JournalHistory = lazy(() => import("@/pages/JournalHistory"));
+const MathProgress = lazy(() => import("@/pages/MathProgress"));
 const LearningLinks = lazy(() => import("@/pages/LearningLinks"));
 const ParentLinks = lazy(() => import("@/pages/ParentLinks"));
 const NotificationLogs = lazy(() => import("@/pages/NotificationLogs"));
@@ -44,6 +45,7 @@ function Router() {
       <Switch>
         <Route path="/p/:token" component={StudentPortal} />
         <Route path="/check-in" component={CheckIn} />
+        <Route path="/math-progress" component={() => <StaffPage><MathProgress /></StaffPage>} />
         <Route
           path="/avatar-rewards"
           component={() => (

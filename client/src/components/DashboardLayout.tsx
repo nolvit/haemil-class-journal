@@ -87,6 +87,7 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
         path: "/students",
         adminOnly: true,
       },
+      { icon: UsersRound, label: "수학 과정 현황", path: "/math-progress", adminOnly: true },
       { icon: UsersRound, label: "반 관리", path: "/classes", adminOnly: true },
       {
         icon: Banknote,

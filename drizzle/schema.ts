@@ -654,3 +654,13 @@ export const avatarLikeRewards = mysqlTable(
     cardStudent: primaryKey({ columns: [t.cardId, t.studentId] }),
   })
 );
+
+export const mathProgressOverrides = mysqlTable('math_progress_overrides', {
+ studentId:int('studentId').notNull(), key:varchar('itemKey',{length:100}).notNull(),
+ state:varchar('state',{length:20}).notNull(), reason:text('reason').notNull(),
+ updatedByUserId:int('updatedByUserId').notNull(), updatedAt:timestamp('updatedAt').defaultNow().onUpdateNow().notNull(),
+},t=>({pk:primaryKey({columns:[t.studentId,t.key]})}));
+export const mathProgressCache = mysqlTable('math_progress_cache', {
+ studentId:int('studentId').primaryKey(), signature:varchar('signature',{length:64}).notNull(),
+ payload:text('payload').notNull(),
+});

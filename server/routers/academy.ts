@@ -1,3 +1,6 @@
+import * as mathProgress from '../mathProgressStore';
+import { progressKeys } from '../../shared/mathProgress';
+import { progressStates } from '../../shared/mathCurriculum';
 import { previewAlimtalkTest, sendAlimtalkTest } from "../alimtalkTest";
 import { createHash, randomBytes } from "node:crypto";
 import { TRPCError } from "@trpc/server";
@@ -351,6 +354,11 @@ async function assertJournalEditable(
 }
 
 export const academyRouter = router({
+  mathProgress: router({
+    list: adminProcedure.query(() => mathProgress.allProgress()),
+    save: adminProcedure.input(z.object({studentId:z.number().int().positive(),key:z.string().refine(k=>progressKeys.includes(k)),state:z.enum(progressStates).nullable(),reason:z.string().trim().min(1).max(500)})).mutation(({input,ctx})=>mathProgress.saveProgressOverride(input,ctx.user.id)),
+    public: publicProcedure.input(z.object({token:z.string().min(8).max(64),studentId:z.number().int().positive().optional()})).query(({input})=>mathProgress.publicProgress(input.token,input.studentId)),
+  }),
   alimtalkTest: router({
     preview: adminProcedure.query(() => previewAlimtalkTest()),
     send: adminProcedure.input(z.object({

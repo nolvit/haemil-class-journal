@@ -1,3 +1,4 @@
+import ParentMathProgress from "@/components/MathCourseProgress";
 import { Badge } from "@/components/ui/badge";
 import { AvatarRewards } from "@/avatarRewards/AvatarRewards";
 import { useAvatarBackGuard } from "@/avatarRewards/avatarNavigation";
@@ -514,6 +515,7 @@ export default function StudentPortal() {
           </div>
           <GraduationCap className="portal-hero-icon" />
         </section>
+        <ParentMathProgress token={token} studentId={data.student.id} />
         <section className="portal-week-nav">
           <Button
             variant="outline"
