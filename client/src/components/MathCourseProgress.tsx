@@ -37,8 +37,7 @@ export function MathCourseDetails({
   return (
     <div className="space-y-4 text-[#193D3C]">
       <p className="text-xs leading-relaxed text-[#71817D]">
-        학습과 평가를 마친 과정을 안내합니다. 학습 50% · 필수 평가 50% 기준이며
-        실력 점수가 아닙니다.
+        소단원 학습 → 고난이도 실력문제 → 소단원 평가 → 예비평가 → 최종평가
       </p>
       <div className="rounded-xl border border-[#B7CFC5] bg-[#EFF5F0] p-4">
         <div className="mb-3 flex justify-between gap-2 font-semibold">
@@ -72,6 +71,9 @@ export function MathCourseDetails({
                       <div className="my-2 flex flex-wrap gap-2 text-xs">
                         <span className="rounded-full bg-stone-100 px-2 py-1">
                           학습 {progressLabels[unit.learn]}
+                        </span>
+                        <span className="rounded-full bg-stone-100 px-2 py-1">
+                          실력문제 {progressLabels[unit.challenge]}
                         </span>
                         <span className="rounded-full bg-stone-100 px-2 py-1">
                           평가 {progressLabels[unit.test]}
@@ -120,9 +122,6 @@ export function MathCourseDetails({
             </AccordionItem>
           ))}
         </Accordion>
-        <p className="mt-3 text-xs text-stone-500">
-          중1-1 · 중2-1 · 중3-1 · 중3-2 단원표 준비 중 · 진행률 제외
-        </p>
       </div>
       {["교과 과정", "고난이도 과정", "경시 과정"].map((name, i) => (
         <div
@@ -138,8 +137,7 @@ export function MathCourseDetails({
                 ? "기본 과정 이후"
                 : i === 1
                   ? "교과 과정 이후"
-                  : "심화 도전 과정"}{" "}
-              · 준비 중
+                  : "심화 도전 과정"}
             </p>
           </div>
           <LockKeyhole className="h-5 w-5 text-stone-400" aria-label="잠김" />

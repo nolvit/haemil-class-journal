@@ -1,6 +1,8 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateMathProgress,
+  createProgressBaseline,
+  middleGrade,
   type ProgressJournal,
   type ProgressOverride,
 } from "../shared/mathProgress";
@@ -22,14 +24,14 @@ const calc = (rows: ProgressJournal[], overrides: ProgressOverride[] = []) =>
 const unit = (p: ReturnType<typeof calc>, n = 2) =>
   p.terms.find(t => t.term === "중2-2")!.units[n - 1];
 describe("math course progress", () => {
-  it("completes earlier learning but never assumes earlier exams", () => {
+  it("completes previous major units but leaves current-unit evaluations waiting", () => {
     const p = calc([row("[중2-2 / 기본 / 2-3단원]")]);
     const u = unit(p);
     expect(u.cells.filter(c => c.sector === "learn").map(c => c.state)).toEqual(
       ["complete", "complete", "active", "waiting", "waiting"]
     );
     expect(unit(p, 1).learn).toBe("complete");
-    expect(unit(p, 1).test).toBe("waiting");
+    expect(unit(p, 1).test).toBe("complete");
     expect(u.complete).toBe(false);
   });
   it("requires every major evaluation before marking the unit complete", () => {
@@ -118,4 +120,161 @@ describe("math course progress", () => {
       })
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
+});
+
+describe("2026-09-22 initial progress and grade accumulation", () => {
+  const latest = row("[중2-2 / 1단계 / 2-3단원]", 22, {
+    journalDate: "2026-09-22",
+  });
+  it("uses only the latest non-draft journal on or before cutoff", () => {
+    const baseline = createProgressBaseline(
+      [
+        row("[중2-2 / 기본 / 7-2단원]", 1),
+        latest,
+        row("[중2-2 / 기본 / 6-1단원]", 23, { journalDate: "2026-09-23" }),
+        row("[중2-2 / 기본 / 7-1단원]", 24, {
+          journalDate: "2026-09-22",
+          isDraft: true,
+        }),
+      ],
+      "중2"
+    );
+    expect(baseline.sourceId).toBe(22);
+    expect(baseline.recognized).toBe(true);
+    const p = calculateMathProgress([], [], "2026-09-22", {
+      baseline,
+      grade: "중2",
+    });
+    expect(p.terms.map(t => t.term)).toEqual(["중2-2"]);
+    expect(unit(p, 1).complete).toBe(true);
+    expect(
+      unit(p, 2)
+        .cells.filter(c => c.sector === "learn")
+        .map(c => c.state)
+    ).toEqual(["complete", "complete", "active", "waiting", "waiting"]);
+    expect(unit(p, 2).challenge).toBe("waiting");
+    expect(unit(p, 2).test).toBe("waiting");
+    expect(unit(p, 3).percent).toBe(0);
+  });
+  it("retains middle-2 work on promotion without fabricating middle-1 history", () => {
+    const baseline = createProgressBaseline([latest], "중2");
+    const p = calculateMathProgress([], [], "2027-03-01", {
+      baseline,
+      grade: "중3",
+    });
+    expect(p.terms.map(t => t.term)).toEqual(["중2-2"]);
+    expect(unit(p, 1).complete).toBe(true);
+  });
+  it("adds current grade and retains the recorded starting grade", () => {
+    const baseline = createProgressBaseline(
+      [row("[중1-2 / 1단계 / 3-2단원]")],
+      "중1"
+    );
+    const p = calculateMathProgress([], [], "2027-03-01", {
+      baseline,
+      grade: "중2",
+    });
+    expect(p.terms.map(t => t.term)).toEqual(["중1-2", "중2-2"]);
+  });
+  it("does not parse pre-cutoff history again or overwrite manual corrections", () => {
+    const baseline = createProgressBaseline([latest], "중2");
+    const override: ProgressOverride = {
+      key: "중2-2:1:final2",
+      state: "waiting",
+      reason: "재확인",
+      updatedAt: "2026-09-22",
+      updatedByUserId: 1,
+    };
+    const p = calculateMathProgress(
+      [row("[중2-2 / 기본 / 7-2단원]")],
+      [override],
+      "2026-09-23",
+      { baseline, grade: "중2" }
+    );
+    expect(unit(p, 1).complete).toBe(false);
+    expect(unit(p, 3).percent).toBe(0);
+  });
+  it("does not use an older recognizable record if the latest one cannot be parsed", () => {
+    const baseline = createProgressBaseline(
+      [
+        row("[중2-2 / 기본 / 7-2단원]"),
+        row("개별 보충", 22, { journalDate: "2026-09-22" }),
+      ],
+      "중2"
+    );
+    const p = calculateMathProgress([], [], "2026-09-22", {
+      baseline,
+      grade: "중2",
+    });
+    expect(p.percent).toBe(0);
+    expect(p.unmatched[0].id).toBe(22);
+  });
+  it("keeps all learning before challenge and all tests after challenge", () => {
+    const p = calc([row("[중2-2 / 1단계 / 2단원]\n고난이도 실력문제 풀기")]);
+    const u = unit(p);
+    expect(u.learn).toBe("complete");
+    expect(u.challenge).toBe("active");
+    expect(u.test).toBe("waiting");
+    expect(u.cells.map(c => c.sector)).toEqual([
+      ...Array(5).fill("learn"),
+      "challenge",
+      ...Array(8).fill("test"),
+    ]);
+  });
+  it("entering small-unit evaluations completes every learning section and challenge first", () => {
+    const u = unit(calc([row("[중2-2 / 1단계 / 2단원]\n2-2 소단원 평가")]));
+    expect(u.learn).toBe("complete");
+    expect(u.challenge).toBe("complete");
+    expect(
+      u.cells.filter(c => c.key.includes(":test:")).map(c => c.state)
+    ).toEqual(["complete", "complete", "waiting", "waiting", "waiting"]);
+    expect(u.cells.find(c => c.key.endsWith(":preliminary"))?.state).toBe(
+      "waiting"
+    );
+  });
+  it("does not count planned evaluation lines", () => {
+    const u = unit(
+      calc([row("[중2-2 / 1단계 / 2-3단원]\n2차 최종 평가 예정")])
+    );
+    expect(u.test).toBe("waiting");
+    expect(u.complete).toBe(false);
+  });
+  it("normalizes grade labels and preserves no-journal current-grade scope", () => {
+    expect(middleGrade("중등부 2학년")).toBe(2);
+    const baseline = createProgressBaseline([], "중2");
+    expect(
+      calculateMathProgress([], [], "2026-09-22", {
+        baseline,
+        grade: "중2",
+      }).terms.map(t => t.term)
+    ).toEqual(["중2-2"]);
+  });
+});
+it("continues to reflect edits and new records on the baseline date itself", () => {
+  const source = row("[중2-2 / 1단계 / 2-3단원]", 22, {
+    journalDate: "2026-09-22",
+  });
+  const baseline = createProgressBaseline([source], "중2");
+  const amended = { ...source, content: "[중2-2 / 1단계 / 2-4단원]" };
+  const p = calculateMathProgress([amended], [], "2026-09-22", {
+    baseline,
+    grade: "중2",
+  });
+  expect(unit(p).cells.find(c => c.key.endsWith(":learn:3"))?.state).toBe(
+    "complete"
+  );
+  expect(unit(p).cells.find(c => c.key.endsWith(":learn:4"))?.state).toBe(
+    "active"
+  );
+  const later = row("[중2-2 / 1단계 / 3-1단원]", 23, {
+    journalDate: "2026-09-22",
+  });
+  expect(
+    unit(
+      calculateMathProgress([source, later], [], "2026-09-22", {
+        baseline,
+        grade: "중2",
+      })
+    ).complete
+  ).toBe(true);
 });

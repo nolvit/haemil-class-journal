@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { initializeMathProgressBaselines } from "../mathProgressStore";
 import express from "express";
 import { createServer } from "http";
 import net from "net";
@@ -44,6 +45,9 @@ async function startServer() {
   await seedLocalUploads();
   await ensureRemainingCountNotificationSchema();
   await ensureRewardSchema();
+  // Explicitly authorized one-time 2026-09-22 course migration. Safe to retry.
+  const courseInitialization = await initializeMathProgressBaselines();
+  console.info("수학 과정 초기 반영", courseInitialization);
   let rewardSettlementRunning = false;
   const settleRewards = async () => {
     if (rewardSettlementRunning) return;

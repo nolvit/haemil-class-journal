@@ -664,3 +664,9 @@ export const mathProgressCache = mysqlTable('math_progress_cache', {
  studentId:int('studentId').primaryKey(), signature:varchar('signature',{length:64}).notNull(),
  payload:text('payload').notNull(),
 });
+
+// Immutable per-student migration snapshot. Does not change journal or attendance data.
+export const mathProgressBaselines = mysqlTable('math_progress_baselines', {
+ studentId: int('studentId').primaryKey(), payload:text('payload').notNull(),
+ createdAt:timestamp('createdAt').defaultNow().notNull(),
+});

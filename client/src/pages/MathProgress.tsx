@@ -77,7 +77,7 @@ export default function MathProgress() {
       ) : (
         <>
           <p className="mb-3 text-sm text-stone-500">
-            {query.data?.length ?? 0}명 · 단원표가 있는 중1-2와 중2-2 기준
+            {query.data?.length ?? 0}명 · 현재 학년부터 과정 기록을 누적합니다.
           </p>
           <div className="overflow-x-auto rounded-xl border bg-white">
             <table className="w-full text-left text-sm">
@@ -86,8 +86,8 @@ export default function MathProgress() {
                   {[
                     "학생",
                     "기본 과정",
-                    "중1-2",
-                    "중2-2",
+                    "현재 및 누적 과정",
+                    "초기 기준",
                     "확인할 기록",
                     "상세",
                   ].map(h => (
@@ -112,11 +112,20 @@ export default function MathProgress() {
                         {s.progress.percent}%
                         <ProgressMeter value={s.progress.percent} />
                       </td>
-                      {s.progress.terms.map(t => (
-                        <td key={t.term} className="p-3">
-                          {t.percent}%
-                        </td>
-                      ))}
+                      <td className="p-3">
+                        {s.progress.terms.map(t => (
+                          <div key={t.term} className="whitespace-nowrap">
+                            {t.term} · {t.percent}%
+                          </div>
+                        ))}
+                      </td>
+                      <td className="p-3 text-xs">
+                        {s.progress.baseline.recognized
+                          ? `${s.progress.baseline.sourceDate} 적용`
+                          : s.progress.baseline.sourceId
+                            ? "일지 확인 필요"
+                            : "기준 일지 없음"}
+                      </td>
                       <td className="p-3">{s.progress.unmatched.length}건</td>
                       <td className="p-3">
                         <Button
@@ -149,6 +158,21 @@ export default function MathProgress() {
           </DialogHeader>
           {student && (
             <>
+              <details className="rounded-xl border p-3 text-sm">
+                <summary className="cursor-pointer">
+                  9월 22일 초기 기준 일지{" "}
+                  {student.progress.baseline.recognized
+                    ? "· 적용"
+                    : "· 확인 필요"}
+                </summary>
+                <p className="mt-2 text-xs">
+                  {student.progress.baseline.sourceDate}
+                </p>
+                <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-xs">
+                  {student.progress.baseline.sourceText ??
+                    "기준일 이전의 일지가 없습니다."}
+                </pre>
+              </details>
               <MathCourseDetails
                 progress={student.progress}
                 edit={cell => (
