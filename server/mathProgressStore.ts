@@ -141,26 +141,24 @@ export async function applyRequestedMathProgressCorrections() {
   const plans = mathProgressCorrectionPlans.filter(
     p => !applied.some(a => a.correctionKey === p.key)
   );
-  if (!plans.length) return { applied: 0 };
+  if (!plans.length) return { applied: 0, failed: [] as string[] };
+
   const roster = await progressStudents();
-  // Validate every intended student and exact source date before writing any correction.
-  const prepared: {
-    plan: (typeof mathProgressCorrectionPlans)[number];
-    student: (typeof roster)[number];
-    baseline: ProgressBaseline;
-  }[] = [];
+  let appliedCount = 0;
+  const failed: string[] = [];
+
+  // Apply each authorized correction independently so one student's bad source
+  // data never prevents the other explicitly requested corrections.
   for (const plan of plans) {
-    const student = resolveCorrectionStudent(roster, plan.name);
-    const baseline = correctedProgressBaseline(
-      await readMathJournals(student.id),
-      student.grade,
-      plan
-    );
-    prepared.push({ plan, student, baseline });
-  }
-  try {
-    await db.transaction(async tx => {
-      for (const { plan, student, baseline } of prepared) {
+    try {
+      const student = resolveCorrectionStudent(roster, plan.name);
+      const baseline = correctedProgressBaseline(
+        await readMathJournals(student.id),
+        student.grade,
+        plan
+      );
+
+      await db.transaction(async tx => {
         const [previous] = await tx
           .select()
           .from(mathProgressBaselines)
@@ -176,15 +174,25 @@ export async function applyRequestedMathProgressCorrections() {
           previousPayload: previous?.payload ?? null,
           appliedPayload: payload,
         });
+      });
+      appliedCount++;
+    } catch (error) {
+      // Another replica may have completed this immutable correction first.
+      const completed = await db
+        .select()
+        .from(mathProgressCorrectionHistory)
+        .where(eq(mathProgressCorrectionHistory.correctionKey, plan.key));
+      if (completed.length) {
+        appliedCount++;
+        continue;
       }
-    });
-  } catch (error) {
-    // A second replica may complete the same immutable batch first. Its unique audit keys win.
-    const completed = await db.select().from(mathProgressCorrectionHistory);
-    if (!plans.every(p => completed.some(a => a.correctionKey === p.key)))
-      throw error;
+      const message = error instanceof Error ? error.message : String(error);
+      failed.push(`${plan.name}: ${message}`);
+      console.error("수학 과정 개별 기준 정정 실패", plan.name, error);
+    }
   }
-  return { applied: prepared.length };
+
+  return { applied: appliedCount, failed };
 }
 export async function initializeMathProgressBaselines() {
   const roster = await progressStudents();
