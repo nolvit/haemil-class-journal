@@ -243,7 +243,7 @@ async function notifyTotalCount(
   studentId: number,
   before: number,
   after: number,
-  options: { sendPaymentConfirmedAlimtalk?: boolean } = {}
+  options: { paymentConfirmed?: boolean } = {}
 ) {
   if (before === after) return;
   const student = await academyDb.getStudentNotificationIdentity(studentId);
@@ -251,11 +251,13 @@ async function notifyTotalCount(
   if (student.portalEnabled) {
     await sendStudentPush(
       student.id,
-      totalCountPushPayload(student.publicToken, student.name, before, after),
+      totalCountPushPayload(student.publicToken, student.name, before, after, {
+        paymentConfirmed: options.paymentConfirmed,
+      }),
       { type: "total_count" }
     );
   }
-  if (after > before && options.sendPaymentConfirmedAlimtalk) {
+  if (after > before && options.paymentConfirmed) {
     try {
       await sendPaymentConfirmedAlimtalk({
         studentId: student.id,
@@ -485,7 +487,7 @@ export const academyRouter = router({
           ctx.user.id
         );
         await notifyTotalCount(input.id, result.oldTotal, result.newTotal, {
-          sendPaymentConfirmedAlimtalk: true,
+          paymentConfirmed: true,
         });
         return result;
       }),
