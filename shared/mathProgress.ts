@@ -70,6 +70,69 @@ function validHeader(h: ReturnType<typeof parseHeaders>[number]) {
     ? { c, u }
     : null;
 }
+
+export type FocusedLearningItem = {
+  key: string;
+  term: string;
+  unit: number;
+  small: number;
+  label: string;
+  startedAt: string;
+  journalId?: number;
+};
+
+/**
+ * 명시적인 재수강/재평가 기록만 날짜와 일지 ID 순으로 적용한다.
+ * 정규 과정 상태와 진행률에는 이 결과를 합치지 않는다.
+ */
+export function calculateFocusedLearning(
+  journals: ProgressJournal[],
+  today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+): FocusedLearningItem[] {
+  const active = new Map<string, FocusedLearningItem>();
+  const ordered = [...journals]
+    .filter(
+      row =>
+        !row.isDraft && row.journalDate <= today && Boolean(row.content?.trim())
+    )
+    .sort((a, b) => a.journalDate.localeCompare(b.journalDate) || a.id - b.id);
+
+  for (const row of ordered) {
+    for (const header of parseHeaders(row.content ?? "")) {
+      if (!header.basic) continue;
+      const valid = validHeader(header);
+      if (!valid) continue;
+      const events = Array.from(
+        header.body.matchAll(/(\d+)\s*-\s*(\d+)\s*소단원\s*(재수강|재평가)/g)
+      );
+      for (const event of events) {
+        const unit = Number(event[1]);
+        const small = Number(event[2]);
+        if (unit !== header.unit || small < 1 || small > valid.u.smalls.length)
+          continue;
+        const key = `${header.term}:${unit}:${small}`;
+        if (event[3] === "재평가") {
+          active.delete(key);
+          continue;
+        }
+        active.set(key, {
+          key,
+          term: header.term,
+          unit,
+          small,
+          label: `${unit}-${small} ${valid.u.smalls[small - 1]}`,
+          startedAt: row.journalDate,
+          journalId: row.id,
+        });
+      }
+    }
+  }
+
+  return Array.from(active.values()).sort(
+    (a, b) =>
+      a.term.localeCompare(b.term, "ko") || a.unit - b.unit || a.small - b.small
+  );
+}
 function emptyStates() {
   return Object.fromEntries(
     progressKeys.map(k => [k, "waiting" as ProgressState])
@@ -283,6 +346,7 @@ export function calculateMathProgress(
   options: { baseline?: ProgressBaseline; grade?: string } = {}
 ) {
   const baseline = options.baseline;
+  const focusedLearning = calculateFocusedLearning(journals, today);
   const currentGrade = options.grade
     ? (middleGrade(options.grade) ?? baseline?.initialGrade)
     : null;
@@ -498,6 +562,7 @@ export function calculateMathProgress(
       ? Math.round(terms.reduce((n, t) => n + t.percent, 0) / terms.length)
       : 0,
     unmatched,
+    focusedLearning,
   };
 }
 export type MathProgress = ReturnType<typeof calculateMathProgress>;

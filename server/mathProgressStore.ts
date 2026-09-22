@@ -322,7 +322,7 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v5-session-based-completion-forecast",
+        "v6-focused-learning",
         progressKeys,
         today,
         student.grade,
@@ -452,8 +452,9 @@ export async function publicProgress(token: string, studentId?: number) {
   const student = studentId
     ? family.find(s => s.id === studentId)
     : family.find(s => s.publicToken === token);
+  if (!student) return null;
   const roster = await progressStudents();
-  if (!student || !roster.some(s => s.id === student.id)) return null;
+  if (!roster.some(s => s.id === student.id)) return null;
 
   const { baseline: _baseline, ...progress } = await studentProgress(
     student.id
@@ -524,6 +525,9 @@ export async function publicProgress(token: string, studentId?: number) {
   // Raw journal text and staff correction notes are admin-only.
   return {
     ...progress,
+    focusedLearning: progress.focusedLearning.map(
+      ({ journalId: _journalId, ...item }) => item
+    ),
     recentLearning: {
       ...progress.recentLearning,
       paceLabel,
