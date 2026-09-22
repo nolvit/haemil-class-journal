@@ -10,7 +10,7 @@ import { trpc } from "@/lib/trpc";
 import { appendClosureNoticeTemplate, getClosureNoticeTemplates, type NoticeTemplateKind } from "@shared/closureNoticeTemplates";
 import { CalendarDays, ImagePlus, Pencil, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ReactNode } from "react";
+import type { DragEvent, ReactNode } from "react";
 import { toast } from "sonner";
 
 type ClosurePeriod = {
@@ -210,7 +210,7 @@ function NoticeImagePicker({ storedImageUrl, pendingImage, onPendingImageChange,
     onRemoveStored();
   };
 
-  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (event: DragEvent<HTMLDivElement>) => {
     event.preventDefault();
     setIsDragging(false);
     if (disabled) return;
@@ -224,7 +224,7 @@ function NoticeImagePicker({ storedImageUrl, pendingImage, onPendingImageChange,
       className={`rounded-xl border border-dashed p-3 transition-colors ${isDragging ? "border-[#2F7154] bg-[#E8EFED] ring-2 ring-[#2F7154]/20" : "border-[#D7CCB9] bg-[#FCFBF7]"}`}
       onDragEnter={event => { event.preventDefault(); if (!disabled) setIsDragging(true); }}
       onDragOver={event => { event.preventDefault(); if (!disabled) { event.dataTransfer.dropEffect = "copy"; setIsDragging(true); } }}
-      onDragLeave={event => { if (event.currentTarget === event.target) setIsDragging(false); }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setIsDragging(false); }}
       onDrop={handleDrop}
     >
       {displayedUrl ? <div className="space-y-3">
