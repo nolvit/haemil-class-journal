@@ -307,7 +307,7 @@ describe("learning mastery and recent pace metrics", () => {
     expect(baseline.sourceDate).toBe("2026-10-20");
   });
 
-  it("calculates four-week delta per learning session and excludes re-study sessions", () => {
+  it("forecasts completion from remaining learning steps and scheduled sessions", () => {
     const rows = [
       row("[중2-2 / 기본 / 1-1단원]", 1, { journalDate: "2026-09-01" }),
       row("[중2-2 / 기본 / 1-2단원]", 2, { journalDate: "2026-09-05" }),
@@ -318,11 +318,30 @@ describe("learning mastery and recent pace metrics", () => {
         journalDate: "2026-09-21",
       }),
     ];
-    const stats = calculateRecentLearningStats(rows, "중2", 40, "2026-09-22");
-    expect(stats.deltaPercent).toBe(40);
+    const currentBaseline = createProgressBaseline(rows, "중2", {
+      snapshotDate: "2026-09-22",
+    });
+    const currentProgress = calculateMathProgress([], [], "2026-09-22", {
+      baseline: currentBaseline,
+      grade: "중2",
+    });
+    const stats = calculateRecentLearningStats(
+      rows,
+      "중2",
+      currentProgress,
+      "2026-09-22",
+      {
+        scheduleWeekdays: [1, 3, 5],
+        blockedDates: ["2026-09-25"],
+      }
+    );
+    expect(stats.deltaPercent).toBe(17);
+    expect(stats.deltaSteps).toBe(5);
     expect(stats.learningSessions).toBe(5);
-    expect(stats.perSession).toBe(8);
+    expect(stats.stepsPerSession).toBe(1);
+    expect(stats.remainingSteps).toBe(25);
+    expect(stats.estimatedLearningSessions).toBe(25);
     expect(stats.sufficientData).toBe(true);
-    expect(stats.estimatedCompletionDate).toBe("2026-11-03");
+    expect(stats.estimatedCompletionDate).toBe("2026-11-20");
   });
 });

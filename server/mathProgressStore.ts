@@ -15,6 +15,7 @@ import {
   mathProgressOverrides,
   mathProgressBaselines,
   mathProgressCorrectionHistory,
+  closurePeriods,
 } from "../drizzle/schema";
 import {
   calculateMathProgress,
@@ -27,6 +28,7 @@ import {
   progressKeys,
 } from "../shared/mathProgress";
 import type { ProgressState } from "../shared/mathCurriculum";
+import { getKoreanHolidayDates } from "./koreanHolidays";
 type StoredMathProgress = MathProgress & {
   recentLearning: RecentLearningStats;
   baseline: Pick<
@@ -35,6 +37,56 @@ type StoredMathProgress = MathProgress & {
   >;
 };
 let schema: Promise<void> | undefined;
+
+function parseWeekdays(value: string | null | undefined) {
+  return Array.from(
+    new Set(
+      (value ?? "")
+        .split(",")
+        .map(v => Number(v.trim()))
+        .filter(day => Number.isInteger(day) && day >= 1 && day <= 5)
+    )
+  ).sort((a, b) => a - b);
+}
+
+function shiftIsoDate(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function inferRecentMathWeekdays(
+  journals: Array<{ journalDate: string; isDraft: boolean }>,
+  today: string,
+  fallback: number[]
+) {
+  const start = shiftIsoDate(today, -56);
+  const weeksByWeekday = new Map<number, Set<string>>();
+  for (const row of journals) {
+    if (row.isDraft || row.journalDate < start || row.journalDate > today)
+      continue;
+    const date = new Date(`${row.journalDate}T00:00:00Z`);
+    const weekday = date.getUTCDay();
+    if (weekday < 1 || weekday > 5) continue;
+    const monday = new Date(date);
+    monday.setUTCDate(date.getUTCDate() - (weekday - 1));
+    const weekKey = monday.toISOString().slice(0, 10);
+    const weeks = weeksByWeekday.get(weekday) ?? new Set<string>();
+    weeks.add(weekKey);
+    weeksByWeekday.set(weekday, weeks);
+  }
+  const inferred = Array.from(weeksByWeekday.entries())
+    .filter(([, weeks]) => weeks.size >= 2)
+    .map(([weekday]) => weekday)
+    .sort((a, b) => a - b);
+  return inferred.length ? inferred : fallback;
+}
+
+function futureDates(today: string, days = 365) {
+  return Array.from({ length: days }, (_, index) =>
+    shiftIsoDate(today, index + 1)
+  );
+}
 async function database() {
   const db = await getDb();
   if (!db) throw new Error("데이터베이스에 연결할 수 없습니다.");
@@ -213,48 +265,73 @@ export async function initializeMathProgressBaselines() {
 export async function studentProgress(studentId: number) {
   const db = await database();
   const [student] = await db
-    .select({ grade: students.grade })
+    .select({
+      grade: students.grade,
+      autoUnregisteredWeekdays: students.autoUnregisteredWeekdays,
+    })
     .from(students)
     .where(eq(students.id, studentId));
   if (!student) throw new Error("학생을 찾을 수 없습니다.");
   const baseline = await ensureBaseline(studentId, student.grade);
-  const [fingerprints, overrides, cached] = await Promise.all([
-    db
-      .select({
-        id: lessonJournals.id,
-        hash: sql<string>`SHA2(CONCAT_WS('|', COALESCE(${lessonJournals.content},''), ${lessonJournals.journalDate}, ${lessonJournals.isDraft}),256)`,
-      })
-      .from(lessonJournals)
-      .innerJoin(classGroups, eq(classGroups.id, lessonJournals.classGroupId))
-      .where(
-        and(
-          eq(lessonJournals.studentId, studentId),
-          eq(classGroups.subject, "수학")
+  const [fingerprints, overrides, cached, scheduleRows, closures] =
+    await Promise.all([
+      db
+        .select({
+          id: lessonJournals.id,
+          hash: sql<string>`SHA2(CONCAT_WS('|', COALESCE(${lessonJournals.content},''), ${lessonJournals.journalDate}, ${lessonJournals.isDraft}),256)`,
+        })
+        .from(lessonJournals)
+        .innerJoin(classGroups, eq(classGroups.id, lessonJournals.classGroupId))
+        .where(
+          and(
+            eq(lessonJournals.studentId, studentId),
+            eq(classGroups.subject, "수학")
+          )
         )
-      )
-      .orderBy(asc(lessonJournals.id)),
-    db
-      .select()
-      .from(mathProgressOverrides)
-      .where(eq(mathProgressOverrides.studentId, studentId)),
-    db
-      .select()
-      .from(mathProgressCache)
-      .where(eq(mathProgressCache.studentId, studentId)),
-  ]);
+        .orderBy(asc(lessonJournals.id)),
+      db
+        .select()
+        .from(mathProgressOverrides)
+        .where(eq(mathProgressOverrides.studentId, studentId)),
+      db
+        .select()
+        .from(mathProgressCache)
+        .where(eq(mathProgressCache.studentId, studentId)),
+      db
+        .select({ meetingDays: classGroups.meetingDays })
+        .from(studentEnrollments)
+        .innerJoin(classGroups, eq(classGroups.id, studentEnrollments.classGroupId))
+        .where(
+          and(
+            eq(studentEnrollments.studentId, studentId),
+            eq(studentEnrollments.active, true),
+            eq(classGroups.active, true),
+            eq(classGroups.subject, "수학")
+          )
+        ),
+      db
+        .select({
+          startDate: closurePeriods.startDate,
+          endDate: closurePeriods.endDate,
+        })
+        .from(closurePeriods),
+    ]);
   const today = new Date().toLocaleDateString("sv-SE", {
     timeZone: "Asia/Seoul",
   });
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v4-learning-mastery-speed",
+        "v5-session-based-completion-forecast",
         progressKeys,
         today,
         student.grade,
         baseline,
         fingerprints,
         overrides,
+        scheduleRows,
+        student.autoUnregisteredWeekdays,
+        closures,
       ])
     )
     .digest("hex");
@@ -271,13 +348,39 @@ export async function studentProgress(studentId: number) {
     today,
     { baseline, grade: student.grade }
   );
+  const configuredWeekdays = Array.from(
+    new Set(scheduleRows.flatMap(row => parseWeekdays(row.meetingDays)))
+  ).sort((a, b) => a - b);
+  const excludedWeekdays = new Set(
+    parseWeekdays(student.autoUnregisteredWeekdays)
+  );
+  const fallbackWeekdays = configuredWeekdays.filter(
+    day => !excludedWeekdays.has(day)
+  );
+  const scheduleWeekdays = inferRecentMathWeekdays(
+    journals,
+    today,
+    fallbackWeekdays
+  );
+  const dates = futureDates(today);
+  const holidays = await getKoreanHolidayDates(dates);
+  const blockedDates = new Set<string>(holidays.keys());
+  for (const date of dates)
+    if (
+      closures.some(
+        closure => date >= closure.startDate && date <= closure.endDate
+      )
+    )
+      blockedDates.add(date);
+
   const result: StoredMathProgress = {
     ...calculated,
     recentLearning: calculateRecentLearningStats(
       journals,
       student.grade,
-      calculated.learningPercent,
-      today
+      calculated,
+      today,
+      { scheduleWeekdays, blockedDates }
     ),
     baseline: {
       sourceId: baseline.sourceId,
@@ -386,12 +489,12 @@ export async function publicProgress(token: string, studentId?: number) {
 
   const validPaces = cohort
     .filter(candidate => candidate.recentLearning.sufficientData)
-    .map(candidate => candidate.recentLearning.perSession)
+    .map(candidate => candidate.recentLearning.stepsPerSession)
     .filter((pace): pace is number => pace !== null);
   const cohortAveragePerSession = validPaces.length
     ? validPaces.reduce((sum, pace) => sum + pace, 0) / validPaces.length
     : null;
-  const pace = progress.recentLearning.perSession;
+  const pace = progress.recentLearning.stepsPerSession;
   let paceLabel: "빠름" | "보통" | "느림" | null = null;
   let paceArrow: "↑" | "→" | "↓" | null = null;
   if (
