@@ -283,7 +283,12 @@ it("continues to reflect edits and new records on the baseline date itself", () 
 
 describe("learning mastery and recent pace metrics", () => {
   it("separates learning progress from assessment mastery", () => {
-    const p = calc([row("[중2-2 / 기본 / 2-3단원]")]);
+    const source = row("[중2-2 / 기본 / 2-3단원]");
+    const baseline = createProgressBaseline([source], "중2");
+    const p = calculateMathProgress([], [], "2026-09-22", {
+      baseline,
+      grade: "중2",
+    });
     expect(p.learningPercent).toBe(23);
     expect(p.masteryPercent).toBe(16);
     expect(p.learningPercent).toBeGreaterThan(p.masteryPercent);
