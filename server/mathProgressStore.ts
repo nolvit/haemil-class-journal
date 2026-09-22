@@ -340,14 +340,43 @@ export async function publicProgress(token: string, studentId?: number) {
   const student = studentId
     ? family.find(s => s.id === studentId)
     : family.find(s => s.publicToken === token);
-  if (!student || !(await progressStudents()).some(s => s.id === student.id))
-    return null;
+  const roster = await progressStudents();
+  if (!student || !roster.some(s => s.id === student.id)) return null;
+
   const { baseline: _baseline, ...progress } = await studentProgress(
     student.id
   );
+  const currentTerm = progress.terms.at(-1)?.term ?? null;
+  let sameCourseAverage: { term: string; percent: number } | null = null;
+
+  if (currentTerm) {
+    const cohort: StoredMathProgress[] = [];
+    for (let i = 0; i < roster.length; i += 5) {
+      const batch = await Promise.all(
+        roster
+          .slice(i, i + 5)
+          .map(candidate => studentProgress(candidate.id))
+      );
+      cohort.push(
+        ...batch.filter(
+          candidate => candidate.terms.at(-1)?.term === currentTerm
+        )
+      );
+    }
+    if (cohort.length)
+      sameCourseAverage = {
+        term: currentTerm,
+        percent: Math.round(
+          cohort.reduce((sum, candidate) => sum + candidate.percent, 0) /
+            cohort.length
+        ),
+      };
+  }
+
   // Raw journal text and staff correction notes are admin-only.
   return {
     ...progress,
+    sameCourseAverage,
     unmatched: [],
     terms: progress.terms.map(t => ({
       ...t,
