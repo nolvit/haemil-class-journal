@@ -142,14 +142,15 @@ export function totalCountPushPayload(
   token: string,
   studentName: string,
   before: number,
-  after: number
+  after: number,
+  options: { paymentConfirmed?: boolean } = {}
 ): ParentPushPayload {
-  const increased = after > before;
+  const paymentConfirmed = options.paymentConfirmed === true;
   return {
-    title: increased
+    title: paymentConfirmed
       ? "원비 납부를 확인했습니다"
       : "총 수업 횟수가 변경되었습니다",
-    body: `${studentName} 학생의 총 수업 횟수가 ${before}회에서 ${after}회로 변경되었습니다.${increased ? " 소중한 자녀 믿고 맡겨주셔서 감사드립니다." : ""}`,
+    body: `${studentName} 학생의 총 수업 횟수가 ${before}회에서 ${after}회로 변경되었습니다.${paymentConfirmed ? " 소중한 자녀 믿고 맡겨주셔서 감사드립니다." : ""}`,
     url: `/p/${token}`,
     tag: `count-${studentName}-${after}`,
   };
