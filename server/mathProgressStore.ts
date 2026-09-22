@@ -1,3 +1,8 @@
+import {
+  mathProgressCorrectionPlans,
+  resolveCorrectionStudent,
+  correctedProgressBaseline,
+} from "../shared/mathProgressCorrections";
 import { and, eq, sql, asc } from "drizzle-orm";
 import { createHash } from "node:crypto";
 import { getDb, getPortalFamilyByToken } from "./db";
@@ -9,18 +14,21 @@ import {
   mathProgressCache,
   mathProgressOverrides,
   mathProgressBaselines,
+  mathProgressCorrectionHistory,
 } from "../drizzle/schema";
 import {
   calculateMathProgress,
   type MathProgress,
   createProgressBaseline,
   type ProgressBaseline,
+  isMathProgressEligible,
+  progressKeys,
 } from "../shared/mathProgress";
 import type { ProgressState } from "../shared/mathCurriculum";
 type StoredMathProgress = MathProgress & {
   baseline: Pick<
     ProgressBaseline,
-    "sourceId" | "sourceDate" | "sourceText" | "recognized"
+    "sourceId" | "sourceDate" | "sourceText" | "recognized" | "termCorrection"
   >;
 };
 let schema: Promise<void> | undefined;
@@ -37,6 +45,9 @@ async function database() {
       );
       await db.execute(
         sql`CREATE TABLE IF NOT EXISTS math_progress_baselines (studentId INT PRIMARY KEY, payload MEDIUMTEXT NOT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`
+      );
+      await db.execute(
+        sql`CREATE TABLE IF NOT EXISTS math_progress_correction_history (correctionKey VARCHAR(120) PRIMARY KEY, studentId INT NOT NULL, previousPayload MEDIUMTEXT NULL, appliedPayload MEDIUMTEXT NOT NULL, createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)`
       );
     })().catch(e => {
       schema = undefined;
@@ -70,8 +81,16 @@ export async function progressStudents() {
     )
     .where(and(eq(students.active, true), eq(classGroups.subject, "수학")))
     .orderBy(asc(students.name));
-  // Include advanced elementary students studying a middle-school course, as well as middle students.
-  return rows;
+  const baselines = await db.select().from(mathProgressBaselines);
+  const baselineByStudent = new Map(
+    baselines.map(b => [b.studentId, JSON.parse(b.payload) as ProgressBaseline])
+  );
+  const today = new Date().toLocaleDateString("sv-SE", {
+    timeZone: "Asia/Seoul",
+  });
+  return rows.filter(s =>
+    isMathProgressEligible(s.grade, baselineByStudent.get(s.id), today)
+  );
 }
 async function readMathJournals(studentId: number) {
   const db = await database();
@@ -115,6 +134,57 @@ async function ensureBaseline(
     .from(mathProgressBaselines)
     .where(eq(mathProgressBaselines.studentId, studentId));
   return JSON.parse(saved[0].payload);
+}
+export async function applyRequestedMathProgressCorrections() {
+  const db = await database();
+  const applied = await db.select().from(mathProgressCorrectionHistory);
+  const plans = mathProgressCorrectionPlans.filter(
+    p => !applied.some(a => a.correctionKey === p.key)
+  );
+  if (!plans.length) return { applied: 0 };
+  const roster = await progressStudents();
+  // Validate every intended student and exact source date before writing any correction.
+  const prepared: {
+    plan: (typeof mathProgressCorrectionPlans)[number];
+    student: (typeof roster)[number];
+    baseline: ProgressBaseline;
+  }[] = [];
+  for (const plan of plans) {
+    const student = resolveCorrectionStudent(roster, plan.name);
+    const baseline = correctedProgressBaseline(
+      await readMathJournals(student.id),
+      student.grade,
+      plan
+    );
+    prepared.push({ plan, student, baseline });
+  }
+  try {
+    await db.transaction(async tx => {
+      for (const { plan, student, baseline } of prepared) {
+        const [previous] = await tx
+          .select()
+          .from(mathProgressBaselines)
+          .where(eq(mathProgressBaselines.studentId, student.id));
+        const payload = JSON.stringify(baseline);
+        await tx
+          .insert(mathProgressBaselines)
+          .values({ studentId: student.id, payload })
+          .onDuplicateKeyUpdate({ set: { payload } });
+        await tx.insert(mathProgressCorrectionHistory).values({
+          correctionKey: plan.key,
+          studentId: student.id,
+          previousPayload: previous?.payload ?? null,
+          appliedPayload: payload,
+        });
+      }
+    });
+  } catch (error) {
+    // A second replica may complete the same immutable batch first. Its unique audit keys win.
+    const completed = await db.select().from(mathProgressCorrectionHistory);
+    if (!plans.every(p => completed.some(a => a.correctionKey === p.key)))
+      throw error;
+  }
+  return { applied: prepared.length };
 }
 export async function initializeMathProgressBaselines() {
   const roster = await progressStudents();
@@ -167,7 +237,8 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v2-baseline-sequence",
+        "v3-cohort-selected-dates",
+        progressKeys,
         today,
         student.grade,
         baseline,
@@ -196,6 +267,7 @@ export async function studentProgress(studentId: number) {
       sourceDate: baseline.sourceDate,
       sourceText: baseline.sourceText,
       recognized: baseline.recognized,
+      termCorrection: baseline.termCorrection,
     },
   };
   await db

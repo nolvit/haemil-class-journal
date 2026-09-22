@@ -18,6 +18,9 @@ export type ProgressOverride = {
 };
 export const BASELINE_DATE = "2026-09-22";
 export type ProgressBaseline = {
+  terms?: string[];
+  cutoffEntries?: Record<string, string>;
+  termCorrection?: string;
   initialGrade: number | null;
   states: Record<string, ProgressState>;
   sourceId: number | null;
@@ -173,25 +176,61 @@ function applyRecord(
 }
 export function createProgressBaseline(
   journals: ProgressJournal[],
-  grade: string
+  grade: string,
+  options: { exactDate?: string; termOverride?: string } = {}
 ): ProgressBaseline {
   const source = [...journals]
     .filter(
-      r => !r.isDraft && r.journalDate <= BASELINE_DATE && r.content?.trim()
+      r =>
+        !r.isDraft &&
+        (options.exactDate
+          ? r.journalDate === options.exactDate
+          : r.journalDate <= BASELINE_DATE) &&
+        r.content?.trim()
     )
     .sort(
       (a, b) => b.journalDate.localeCompare(a.journalDate) || b.id - a.id
     )[0];
-  const headers = parseHeaders(source?.content ?? "").filter(h => h.basic);
-  const initialGrade = middleGrade(grade) ?? headers.at(-1)?.grade ?? null;
+  const parsedSource =
+    source && options.termOverride
+      ? {
+          ...source,
+          content: source.content!.replace(
+            /(\[\s*)중\s*[123]\s*-\s*[12](\s*\/)/g,
+            `$1${options.termOverride}$2`
+          ),
+        }
+      : source;
+  const headers = parseHeaders(parsedSource?.content ?? "").filter(
+    h => h.basic
+  );
+  const initialGrade = options.termOverride
+    ? Number(options.termOverride[1])
+    : (middleGrade(grade) ?? headers.at(-1)?.grade ?? null);
+  const terms = Array.from(
+    new Set(
+      headers
+        .filter(h => h.grade === initialGrade && validHeader(h))
+        .map(h => h.term)
+    )
+  );
   const states = emptyStates();
   const allowed = new Set(
     mathCurriculum
       .filter(c => Number(c.term[1]) === initialGrade)
       .map(c => c.term)
   );
-  const result = source ? applyRecord(source, states, allowed) : null;
+  const result = parsedSource
+    ? applyRecord(parsedSource, states, allowed)
+    : null;
   return {
+    terms,
+    cutoffEntries: Object.fromEntries(
+      journals
+        .filter(r => r.journalDate === BASELINE_DATE)
+        .map(r => [r.id, journalVersion(r)])
+    ),
+    termCorrection: options.termOverride,
     initialGrade,
     states,
     sourceId: source?.id ?? null,
@@ -199,6 +238,34 @@ export function createProgressBaseline(
     sourceText: source?.content ?? null,
     recognized: result?.recognized ?? false,
   };
+}
+export function journalVersion(row: ProgressJournal) {
+  return JSON.stringify([row.journalDate, row.content, row.isDraft]);
+}
+function isCoveredByBaseline(row: ProgressJournal, baseline: ProgressBaseline) {
+  if (row.journalDate < BASELINE_DATE) return true;
+  if (row.journalDate > BASELINE_DATE) return false;
+  if (baseline.cutoffEntries)
+    return baseline.cutoffEntries[row.id] === journalVersion(row);
+  return (
+    baseline.sourceDate === BASELINE_DATE &&
+    (row.id < (baseline.sourceId ?? 0) ||
+      (row.id === baseline.sourceId && row.content === baseline.sourceText))
+  );
+}
+export function isMathProgressEligible(
+  grade: string,
+  baseline: ProgressBaseline | undefined,
+  today: string
+) {
+  const current = middleGrade(grade);
+  if (current === 4) return false;
+  if (current !== 3) return true;
+  return (
+    today >= "2027-01-01" &&
+    baseline?.initialGrade != null &&
+    baseline.initialGrade <= 2
+  );
 }
 export function calculateMathProgress(
   journals: ProgressJournal[],
@@ -210,17 +277,49 @@ export function calculateMathProgress(
   const currentGrade = options.grade
     ? (middleGrade(options.grade) ?? baseline?.initialGrade)
     : null;
-  const curriculum = mathCurriculum.filter(c => {
-    if (!baseline) return true;
-    const g = Number(c.term[1]);
-    return (
-      g === currentGrade ||
-      (baseline.initialGrade !== null &&
-        g >= baseline.initialGrade &&
-        currentGrade != null &&
-        g < currentGrade)
-    );
-  });
+  const trackedTerms = new Set(
+    baseline?.terms ??
+      (baseline
+        ? parseHeaders(baseline.sourceText ?? "")
+            .filter(h => h.basic && h.grade === baseline.initialGrade)
+            .map(h => h.term)
+        : [])
+  );
+  if (baseline)
+    for (const row of journals) {
+      if (
+        row.isDraft ||
+        row.journalDate > today ||
+        isCoveredByBaseline(row, baseline)
+      )
+        continue;
+      for (const h of parseHeaders(row.content ?? ""))
+        if (
+          h.basic &&
+          h.grade >= (baseline.initialGrade ?? 1) &&
+          h.grade <= (currentGrade ?? 3) &&
+          validHeader(h)
+        )
+          trackedTerms.add(h.term);
+    }
+  // No retroactive first-semester rows when a new curriculum is introduced later.
+  if (
+    baseline &&
+    currentGrade != null &&
+    !Array.from(trackedTerms).some(t => Number(t[1]) === currentGrade)
+  ) {
+    const latest = mathCurriculum
+      .filter(c => Number(c.term[1]) === currentGrade)
+      .at(-1);
+    if (latest) trackedTerms.add(latest.term);
+  }
+  const curriculum = mathCurriculum.filter(
+    c =>
+      !baseline ||
+      (trackedTerms.has(c.term) &&
+        Number(c.term[1]) >= (baseline.initialGrade ?? 1) &&
+        Number(c.term[1]) <= (currentGrade ?? 3))
+  );
   const allowed = new Set(curriculum.map(c => c.term));
   const automatic = { ...emptyStates(), ...(baseline?.states ?? {}) };
   const unmatched: {
@@ -241,13 +340,7 @@ export function calculateMathProgress(
       row.isDraft ||
       row.journalDate > today ||
       !row.content?.trim() ||
-      (baseline &&
-        (row.journalDate < BASELINE_DATE ||
-          (row.journalDate === BASELINE_DATE &&
-            baseline.sourceDate === BASELINE_DATE &&
-            (row.id < (baseline.sourceId ?? 0) ||
-              (row.id === baseline.sourceId &&
-                row.content === baseline.sourceText)))))
+      (baseline && isCoveredByBaseline(row, baseline))
     )
       continue;
     const result = applyRecord(row, automatic, allowed);

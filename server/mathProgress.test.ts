@@ -76,7 +76,7 @@ describe("math course progress", () => {
       ),
     ]);
     expect(p.unmatched).toHaveLength(0);
-    expect(p.terms[0].units[0].complete).toBe(true);
+    expect(p.terms.find(t => t.term === "중1-2")!.units[0].complete).toBe(true);
     expect(unit(p).test).toBe("waiting");
   });
   it("preserves explicit manual states and allows automatic restoration", () => {

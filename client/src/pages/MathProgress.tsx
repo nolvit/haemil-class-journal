@@ -167,6 +167,8 @@ export default function MathProgress() {
                 </summary>
                 <p className="mt-2 text-xs">
                   {student.progress.baseline.sourceDate}
+                  {student.progress.baseline.termCorrection &&
+                    ` · 적용 과정 ${student.progress.baseline.termCorrection}`}
                 </p>
                 <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-xs">
                   {student.progress.baseline.sourceText ??

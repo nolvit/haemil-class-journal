@@ -670,3 +670,9 @@ export const mathProgressBaselines = mysqlTable('math_progress_baselines', {
  studentId: int('studentId').primaryKey(), payload:text('payload').notNull(),
  createdAt:timestamp('createdAt').defaultNow().notNull(),
 });
+
+export const mathProgressCorrectionHistory = mysqlTable('math_progress_correction_history', {
+ correctionKey:varchar('correctionKey',{length:120}).primaryKey(), studentId:int('studentId').notNull(),
+ previousPayload:text('previousPayload'), appliedPayload:text('appliedPayload').notNull(),
+ createdAt:timestamp('createdAt').defaultNow().notNull(),
+});
