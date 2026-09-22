@@ -242,7 +242,8 @@ function enforceAttendanceAttemptLimit(req: {
 async function notifyTotalCount(
   studentId: number,
   before: number,
-  after: number
+  after: number,
+  options: { sendPaymentConfirmedAlimtalk?: boolean } = {}
 ) {
   if (before === after) return;
   const student = await academyDb.getStudentNotificationIdentity(studentId);
@@ -254,7 +255,7 @@ async function notifyTotalCount(
       { type: "total_count" }
     );
   }
-  if (after > before) {
+  if (after > before && options.sendPaymentConfirmedAlimtalk) {
     try {
       await sendPaymentConfirmedAlimtalk({
         studentId: student.id,
@@ -483,7 +484,9 @@ export const academyRouter = router({
           input.id,
           ctx.user.id
         );
-        await notifyTotalCount(input.id, result.oldTotal, result.newTotal);
+        await notifyTotalCount(input.id, result.oldTotal, result.newTotal, {
+          sendPaymentConfirmedAlimtalk: true,
+        });
         return result;
       }),
     adjustTotalCount: adminProcedure
