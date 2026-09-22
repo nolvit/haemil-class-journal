@@ -21,11 +21,11 @@ type ExplicitProgressTarget =
 
 export const mathProgressCorrectionPlans = [
   {
-    key: "2026-09-22-kimhwarang-explicit-3-2-learning-v2",
+    key: "2026-09-22-kimhwarang-middle1-2-3-2-learning-v3",
     name: "김화랑",
     exactDate: "2026-09-21",
     target: {
-      term: "중2-2",
+      term: "중1-2",
       unit: 3,
       stage: "learning",
       small: 2,
@@ -110,6 +110,7 @@ function applyExplicitProgressTarget(
   return {
     ...baseline,
     terms: [target.term],
+    termCorrection: target.term,
     initialGrade: Number(target.term[1]),
     states,
     recognized: true,
