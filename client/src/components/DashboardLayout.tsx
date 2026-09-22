@@ -501,7 +501,7 @@ function DashboardLayoutContent({
                       <span className="text-[11px]">관리자</span>
                       <small
                         className="text-[9px]"
-                        title="앱 버전 · 빌드 시각(UTC)"
+                        title="배포 시각 · 당일 수정 횟수"
                       >
                         {appVersion}
                       </small>
