@@ -1,8 +1,8 @@
 import { jsxLocPlugin } from "@builder.io/vite-plugin-jsx-loc";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
-import packageJson from "./package.json";
 import path from "node:path";
 import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 
@@ -14,6 +14,40 @@ import { defineConfig, type Plugin, type ViteDevServer } from "vite";
 const PROJECT_ROOT = import.meta.dirname;
 const LOG_DIR = path.join(PROJECT_ROOT, ".manus-logs");
 const MAX_LOG_SIZE_BYTES = 1 * 1024 * 1024; // 1MB per log file
+
+function getKoreanBuildVersion(now = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(now);
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find(part => part.type === type)?.value ?? "";
+  const date = `${value("year")}-${value("month")}-${value("day")}`;
+  const displayDate = date.replaceAll("-", ".");
+  const displayTime = `${value("hour")}:${value("minute")}`;
+
+  let dailyRevision = 1;
+  try {
+    const startOfDay = new Date(`${date}T00:00:00+09:00`).toISOString();
+    const count = Number(
+      execFileSync(
+        "git",
+        ["rev-list", "--count", `--since=${startOfDay}`, `--until=${now.toISOString()}`, "HEAD"],
+        { cwd: PROJECT_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
+      ).trim()
+    );
+    if (Number.isInteger(count) && count > 0) dailyRevision = count;
+  } catch {
+    // Some deployment builders omit .git history. Keep the label usable there.
+  }
+
+  return `${displayDate} ${displayTime} · ${dailyRevision}회 수정`;
+}
 const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% to avoid constant re-trimming
 
 type LogSource = "browserConsole" | "networkRequests" | "sessionReplay";
@@ -154,7 +188,7 @@ const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusDebugCol
 
 export default defineConfig({
   define: {
-    __APP_VERSION__: JSON.stringify(`v${packageJson.version} · ${new Date().toISOString().replace(/[-:]/g, "").replace("T", ".").slice(0, 15)}Z`),
+    __APP_VERSION__: JSON.stringify(getKoreanBuildVersion()),
   },
   plugins,
   resolve: {
