@@ -357,9 +357,9 @@ export async function publicProgress(token: string, studentId?: number) {
   );
   const currentTerm = progress.terms.at(-1)?.term ?? null;
   let sameCourseAverage: { term: string; percent: number } | null = null;
+  const cohort: StoredMathProgress[] = [];
 
   if (currentTerm) {
-    const cohort: StoredMathProgress[] = [];
     for (let i = 0; i < roster.length; i += 5) {
       const batch = await Promise.all(
         roster
