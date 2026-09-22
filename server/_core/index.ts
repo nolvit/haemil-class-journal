@@ -44,17 +44,31 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+async function initializeMathProgress() {
+  // Math progress maintenance is not required for the web process to become healthy.
+  // Keep validation strict, but never let a one-time correction prevent the server
+  // from binding to Railway's PORT.
+  try {
+    console.info(
+      "수학 과정 지정 기준 정정",
+      await applyRequestedMathProgressCorrections()
+    );
+  } catch (error) {
+    console.error("수학 과정 지정 기준 정정 실패", error);
+  }
+
+  try {
+    const courseInitialization = await initializeMathProgressBaselines();
+    console.info("수학 과정 초기 반영", courseInitialization);
+  } catch (error) {
+    console.error("수학 과정 초기 반영 실패", error);
+  }
+}
+
 async function startServer() {
   await seedLocalUploads();
   await ensureRemainingCountNotificationSchema();
   await ensureRewardSchema();
-  // Explicitly authorized one-time 2026-09-22 course migration. Safe to retry.
-  console.info(
-    "수학 과정 지정 기준 정정",
-    await applyRequestedMathProgressCorrections()
-  );
-  const courseInitialization = await initializeMathProgressBaselines();
-  console.info("수학 과정 초기 반영", courseInitialization);
   let rewardSettlementRunning = false;
   const settleRewards = async () => {
     if (rewardSettlementRunning) return;
@@ -172,6 +186,7 @@ async function startServer() {
 
   server.listen(port, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    void initializeMathProgress();
   });
 }
 
