@@ -294,6 +294,19 @@ describe("learning mastery and recent pace metrics", () => {
     expect(p.learningPercent).toBeGreaterThan(p.masteryPercent);
   });
 
+  it("builds historical snapshots from the rolling cutoff instead of the fixed initial date", () => {
+    const baseline = createProgressBaseline(
+      [
+        row("[중2-2 / 기본 / 1-1단원]", 1, { journalDate: "2026-09-22" }),
+        row("[중2-2 / 기본 / 2-1단원]", 2, { journalDate: "2026-10-20" }),
+        row("[중2-2 / 기본 / 3-1단원]", 3, { journalDate: "2026-10-24" }),
+      ],
+      "중2",
+      { snapshotDate: "2026-10-23" }
+    );
+    expect(baseline.sourceDate).toBe("2026-10-20");
+  });
+
   it("calculates four-week delta per learning session and excludes re-study sessions", () => {
     const rows = [
       row("[중2-2 / 기본 / 1-1단원]", 1, { journalDate: "2026-09-01" }),
