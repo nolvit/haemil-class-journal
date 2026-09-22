@@ -15,7 +15,7 @@ const PROJECT_ROOT = import.meta.dirname;
 const LOG_DIR = path.join(PROJECT_ROOT, ".manus-logs");
 const MAX_LOG_SIZE_BYTES = 1 * 1024 * 1024; // 1MB per log file
 
-function getKoreanBuildVersion(now = new Date()) {
+async function getKoreanBuildVersion(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
     year: "numeric",
@@ -30,23 +30,75 @@ function getKoreanBuildVersion(now = new Date()) {
   const date = `${value("year")}-${value("month")}-${value("day")}`;
   const displayDate = date.replaceAll("-", ".");
   const displayTime = `${value("hour")}:${value("minute")}`;
+  const startOfDay = new Date(`${date}T00:00:00+09:00`).toISOString();
+  const endOfDay = new Date(`${date}T23:59:59.999+09:00`).toISOString();
 
-  let dailyRevision = 1;
+  let dailyRevision: number | null = null;
+
+  // A normal/full Git checkout gives the exact count without any network call.
+  // Railway often builds from a shallow one-commit checkout, which used to make
+  // every deployment display "1회 수정".
   try {
-    const startOfDay = new Date(`${date}T00:00:00+09:00`).toISOString();
-    const count = Number(
-      execFileSync(
-        "git",
-        ["rev-list", "--count", `--since=${startOfDay}`, `--until=${now.toISOString()}`, "HEAD"],
-        { cwd: PROJECT_ROOT, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }
-      ).trim()
-    );
-    if (Number.isInteger(count) && count > 0) dailyRevision = count;
+    const shallow =
+      execFileSync("git", ["rev-parse", "--is-shallow-repository"], {
+        cwd: PROJECT_ROOT,
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "ignore"],
+      }).trim() === "true";
+    if (!shallow) {
+      const count = Number(
+        execFileSync(
+          "git",
+          ["rev-list", "--count", `--since=${startOfDay}`, `--until=${endOfDay}`, "HEAD"],
+          {
+            cwd: PROJECT_ROOT,
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+          }
+        ).trim()
+      );
+      if (Number.isInteger(count) && count > 0) dailyRevision = count;
+    }
   } catch {
-    // Some deployment builders omit .git history. Keep the label usable there.
+    // Fall through to the GitHub API for builders without full git history.
   }
 
-  return `${displayDate} ${displayTime} · ${dailyRevision}회 수정`;
+  // Railway's shallow source checkout cannot count earlier commits from today.
+  // The repository is public, so use GitHub's commit list as the deployment-safe
+  // source of truth. Paginate so the count remains correct even on busy days.
+  if (dailyRevision === null) {
+    try {
+      const repository =
+        process.env.GITHUB_REPOSITORY ?? "nolvit/haemil-class-journal";
+      let count = 0;
+      for (let page = 1; page <= 10; page++) {
+        const url = new URL(
+          `https://api.github.com/repos/${repository}/commits`
+        );
+        url.searchParams.set("since", startOfDay);
+        url.searchParams.set("until", endOfDay);
+        url.searchParams.set("per_page", "100");
+        url.searchParams.set("page", String(page));
+        const response = await fetch(url, {
+          headers: {
+            Accept: "application/vnd.github+json",
+            "User-Agent": "haemil-class-journal-build",
+          },
+        });
+        if (!response.ok)
+          throw new Error(`GitHub commits request failed: ${response.status}`);
+        const commits = (await response.json()) as unknown[];
+        count += commits.length;
+        if (commits.length < 100) break;
+      }
+      if (count > 0) dailyRevision = count;
+    } catch {
+      // Keep a usable label even if the build environment temporarily cannot
+      // reach GitHub. This fallback is intentionally only the last resort.
+    }
+  }
+
+  return `${displayDate} ${displayTime} · ${dailyRevision ?? 1}회 수정`;
 }
 const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% to avoid constant re-trimming
 
@@ -186,9 +238,9 @@ function vitePluginManusDebugCollector(): Plugin {
 
 const plugins = [react(), tailwindcss(), jsxLocPlugin(), vitePluginManusDebugCollector()];
 
-export default defineConfig({
+export default defineConfig(async () => ({
   define: {
-    __APP_VERSION__: JSON.stringify(getKoreanBuildVersion()),
+    __APP_VERSION__: JSON.stringify(await getKoreanBuildVersion()),
   },
   plugins,
   resolve: {
@@ -232,4 +284,4 @@ export default defineConfig({
       deny: ["**/.*"],
     },
   },
-});
+}));
