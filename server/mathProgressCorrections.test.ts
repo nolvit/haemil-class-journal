@@ -34,10 +34,10 @@ it("excludes current middle-3 students but retains the enrolled cohort after pro
   expect(isMathProgressEligible("중3", m3, "2027-03-01")).toBe(false);
   expect(isMathProgressEligible("중2", m2, "2026-09-22")).toBe(true);
 });
-it("sets Kim explicitly through 3-2 learning while completing all earlier units", () => {
+it("sets Kim to middle-1 second semester through 3-2 learning", () => {
   const rows = [
-    row("2026-09-21", 1),
-    row("2026-09-22", 2, "[중2-2 / 1단계 / 7-1단원]"),
+    row("2026-09-21", 1, "[중1-2 / 1단계 / 3-2단원]"),
+    row("2026-09-22", 2, "[중1-2 / 1단계 / 7-1단원]"),
   ];
   const b = correctedProgressBaseline(
     rows,
@@ -45,11 +45,19 @@ it("sets Kim explicitly through 3-2 learning while completing all earlier units"
     mathProgressCorrectionPlans[0]
   );
   expect(b.sourceDate).toBe("2026-09-21");
-  expect(b.states["중2-2:2:final2"]).toBe("complete");
-  expect(b.states["중2-2:3:learn:1"]).toBe("complete");
-  expect(b.states["중2-2:3:learn:2"]).toBe("complete");
-  expect(b.states["중2-2:3:learn:3"]).toBe("waiting");
-  expect(b.states["중2-2:3:challenge"]).toBe("waiting");
+  expect(b.termCorrection).toBe("중1-2");
+  expect(b.terms).toEqual(["중1-2"]);
+  expect(b.states["중1-2:2:final2"]).toBe("complete");
+  expect(b.states["중1-2:3:learn:1"]).toBe("complete");
+  expect(b.states["중1-2:3:learn:2"]).toBe("complete");
+  expect(b.states["중1-2:3:learn:3"]).toBe("waiting");
+  expect(b.states["중1-2:3:challenge"]).toBe("waiting");
+
+  const p = calculateMathProgress(rows, [], "2026-09-22", {
+    baseline: b,
+    grade: "중2",
+  });
+  expect(p.terms.map(t => t.term)).toEqual(["중1-2"]);
 });
 it("sets Moon through 2-2 learning and Jeon through the unit-2 preliminary assessment", () => {
   const rows = [
@@ -133,20 +141,23 @@ it("does not introduce first semester retroactively for students already studyin
     }).terms.map(t => t.term)
   ).toEqual(["중1-2"]);
 });
-it("still reflects edits made after the explicitly selected baseline snapshot", () => {
+it("still reflects later edits within Kim's corrected course", () => {
   const rows = [
-    row("2026-09-21", 1),
-    row("2026-09-22", 2, "[중2-2 / 1단계 / 2-3단원]"),
+    row("2026-09-21", 1, "[중1-2 / 1단계 / 3-2단원]"),
+    row("2026-09-22", 2, "[중1-2 / 1단계 / 5-1단원]"),
   ];
   const b = correctedProgressBaseline(
     rows,
     "중2",
     mathProgressCorrectionPlans[0]
   );
-  rows[1].content = "[중2-2 / 1단계 / 3-1단원]";
+  rows[1].content = "[중1-2 / 1단계 / 3-3단원]";
   const p = calculateMathProgress(rows, [], "2026-09-22", {
     baseline: b,
     grade: "중2",
   });
-  expect(p.terms[0].units[1].complete).toBe(true);
+  expect(p.terms.map(t => t.term)).toEqual(["중1-2"]);
+  expect(
+    p.terms[0].units[2].cells.find(c => c.key === "중1-2:3:learn:3")?.state
+  ).toBe("active");
 });
