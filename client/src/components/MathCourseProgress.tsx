@@ -8,28 +8,50 @@ import { LockKeyhole, CheckCircle2 } from "lucide-react";
 import { assessmentLabels, progressLabels } from "@shared/mathCurriculum";
 import type { MathProgress } from "@shared/mathProgress";
 import { trpc } from "@/lib/trpc";
-export function ProgressMeter({ value }: { value: number }) {
+export function ProgressMeter({
+  value,
+  averageValue,
+}: {
+  value: number;
+  averageValue?: number;
+}) {
+  const average =
+    averageValue === undefined
+      ? undefined
+      : Math.max(0, Math.min(100, averageValue));
   return (
-    <div
-      className="h-2 overflow-hidden rounded-full bg-[#E9E6DD]"
-      role="progressbar"
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={100}
-      aria-label="과정 진행률"
-    >
+    <div className={average === undefined ? "" : "relative pb-3"}>
       <div
-        className="h-full rounded-full bg-[#397A70] transition-all"
-        style={{ width: `${value}%` }}
-      />
+        className="h-2 overflow-hidden rounded-full bg-[#E9E6DD]"
+        role="progressbar"
+        aria-valuenow={value}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label="과정 진행률"
+      >
+        <div
+          className="h-full rounded-full bg-[#397A70] transition-all"
+          style={{ width: `${value}%` }}
+        />
+      </div>
+      {average !== undefined && (
+        <span
+          className="absolute top-[10px] h-0 w-0 -translate-x-1/2 border-x-[5px] border-b-[7px] border-x-transparent border-b-[#9A7B45]"
+          style={{ left: `${average}%` }}
+          title={`같은 과정 평균 ${average}%`}
+          aria-label={`같은 과정 평균 ${average}%`}
+        />
+      )}
     </div>
   );
 }
 export function MathCourseDetails({
   progress,
   edit,
+  sameCourseAverage,
 }: {
   progress: MathProgress;
+  sameCourseAverage?: { term: string; percent: number } | null;
   edit?: (
     cell: MathProgress["terms"][number]["units"][number]["cells"][number]
   ) => React.ReactNode;
@@ -44,7 +66,15 @@ export function MathCourseDetails({
           <span>1단계 · 기본 과정</span>
           <span>{progress.percent}%</span>
         </div>
-        <ProgressMeter value={progress.percent} />
+        <ProgressMeter
+          value={progress.percent}
+          averageValue={sameCourseAverage?.percent}
+        />
+        {sameCourseAverage && (
+          <p className="mt-1 text-[11px] text-[#7C6A48]">
+            ▲ {sameCourseAverage.term} 같은 과정 평균 {sameCourseAverage.percent}%
+          </p>
+        )}
         <Accordion type="multiple" className="mt-3">
           {progress.terms.map(term => (
             <AccordionItem key={term.term} value={term.term}>
@@ -177,7 +207,10 @@ export default function ParentMathProgress({
             <span className="text-sm">기본 {query.data.percent}%</span>
           </AccordionTrigger>
           <AccordionContent>
-            <MathCourseDetails progress={query.data} />
+            <MathCourseDetails
+              progress={query.data}
+              sameCourseAverage={query.data.sameCourseAverage}
+            />
           </AccordionContent>
         </AccordionItem>
       </Accordion>
