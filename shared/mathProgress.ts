@@ -305,6 +305,7 @@ export function calculateMathProgress(
   // No retroactive first-semester rows when a new curriculum is introduced later.
   if (
     baseline &&
+    !baseline.termCorrection &&
     currentGrade != null &&
     !Array.from(trackedTerms).some(t => Number(t[1]) === currentGrade)
   ) {
