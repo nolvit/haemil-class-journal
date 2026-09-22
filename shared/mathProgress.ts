@@ -504,8 +504,11 @@ export type MathProgress = ReturnType<typeof calculateMathProgress>;
 
 export type RecentLearningStats = {
   deltaPercent: number;
+  deltaSteps: number;
   learningSessions: number;
-  perSession: number | null;
+  stepsPerSession: number | null;
+  remainingSteps: number;
+  estimatedLearningSessions: number | null;
   sufficientData: boolean;
   estimatedCompletionDate: string | null;
 };
@@ -527,11 +530,52 @@ function countsAsLearningSession(row: ProgressJournal) {
   );
 }
 
+function learningStepCounts(progress: MathProgress) {
+  const learningCells = progress.terms.flatMap(term =>
+    term.units.flatMap(unit =>
+      unit.cells.filter(
+        cell => cell.sector === "learn" || cell.sector === "challenge"
+      )
+    )
+  );
+  return {
+    complete: learningCells.filter(cell => cell.state === "complete").length,
+    total: learningCells.length,
+  };
+}
+
+export function estimateCompletionDateBySchedule(
+  today: string,
+  requiredSessions: number,
+  scheduleWeekdays: number[],
+  blockedDates: Iterable<string> = []
+) {
+  if (requiredSessions <= 0) return today;
+  const weekdays = new Set(
+    scheduleWeekdays.filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
+  );
+  if (!weekdays.size) return null;
+  const blocked = new Set(blockedDates);
+  let remaining = requiredSessions;
+  for (let offset = 1; offset <= 365; offset++) {
+    const date = shiftDate(today, offset);
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    if (!weekdays.has(weekday) || blocked.has(date)) continue;
+    remaining--;
+    if (remaining <= 0) return date;
+  }
+  return null;
+}
+
 export function calculateRecentLearningStats(
   journals: ProgressJournal[],
   grade: string,
-  currentLearningPercent: number,
-  today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+  currentProgress: MathProgress,
+  today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" }),
+  forecast: {
+    scheduleWeekdays?: number[];
+    blockedDates?: Iterable<string>;
+  } = {}
 ): RecentLearningStats {
   const startDate = shiftDate(today, -28);
   const historicalRows = journals.filter(
@@ -544,9 +588,13 @@ export function calculateRecentLearningStats(
     baseline: historicalBaseline,
     grade,
   });
+  const currentSteps = learningStepCounts(currentProgress);
+  const historicalSteps = learningStepCounts(historicalProgress);
+  const deltaSteps = Math.max(0, currentSteps.complete - historicalSteps.complete);
+  const remainingSteps = Math.max(0, currentSteps.total - currentSteps.complete);
   const deltaPercent = Math.max(
     0,
-    currentLearningPercent - historicalProgress.learningPercent
+    currentProgress.learningPercent - historicalProgress.learningPercent
   );
   const learningSessions = new Set(
     journals
@@ -558,24 +606,36 @@ export function calculateRecentLearningStats(
       )
       .map(row => row.journalDate)
   ).size;
-  const perSession =
-    learningSessions > 0
-      ? Math.round((deltaPercent / learningSessions) * 100) / 100
+  const stepsPerSession =
+    learningSessions > 0 && deltaSteps > 0
+      ? Math.round((deltaSteps / learningSessions) * 100) / 100
       : null;
-  const sufficientData = learningSessions >= 5 && deltaPercent > 0;
-  let estimatedCompletionDate: string | null = null;
-  if (currentLearningPercent >= 100) estimatedCompletionDate = today;
-  else if (sufficientData) {
-    const days = Math.ceil(
-      ((100 - currentLearningPercent) / deltaPercent) * 28
-    );
-    if (Number.isFinite(days) && days > 0 && days <= 365)
-      estimatedCompletionDate = shiftDate(today, days);
-  }
+  const sufficientData =
+    learningSessions >= 5 && deltaSteps > 0 && stepsPerSession !== null;
+  const estimatedLearningSessions =
+    remainingSteps === 0
+      ? 0
+      : sufficientData
+        ? Math.ceil(remainingSteps / stepsPerSession!)
+        : null;
+  const estimatedCompletionDate =
+    currentProgress.learningPercent >= 100
+      ? today
+      : estimatedLearningSessions !== null && forecast.scheduleWeekdays?.length
+        ? estimateCompletionDateBySchedule(
+            today,
+            estimatedLearningSessions,
+            forecast.scheduleWeekdays,
+            forecast.blockedDates
+          )
+        : null;
   return {
     deltaPercent,
+    deltaSteps,
     learningSessions,
-    perSession,
+    stepsPerSession,
+    remainingSteps,
+    estimatedLearningSessions,
     sufficientData,
     estimatedCompletionDate,
   };
