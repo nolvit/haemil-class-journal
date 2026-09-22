@@ -38,8 +38,8 @@ export function ProgressMeter({
         <span
           className="absolute top-[10px] h-0 w-0 -translate-x-1/2 border-x-[5px] border-b-[7px] border-x-transparent border-b-[#9A7B45]"
           style={{ left: `${average}%` }}
-          title={`같은 과정 평균 ${average}%`}
-          aria-label={`같은 과정 평균 ${average}%`}
+          title={`원내 평균 진행률 ${average}%`}
+          aria-label={`원내 평균 진행률 ${average}%`}
         />
       )}
     </div>
@@ -72,7 +72,7 @@ export function MathCourseDetails({
         />
         {sameCourseAverage && (
           <p className="mt-1 text-[11px] text-[#7C6A48]">
-            ▲ {sameCourseAverage.term} 같은 과정 평균 {sameCourseAverage.percent}%
+            ▲ {sameCourseAverage.term.replace(/^중([123])-([12])$/, "중$1 - $2학기")} 원내 평균 진행률 {sameCourseAverage.percent}%
           </p>
         )}
         <Accordion type="multiple" className="mt-3">
