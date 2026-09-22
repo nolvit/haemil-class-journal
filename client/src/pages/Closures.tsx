@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { appendClosureNoticeTemplate, getClosureNoticeTemplates, type NoticeTemplateKind } from "@shared/closureNoticeTemplates";
 import { CalendarDays, ImagePlus, Pencil, Plus, Sparkles, Trash2, Upload, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 
@@ -175,9 +175,11 @@ function TemplateChips({ kind, name, period, onApply }: { kind: NoticeTemplateKi
 
 function NoticeImagePicker({ storedImageUrl, pendingImage, onPendingImageChange, onRemoveStored, disabled }: { storedImageUrl: string | null; pendingImage: PendingImage | null; onPendingImageChange: (image: PendingImage | null) => void; onRemoveStored: () => void; disabled: boolean }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   useEffect(() => () => { if (previewUrl) URL.revokeObjectURL(previewUrl); }, [previewUrl]);
-  const chooseImage = (file: File | undefined) => {
-    if (!file) return;
+
+  const chooseImage = useCallback((file: File | undefined) => {
+    if (!file || disabled) return;
     if (!( ["image/jpeg", "image/png", "image/webp"] as string[]).includes(file.type)) { toast.error("JPG, PNG 또는 WebP 파일만 선택할 수 있습니다."); return; }
     if (file.size > 5 * 1024 * 1024) { toast.error("이미지는 5MB 이하만 올릴 수 있습니다."); return; }
     const url = URL.createObjectURL(file);
@@ -185,13 +187,70 @@ function NoticeImagePicker({ storedImageUrl, pendingImage, onPendingImageChange,
     image.onload = () => { setPreviewUrl(previous => { if (previous) URL.revokeObjectURL(previous); return url; }); onPendingImageChange({ file, width: image.naturalWidth, height: image.naturalHeight }); };
     image.onerror = () => { URL.revokeObjectURL(url); toast.error("이미지 크기를 확인하지 못했습니다."); };
     image.src = url;
-  };
+  }, [disabled, onPendingImageChange]);
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      if (disabled) return;
+      const clipboardImage = Array.from(event.clipboardData?.items ?? [])
+        .find(item => item.kind === "file" && item.type.startsWith("image/"))
+        ?.getAsFile();
+      const file = clipboardImage ?? Array.from(event.clipboardData?.files ?? [])
+        .find(item => item.type.startsWith("image/"));
+      if (!file) return;
+      event.preventDefault();
+      chooseImage(file);
+    };
+    window.addEventListener("paste", handlePaste);
+    return () => window.removeEventListener("paste", handlePaste);
+  }, [chooseImage, disabled]);
+
   const remove = () => {
     if (pendingImage) { setPreviewUrl(previous => { if (previous) URL.revokeObjectURL(previous); return null; }); onPendingImageChange(null); return; }
     onRemoveStored();
   };
+
+  const handleDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    setIsDragging(false);
+    if (disabled) return;
+    const file = Array.from(event.dataTransfer.files).find(item => item.type.startsWith("image/")) ?? event.dataTransfer.files[0];
+    chooseImage(file);
+  };
+
   const displayedUrl = previewUrl ?? storedImageUrl;
-  return <Field label="안내 이미지 (선택)"><div className="rounded-xl border border-dashed border-[#D7CCB9] bg-[#FCFBF7] p-3">{displayedUrl ? <div className="space-y-3"><div className="relative h-48 overflow-hidden rounded-lg bg-[#183F3C]"><img src={displayedUrl} alt="업로드 예정 이미지 배경" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-xl" /><img src={displayedUrl} alt="업로드 예정 이미지 미리보기" className="relative z-10 h-full w-full object-contain" /><Button type="button" variant="secondary" size="sm" className="absolute right-2 top-2 z-20 bg-white/90" disabled={disabled} onClick={remove}><X className="mr-1 h-3.5 w-3.5" />{pendingImage ? "새 이미지 취소" : "이미지 제거"}</Button></div>{pendingImage ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#E8EFED] px-3 py-2 text-xs"><span className="font-semibold text-[#315B57]">{imageRatioLabel(pendingImage.width, pendingImage.height)}</span><span className={isRecommendedImageRatio(pendingImage.width, pendingImage.height) ? "font-medium text-[#2F7154]" : "text-[#62736E]"}>{isRecommendedImageRatio(pendingImage.width, pendingImage.height) ? "권장 비율 · 가로형 안내 이미지" : "사용 가능 · 원본 전체가 표시됩니다"}</span></div> : <small className="block text-xs text-[#71817D]">저장된 이미지입니다. 새 이미지를 선택하면 저장할 때 교체됩니다.</small>}</div> : <label className="flex cursor-pointer flex-col items-center justify-center gap-2 py-6 text-center"><span className="rounded-full bg-[#E8EFED] p-3 text-[#315B57]"><ImagePlus className="h-5 w-5" /></span><b className="text-sm text-[#315B57]">JPG, PNG, WebP 이미지를 선택하세요</b><small className="text-xs text-[#71817D]">최대 5MB · 2:1 또는 16:9 가로형 권장 · 선택만으로는 업로드되지 않습니다.</small><input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={disabled} onChange={event => { chooseImage(event.target.files?.[0]); event.currentTarget.value = ""; }} /></label>}</div></Field>;
+  return <Field label="안내 이미지 (선택)">
+    <div
+      className={`rounded-xl border border-dashed p-3 transition-colors ${isDragging ? "border-[#2F7154] bg-[#E8EFED] ring-2 ring-[#2F7154]/20" : "border-[#D7CCB9] bg-[#FCFBF7]"}`}
+      onDragEnter={event => { event.preventDefault(); if (!disabled) setIsDragging(true); }}
+      onDragOver={event => { event.preventDefault(); if (!disabled) { event.dataTransfer.dropEffect = "copy"; setIsDragging(true); } }}
+      onDragLeave={event => { if (event.currentTarget === event.target) setIsDragging(false); }}
+      onDrop={handleDrop}
+    >
+      {displayedUrl ? <div className="space-y-3">
+        <div className="relative h-48 overflow-hidden rounded-lg bg-[#183F3C]">
+          <img src={displayedUrl} alt="업로드 예정 이미지 배경" className="absolute inset-0 h-full w-full scale-110 object-cover opacity-45 blur-xl" />
+          <img src={displayedUrl} alt="업로드 예정 이미지 미리보기" className="relative z-10 h-full w-full object-contain" />
+          <Button type="button" variant="secondary" size="sm" className="absolute right-2 top-2 z-20 bg-white/90" disabled={disabled} onClick={remove}><X className="mr-1 h-3.5 w-3.5" />{pendingImage ? "새 이미지 취소" : "이미지 제거"}</Button>
+        </div>
+        {pendingImage ? <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#E8EFED] px-3 py-2 text-xs">
+          <span className="font-semibold text-[#315B57]">{imageRatioLabel(pendingImage.width, pendingImage.height)}</span>
+          <span className={isRecommendedImageRatio(pendingImage.width, pendingImage.height) ? "font-medium text-[#2F7154]" : "text-[#62736E]"}>{isRecommendedImageRatio(pendingImage.width, pendingImage.height) ? "권장 비율 · 가로형 안내 이미지" : "사용 가능 · 원본 전체가 표시됩니다"}</span>
+        </div> : <small className="block text-xs text-[#71817D]">저장된 이미지입니다. 새 이미지를 선택하면 저장할 때 교체됩니다.</small>}
+        <label className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed px-3 py-2 text-xs ${disabled ? "cursor-not-allowed opacity-50" : "border-[#C9B996] bg-white/70 text-[#55716C] hover:bg-white"}`}>
+          <Upload className="h-3.5 w-3.5" />
+          <span>새 이미지 선택 · Ctrl+V 붙여넣기 · 드래그 앤 드롭</span>
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={disabled} onChange={event => { chooseImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+        </label>
+      </div> : <label className={`flex flex-col items-center justify-center gap-2 py-6 text-center ${disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer"}`}>
+        <span className="rounded-full bg-[#E8EFED] p-3 text-[#315B57]"><ImagePlus className="h-5 w-5" /></span>
+        <b className="text-sm text-[#315B57]">{isDragging ? "여기에 놓으면 이미지가 등록됩니다" : "이미지를 선택하거나 붙여넣으세요"}</b>
+        <small className="text-xs text-[#71817D]">클릭해서 선택 · Ctrl+V 붙여넣기 · 드래그 앤 드롭</small>
+        <small className="text-xs text-[#71817D]">최대 5MB · 2:1 또는 16:9 가로형 권장 · 선택만으로는 업로드되지 않습니다.</small>
+        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={disabled} onChange={event => { chooseImage(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+      </label>}
+    </div>
+  </Field>;
 }
 
 function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) { return <div className="grid gap-2"><Label>{label} {required && <b className="text-[#B8891B]">필수</b>}</Label>{children}</div>; }
