@@ -177,15 +177,20 @@ function applyRecord(
 export function createProgressBaseline(
   journals: ProgressJournal[],
   grade: string,
-  options: { exactDate?: string; termOverride?: string } = {}
+  options: {
+    exactDate?: string;
+    termOverride?: string;
+    snapshotDate?: string;
+  } = {}
 ): ProgressBaseline {
+  const snapshotDate = options.snapshotDate ?? BASELINE_DATE;
   const source = [...journals]
     .filter(
       r =>
         !r.isDraft &&
         (options.exactDate
           ? r.journalDate === options.exactDate
-          : r.journalDate <= BASELINE_DATE) &&
+          : r.journalDate <= snapshotDate) &&
         r.content?.trim()
     )
     .sort(
@@ -227,7 +232,11 @@ export function createProgressBaseline(
     terms,
     cutoffEntries: Object.fromEntries(
       journals
-        .filter(r => r.journalDate === BASELINE_DATE)
+        .filter(
+          r =>
+            r.journalDate ===
+            (options.snapshotDate ?? BASELINE_DATE)
+        )
         .map(r => [r.id, journalVersion(r)])
     ),
     termCorrection: options.termOverride,
@@ -528,7 +537,9 @@ export function calculateRecentLearningStats(
   const historicalRows = journals.filter(
     row => !row.isDraft && row.journalDate <= startDate && row.content?.trim()
   );
-  const historicalBaseline = createProgressBaseline(historicalRows, grade);
+  const historicalBaseline = createProgressBaseline(historicalRows, grade, {
+    snapshotDate: startDate,
+  });
   const historicalProgress = calculateMathProgress([], [], startDate, {
     baseline: historicalBaseline,
     grade,
