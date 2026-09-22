@@ -110,7 +110,7 @@ export default function MathProgress() {
                       </td>
                       <td className="min-w-36 p-3">
                         <div className="mb-1 text-xs">
-                          학습 {s.progress.learningPercent}% · 숙달{" "}
+                          학습 {s.progress.learningPercent}% · 평가{" "}
                           {s.progress.masteryPercent}%
                         </div>
                         <ProgressMeter value={s.progress.learningPercent} />
