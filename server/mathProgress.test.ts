@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateMathProgress,
+  calculateRecentLearningStats,
   createProgressBaseline,
   middleGrade,
   type ProgressJournal,
@@ -277,4 +278,33 @@ it("continues to reflect edits and new records on the baseline date itself", () 
       })
     ).complete
   ).toBe(true);
+});
+
+
+describe("learning mastery and recent pace metrics", () => {
+  it("separates learning progress from assessment mastery", () => {
+    const p = calc([row("[중2-2 / 기본 / 2-3단원]")]);
+    expect(p.learningPercent).toBe(23);
+    expect(p.masteryPercent).toBe(16);
+    expect(p.learningPercent).toBeGreaterThan(p.masteryPercent);
+  });
+
+  it("calculates four-week delta per learning session and excludes re-study sessions", () => {
+    const rows = [
+      row("[중2-2 / 기본 / 1-1단원]", 1, { journalDate: "2026-09-01" }),
+      row("[중2-2 / 기본 / 1-2단원]", 2, { journalDate: "2026-09-05" }),
+      row("[중2-2 / 기본 / 1-3단원]", 3, { journalDate: "2026-09-10" }),
+      row("[중2-2 / 기본 / 1-4단원]", 4, { journalDate: "2026-09-15" }),
+      row("[중2-2 / 기본 / 2-1단원]", 5, { journalDate: "2026-09-20" }),
+      row("[중2-2 / 기본 / 2-1단원]\n재수강", 6, {
+        journalDate: "2026-09-21",
+      }),
+    ];
+    const stats = calculateRecentLearningStats(rows, "중2", 40, "2026-09-22");
+    expect(stats.deltaPercent).toBe(40);
+    expect(stats.learningSessions).toBe(5);
+    expect(stats.perSession).toBe(8);
+    expect(stats.sufficientData).toBe(true);
+    expect(stats.estimatedCompletionDate).toBe("2026-11-03");
+  });
 });
