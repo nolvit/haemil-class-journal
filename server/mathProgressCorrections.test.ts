@@ -34,7 +34,7 @@ it("excludes current middle-3 students but retains the enrolled cohort after pro
   expect(isMathProgressEligible("중3", m3, "2027-03-01")).toBe(false);
   expect(isMathProgressEligible("중2", m2, "2026-09-22")).toBe(true);
 });
-it("uses Monday for Kim and does not immediately reapply the existing Tuesday entry", () => {
+it("sets Kim explicitly through 3-2 learning while completing all earlier units", () => {
   const rows = [
     row("2026-09-21", 1),
     row("2026-09-22", 2, "[중2-2 / 1단계 / 7-1단원]"),
@@ -45,14 +45,13 @@ it("uses Monday for Kim and does not immediately reapply the existing Tuesday en
     mathProgressCorrectionPlans[0]
   );
   expect(b.sourceDate).toBe("2026-09-21");
-  const p = calculateMathProgress(rows, [], "2026-09-22", {
-    baseline: b,
-    grade: "중2",
-  });
-  expect(p.terms[0].units[0].complete).toBe(true);
-  expect(p.terms[0].units[2].percent).toBe(0);
+  expect(b.states["중2-2:2:final2"]).toBe("complete");
+  expect(b.states["중2-2:3:learn:1"]).toBe("complete");
+  expect(b.states["중2-2:3:learn:2"]).toBe("complete");
+  expect(b.states["중2-2:3:learn:3"]).toBe("waiting");
+  expect(b.states["중2-2:3:challenge"]).toBe("waiting");
 });
-it("takes the modified Tuesday journal for Moon and the exact Friday journal for Jeon", () => {
+it("sets Moon through 2-2 learning and Jeon through the unit-2 preliminary assessment", () => {
   const rows = [
     row("2026-09-18", 1),
     row("2026-09-21", 2),
@@ -68,9 +67,21 @@ it("takes the modified Tuesday journal for Moon and the exact Friday journal for
     "중2",
     mathProgressCorrectionPlans[2]
   );
+
   expect(moon.sourceId).toBe(3);
-  expect(moon.states["중2-2:2:final2"]).toBe("complete");
+  expect(moon.states["중2-2:1:final2"]).toBe("complete");
+  expect(moon.states["중2-2:2:learn:1"]).toBe("complete");
+  expect(moon.states["중2-2:2:learn:2"]).toBe("complete");
+  expect(moon.states["중2-2:2:learn:3"]).toBe("waiting");
+  expect(moon.states["중2-2:2:challenge"]).toBe("waiting");
+
   expect(jeon.sourceId).toBe(1);
+  expect(jeon.states["중2-2:1:final2"]).toBe("complete");
+  expect(jeon.states["중2-2:2:learn:5"]).toBe("complete");
+  expect(jeon.states["중2-2:2:challenge"]).toBe("complete");
+  expect(jeon.states["중2-2:2:test:5"]).toBe("complete");
+  expect(jeon.states["중2-2:2:preliminary"]).toBe("complete");
+  expect(jeon.states["중2-2:2:final1"]).toBe("waiting");
   expect(jeon.states["중2-2:2:final2"]).toBe("waiting");
 });
 it("does not silently substitute an earlier date or an ambiguous name", () => {
