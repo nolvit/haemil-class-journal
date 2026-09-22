@@ -18,7 +18,9 @@ import {
 } from "../drizzle/schema";
 import {
   calculateMathProgress,
+  calculateRecentLearningStats,
   type MathProgress,
+  type RecentLearningStats,
   createProgressBaseline,
   type ProgressBaseline,
   isMathProgressEligible,
@@ -26,6 +28,7 @@ import {
 } from "../shared/mathProgress";
 import type { ProgressState } from "../shared/mathCurriculum";
 type StoredMathProgress = MathProgress & {
+  recentLearning: RecentLearningStats;
   baseline: Pick<
     ProgressBaseline,
     "sourceId" | "sourceDate" | "sourceText" | "recognized" | "termCorrection"
@@ -245,7 +248,7 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v3-cohort-selected-dates",
+        "v4-learning-mastery-speed",
         progressKeys,
         today,
         student.grade,
@@ -270,6 +273,12 @@ export async function studentProgress(studentId: number) {
   );
   const result: StoredMathProgress = {
     ...calculated,
+    recentLearning: calculateRecentLearningStats(
+      journals,
+      student.grade,
+      calculated.learningPercent,
+      today
+    ),
     baseline: {
       sourceId: baseline.sourceId,
       sourceDate: baseline.sourceDate,
@@ -348,9 +357,9 @@ export async function publicProgress(token: string, studentId?: number) {
   );
   const currentTerm = progress.terms.at(-1)?.term ?? null;
   let sameCourseAverage: { term: string; percent: number } | null = null;
+  const cohort: StoredMathProgress[] = [];
 
   if (currentTerm) {
-    const cohort: StoredMathProgress[] = [];
     for (let i = 0; i < roster.length; i += 5) {
       const batch = await Promise.all(
         roster
@@ -367,15 +376,56 @@ export async function publicProgress(token: string, studentId?: number) {
       sameCourseAverage = {
         term: currentTerm,
         percent: Math.round(
-          cohort.reduce((sum, candidate) => sum + candidate.percent, 0) /
-            cohort.length
+          cohort.reduce(
+            (sum, candidate) => sum + candidate.learningPercent,
+            0
+          ) / cohort.length
         ),
       };
+  }
+
+  const validPaces = cohort
+    .filter(candidate => candidate.recentLearning.sufficientData)
+    .map(candidate => candidate.recentLearning.perSession)
+    .filter((pace): pace is number => pace !== null);
+  const cohortAveragePerSession = validPaces.length
+    ? validPaces.reduce((sum, pace) => sum + pace, 0) / validPaces.length
+    : null;
+  const pace = progress.recentLearning.perSession;
+  let paceLabel: "빠름" | "보통" | "느림" | null = null;
+  let paceArrow: "↑" | "→" | "↓" | null = null;
+  if (
+    progress.recentLearning.sufficientData &&
+    pace !== null &&
+    cohortAveragePerSession !== null
+  ) {
+    if (
+      cohortAveragePerSession === 0
+        ? pace > 0
+        : pace >= cohortAveragePerSession * 1.2
+    ) {
+      paceLabel = "빠름";
+      paceArrow = "↑";
+    } else if (
+      cohortAveragePerSession > 0 &&
+      pace <= cohortAveragePerSession * 0.8
+    ) {
+      paceLabel = "느림";
+      paceArrow = "↓";
+    } else {
+      paceLabel = "보통";
+      paceArrow = "→";
+    }
   }
 
   // Raw journal text and staff correction notes are admin-only.
   return {
     ...progress,
+    recentLearning: {
+      ...progress.recentLearning,
+      paceLabel,
+      paceArrow,
+    },
     sameCourseAverage,
     unmatched: [],
     terms: progress.terms.map(t => ({

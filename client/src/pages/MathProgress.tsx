@@ -85,7 +85,7 @@ export default function MathProgress() {
                 <tr>
                   {[
                     "학생",
-                    "기본 과정",
+                    "학습률 · 숙달률",
                     "현재 및 누적 과정",
                     "초기 기준",
                     "확인할 기록",
@@ -108,9 +108,12 @@ export default function MathProgress() {
                           {s.grade}
                         </span>
                       </td>
-                      <td className="min-w-28 p-3">
-                        {s.progress.percent}%
-                        <ProgressMeter value={s.progress.percent} />
+                      <td className="min-w-36 p-3">
+                        <div className="mb-1 text-xs">
+                          학습 {s.progress.learningPercent}% · 숙달{" "}
+                          {s.progress.masteryPercent}%
+                        </div>
+                        <ProgressMeter value={s.progress.learningPercent} />
                       </td>
                       <td className="p-3">
                         {s.progress.terms.map(t => (

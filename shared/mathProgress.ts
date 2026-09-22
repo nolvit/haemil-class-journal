@@ -177,15 +177,20 @@ function applyRecord(
 export function createProgressBaseline(
   journals: ProgressJournal[],
   grade: string,
-  options: { exactDate?: string; termOverride?: string } = {}
+  options: {
+    exactDate?: string;
+    termOverride?: string;
+    snapshotDate?: string;
+  } = {}
 ): ProgressBaseline {
+  const snapshotDate = options.snapshotDate ?? BASELINE_DATE;
   const source = [...journals]
     .filter(
       r =>
         !r.isDraft &&
         (options.exactDate
           ? r.journalDate === options.exactDate
-          : r.journalDate <= BASELINE_DATE) &&
+          : r.journalDate <= snapshotDate) &&
         r.content?.trim()
     )
     .sort(
@@ -227,7 +232,11 @@ export function createProgressBaseline(
     terms,
     cutoffEntries: Object.fromEntries(
       journals
-        .filter(r => r.journalDate === BASELINE_DATE)
+        .filter(
+          r =>
+            r.journalDate ===
+            (options.snapshotDate ?? BASELINE_DATE)
+        )
         .map(r => [r.id, journalVersion(r)])
     ),
     termCorrection: options.termOverride,
@@ -407,6 +416,13 @@ export function calculateMathProgress(
       // Five equally weighted workflow phases. The two final rounds share the final phase.
       const fraction = (keys: string[]) =>
         keys.filter(k => state(k) === "complete").length / keys.length;
+      const learningKeys = [
+        ...learning.map(c => c.key),
+        `${prefix}:challenge`,
+      ];
+      const masteryKeys = tests.map(c => c.key);
+      const learningPercent = Math.round(100 * fraction(learningKeys));
+      const masteryPercent = Math.round(100 * fraction(masteryKeys));
       const percent = Math.round(
         20 *
           (fraction(learning.map(c => c.key)) +
@@ -422,20 +438,62 @@ export function calculateMathProgress(
         learn,
         challenge,
         test,
+        learningPercent,
+        masteryPercent,
         percent,
         complete,
       };
     });
+    const termCells = units.flatMap(u => u.cells);
+    const completionRate = (
+      selected: typeof termCells
+    ) =>
+      selected.length
+        ? Math.round(
+            (selected.filter(cell => cell.state === "complete").length /
+              selected.length) *
+              100
+          )
+        : 0;
     return {
       term: c.term,
       units,
+      learningPercent: completionRate(
+        termCells.filter(
+          cell => cell.sector === "learn" || cell.sector === "challenge"
+        )
+      ),
+      masteryPercent: completionRate(
+        termCells.filter(cell => cell.sector === "test")
+      ),
       percent: Math.round(
         units.reduce((n, u) => n + u.percent, 0) / units.length
       ),
     };
   });
+  const allCells = terms.flatMap(term =>
+    term.units.flatMap(unit => unit.cells)
+  );
+  const completionRate = (
+    selected: typeof allCells
+  ) =>
+    selected.length
+      ? Math.round(
+          (selected.filter(cell => cell.state === "complete").length /
+            selected.length) *
+            100
+        )
+      : 0;
   return {
     terms,
+    learningPercent: completionRate(
+      allCells.filter(
+        cell => cell.sector === "learn" || cell.sector === "challenge"
+      )
+    ),
+    masteryPercent: completionRate(
+      allCells.filter(cell => cell.sector === "test")
+    ),
     percent: terms.length
       ? Math.round(terms.reduce((n, t) => n + t.percent, 0) / terms.length)
       : 0,
@@ -443,3 +501,82 @@ export function calculateMathProgress(
   };
 }
 export type MathProgress = ReturnType<typeof calculateMathProgress>;
+
+export type RecentLearningStats = {
+  deltaPercent: number;
+  learningSessions: number;
+  perSession: number | null;
+  sufficientData: boolean;
+  estimatedCompletionDate: string | null;
+};
+
+function shiftDate(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function countsAsLearningSession(row: ProgressJournal) {
+  if (row.isDraft || !row.content?.trim() || /재수강/.test(row.content))
+    return false;
+  return parseHeaders(row.content).some(
+    header =>
+      header.basic &&
+      header.small !== null &&
+      validHeader(header) !== null
+  );
+}
+
+export function calculateRecentLearningStats(
+  journals: ProgressJournal[],
+  grade: string,
+  currentLearningPercent: number,
+  today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+): RecentLearningStats {
+  const startDate = shiftDate(today, -28);
+  const historicalRows = journals.filter(
+    row => !row.isDraft && row.journalDate <= startDate && row.content?.trim()
+  );
+  const historicalBaseline = createProgressBaseline(historicalRows, grade, {
+    snapshotDate: startDate,
+  });
+  const historicalProgress = calculateMathProgress([], [], startDate, {
+    baseline: historicalBaseline,
+    grade,
+  });
+  const deltaPercent = Math.max(
+    0,
+    currentLearningPercent - historicalProgress.learningPercent
+  );
+  const learningSessions = new Set(
+    journals
+      .filter(
+        row =>
+          row.journalDate > startDate &&
+          row.journalDate <= today &&
+          countsAsLearningSession(row)
+      )
+      .map(row => row.journalDate)
+  ).size;
+  const perSession =
+    learningSessions > 0
+      ? Math.round((deltaPercent / learningSessions) * 100) / 100
+      : null;
+  const sufficientData = learningSessions >= 5 && deltaPercent > 0;
+  let estimatedCompletionDate: string | null = null;
+  if (currentLearningPercent >= 100) estimatedCompletionDate = today;
+  else if (sufficientData) {
+    const days = Math.ceil(
+      ((100 - currentLearningPercent) / deltaPercent) * 28
+    );
+    if (Number.isFinite(days) && days > 0 && days <= 365)
+      estimatedCompletionDate = shiftDate(today, days);
+  }
+  return {
+    deltaPercent,
+    learningSessions,
+    perSession,
+    sufficientData,
+    estimatedCompletionDate,
+  };
+}
