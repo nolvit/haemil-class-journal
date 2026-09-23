@@ -369,13 +369,7 @@ export const academyRouter = router({
   }),
   dashboard: adminProcedure
     .input(z.object({ journalDate: isoDate }))
-    .query(async ({ input }) => {
-      const [dashboard, mathTestTargets] = await Promise.all([
-        academyDb.getDashboard(input.journalDate),
-        mathProgress.mathTestTargets(input.journalDate),
-      ]);
-      return { ...dashboard, mathTestTargets };
-    }),
+    .query(({ input }) => academyDb.getDashboard(input.journalDate)),
   workspace: adminProcedure
     .input(
       z.object({
