@@ -14,6 +14,7 @@ import {
   PwaInstallPrompt,
 } from "@/components/PwaInstallPrompt";
 import { trpc } from "@/lib/trpc";
+import { parentMathJournalContent } from "@shared/parentMathJournal";
 import {
   attendanceStatusBadgeClass,
   attendanceStatusLabels,
@@ -306,7 +307,7 @@ export default function StudentPortal() {
   };
   const period = `${data.dates[0]?.replaceAll("-", ".")} ~ ${data.dates[data.dates.length - 1]?.replaceAll("-", ".")}`;
   const targetMessage = data.summary.attendanceMessage;
-  const isMiddleSchoolStudent = /^중[1-3](?:\\D|$)/.test(
+  const isMiddleSchoolStudent = /^중[1-3](?:\D|$)/.test(
     data.student.grade.trim()
   );
   const quickMenuItems: PortalQuickMenuItem[] = [
@@ -706,7 +707,9 @@ export default function StudentPortal() {
                           </span>
                         )}
                         <p className="whitespace-pre-line">
-                          {journal?.content || statusMessage}
+                          {journal?.content
+                            ? parentMathJournalContent(journal.content, group.subject)
+                            : statusMessage}
                         </p>
                         {journal?.homework && (
                           <span className="portal-homework whitespace-pre-line">
@@ -837,7 +840,9 @@ export default function StudentPortal() {
                           </span>
                         )}
                         <p className="mt-1 whitespace-pre-line text-sm leading-6 text-[#53645F]">
-                          {journal?.content || statusMessage}
+                          {journal?.content
+                            ? parentMathJournalContent(journal.content, group.subject)
+                            : statusMessage}
                         </p>
                         {journal?.homework && (
                           <p className="mt-1 whitespace-pre-line text-xs leading-5 text-[#84713E]">
