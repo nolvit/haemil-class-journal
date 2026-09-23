@@ -306,6 +306,9 @@ export default function StudentPortal() {
   };
   const period = `${data.dates[0]?.replaceAll("-", ".")} ~ ${data.dates[data.dates.length - 1]?.replaceAll("-", ".")}`;
   const targetMessage = data.summary.attendanceMessage;
+  const isMiddleSchoolStudent = /^중[1-3](?:\\D|$)/.test(
+    data.student.grade.trim()
+  );
   const quickMenuItems: PortalQuickMenuItem[] = [
     {
       key: "vocabulary",
@@ -335,6 +338,17 @@ export default function StudentPortal() {
       href: data.resources.mathEvaluationSummaryUrl,
       icon: BarChart3,
     },
+    ...(isMiddleSchoolStudent
+      ? [
+          {
+            key: "math-lecture",
+            label: "수학(강의)",
+            ariaLabel: "중등 수학 강의",
+            href: "https://www.haemiledu.kr/learning",
+            icon: GraduationCap,
+          },
+        ]
+      : []),
   ];
   const weekdayDates = data.dates.filter(date => {
     const day = new Date(`${date}T00:00:00Z`).getUTCDay();

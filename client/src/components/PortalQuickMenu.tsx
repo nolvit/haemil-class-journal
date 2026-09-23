@@ -22,7 +22,10 @@ export default function PortalQuickMenu({
 
   return (
     <nav
-      className="mt-4 grid w-full max-w-[22rem] grid-cols-4 gap-2"
+      className="mt-4 grid w-full max-w-[26rem] gap-1.5"
+      style={{
+        gridTemplateColumns: `repeat(${Math.min(visibleItems.length, 5)}, minmax(0, 1fr))`,
+      }}
       aria-label="학습 결과 바로가기"
     >
       {visibleItems.map(item => {
