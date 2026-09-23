@@ -15,6 +15,7 @@ import { serveStatic, setupVite } from "./vite";
 import { seedLocalUploads } from "../storage";
 import {
   ensureRemainingCountNotificationSchema,
+  ensureLearningLinksSchema,
   settlePreviousWeekCounts,
   applyWeeklyAutoUnregisteredDays,
 } from "../db";
@@ -68,6 +69,7 @@ async function initializeMathProgress() {
 async function startServer() {
   await seedLocalUploads();
   await ensureRemainingCountNotificationSchema();
+  await ensureLearningLinksSchema();
   await ensureRewardSchema();
   let rewardSettlementRunning = false;
   const settleRewards = async () => {
