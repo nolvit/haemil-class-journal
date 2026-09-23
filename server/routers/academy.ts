@@ -530,6 +530,7 @@ export const academyRouter = router({
           vocabularyResultUrl: externalUrl,
           englishSpeakingUrl: externalUrl,
           mathUnitEvaluationUrl: externalUrl,
+          mathEvaluationSummaryUrl: externalUrl,
         })
       )
       .mutation(({ input }) =>
