@@ -140,9 +140,11 @@ export async function progressStudents() {
   const baselineByStudent = new Map(
     baselines.map(b => [b.studentId, JSON.parse(b.payload) as ProgressBaseline])
   );
-  const today = new Date().toLocaleDateString("sv-SE", {
-    timeZone: "Asia/Seoul",
-  });
+  const today =
+    asOfDate ??
+    new Date().toLocaleDateString("sv-SE", {
+      timeZone: "Asia/Seoul",
+    });
   return rows.filter(s =>
     isMathProgressEligible(s.grade, baselineByStudent.get(s.id), today)
   );
@@ -262,7 +264,7 @@ export async function initializeMathProgressBaselines() {
   }
   return { students: roster.length, recognized, review, empty };
 }
-export async function studentProgress(studentId: number) {
+export async function studentProgress(studentId: number, asOfDate?: string) {
   const db = await database();
   const [student] = await db
     .select({
@@ -335,7 +337,7 @@ export async function studentProgress(studentId: number) {
       ])
     )
     .digest("hex");
-  if (cached[0]?.signature === signature)
+  if (!asOfDate && cached[0]?.signature === signature)
     return JSON.parse(cached[0].payload) as StoredMathProgress;
   const journals = await readMathJournals(studentId);
   const calculated = calculateMathProgress(
@@ -390,14 +392,124 @@ export async function studentProgress(studentId: number) {
       termCorrection: baseline.termCorrection,
     },
   };
-  await db
-    .insert(mathProgressCache)
-    .values({ studentId, signature, payload: JSON.stringify(result) })
-    .onDuplicateKeyUpdate({
-      set: { signature, payload: JSON.stringify(result) },
-    });
+  if (!asOfDate)
+    await db
+      .insert(mathProgressCache)
+      .values({ studentId, signature, payload: JSON.stringify(result) })
+      .onDuplicateKeyUpdate({
+        set: { signature, payload: JSON.stringify(result) },
+      });
   return result;
 }
+
+function nextMathAssessment(progress: StoredMathProgress) {
+  const cells = progress.terms.flatMap(term =>
+    term.units.flatMap(unit =>
+      unit.cells.map(cell => ({
+        ...cell,
+        term: term.term,
+        unit: unit.number,
+      }))
+    )
+  );
+  let lastStarted = -1;
+  for (let index = 0; index < cells.length; index++)
+    if (cells[index].state !== "waiting") lastStarted = index;
+  if (lastStarted < 0) return null;
+
+  const current = cells[lastStarted];
+  if (current.state === "active")
+    return current.sector === "test" ? current : null;
+
+  const next = cells.slice(lastStarted + 1).find(cell => cell.state !== "complete");
+  return next?.sector === "test" ? next : null;
+}
+
+export async function mathTestTargets(journalDate: string) {
+  const weekday = new Date(`${journalDate}T00:00:00Z`).getUTCDay();
+  if (weekday < 1 || weekday > 5) return [];
+
+  const db = await database();
+  const [roster, scheduleRows] = await Promise.all([
+    progressStudents(),
+    db
+      .select({
+        studentId: students.id,
+        meetingDays: classGroups.meetingDays,
+        autoUnregisteredWeekdays: students.autoUnregisteredWeekdays,
+      })
+      .from(students)
+      .innerJoin(
+        studentEnrollments,
+        and(
+          eq(studentEnrollments.studentId, students.id),
+          eq(studentEnrollments.active, true)
+        )
+      )
+      .innerJoin(
+        classGroups,
+        and(
+          eq(classGroups.id, studentEnrollments.classGroupId),
+          eq(classGroups.active, true),
+          eq(classGroups.subject, "수학")
+        )
+      )
+      .where(eq(students.active, true)),
+  ]);
+
+  const scheduleByStudent = new Map<
+    number,
+    { meetingDays: Set<number>; excludedDays: Set<number> }
+  >();
+  for (const row of scheduleRows) {
+    const existing = scheduleByStudent.get(row.studentId) ?? {
+      meetingDays: new Set<number>(),
+      excludedDays: new Set<number>(),
+    };
+    for (const day of parseWeekdays(row.meetingDays)) existing.meetingDays.add(day);
+    for (const day of parseWeekdays(row.autoUnregisteredWeekdays))
+      existing.excludedDays.add(day);
+    scheduleByStudent.set(row.studentId, existing);
+  }
+
+  const scheduled = roster.filter(student => {
+    const schedule = scheduleByStudent.get(student.id);
+    if (!schedule || schedule.excludedDays.has(weekday)) return false;
+    return schedule.meetingDays.size === 0 || schedule.meetingDays.has(weekday);
+  });
+  const asOfDate = shiftIsoDate(journalDate, -1);
+  const targets: Array<{
+    id: number;
+    name: string;
+    grade: string;
+    assessment: string;
+  }> = [];
+
+  for (let index = 0; index < scheduled.length; index += 5) {
+    const batch = await Promise.all(
+      scheduled.slice(index, index + 5).map(async student => ({
+        student,
+        assessment: nextMathAssessment(
+          await studentProgress(student.id, asOfDate)
+        ),
+      }))
+    );
+    for (const item of batch)
+      if (item.assessment)
+        targets.push({
+          id: item.student.id,
+          name: item.student.name,
+          grade: item.student.grade,
+          assessment: item.assessment.label,
+        });
+  }
+
+  return targets.sort(
+    (a, b) =>
+      a.grade.localeCompare(b.grade, "ko") || a.name.localeCompare(b.name, "ko")
+  );
+}
+
 export async function allProgress() {
   const rows = await progressStudents();
   const output = [];
