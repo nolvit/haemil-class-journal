@@ -258,7 +258,7 @@ export default defineConfig(async () => ({
     emptyOutDir: true,
     rollupOptions: {
       output: {
-        manualChunks(id) {
+        manualChunks(id: string) {
           if (!id.includes("node_modules")) return;
           if (id.includes("recharts")) return "vendor-charts";
           if (id.includes("@radix-ui") || id.includes("lucide-react")) return "vendor-ui";

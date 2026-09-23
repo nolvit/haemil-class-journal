@@ -181,16 +181,17 @@ export async function ensureLearningLinksSchema() {
       ADD COLUMN mathEvaluationSummaryUrl varchar(2048) NULL
     `);
   } catch (error) {
-    const code =
-      typeof error === "object" && error && "code" in error
-        ? String((error as { code?: unknown }).code ?? "")
-        : "";
-    const message = error instanceof Error ? error.message : String(error);
-    if (
-      code !== "ER_DUP_FIELDNAME" &&
-      !/duplicate column|already exists/i.test(message)
-    )
-      throw error;
+    // Drizzle wraps the MySQL error in `cause`. An existing column is expected
+    // on every restart; only that specific error should be ignored.
+    const seen = new Set<object>();
+    let cause: unknown = error;
+    while (typeof cause === "object" && cause !== null && !seen.has(cause)) {
+      seen.add(cause);
+      const detail = cause as { code?: unknown; errno?: unknown; cause?: unknown };
+      if (detail.code === "ER_DUP_FIELDNAME" || detail.errno === 1060) return;
+      cause = detail.cause;
+    }
+    throw error;
   }
 }
 
