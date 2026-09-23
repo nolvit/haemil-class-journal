@@ -173,6 +173,27 @@ export async function ensureRemainingCountNotificationSchema() {
   `);
 }
 
+export async function ensureLearningLinksSchema() {
+  const db = await requireDb();
+  try {
+    await db.execute(sql`
+      ALTER TABLE students
+      ADD COLUMN mathEvaluationSummaryUrl varchar(2048) NULL
+    `);
+  } catch (error) {
+    const code =
+      typeof error === "object" && error && "code" in error
+        ? String((error as { code?: unknown }).code ?? "")
+        : "";
+    const message = error instanceof Error ? error.message : String(error);
+    if (
+      code !== "ER_DUP_FIELDNAME" &&
+      !/duplicate column|already exists/i.test(message)
+    )
+      throw error;
+  }
+}
+
 export async function ensureAdminPushSchema() {
   const db = await requireDb();
   await db.execute(sql`
@@ -814,6 +835,7 @@ export async function listStudents(
       vocabularyResultUrl: students.vocabularyResultUrl,
       englishSpeakingUrl: students.englishSpeakingUrl,
       mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
+      mathEvaluationSummaryUrl: students.mathEvaluationSummaryUrl,
       familyKey: students.familyKey,
       publicToken: students.publicToken,
       attendanceCode: students.attendanceCode,
@@ -862,6 +884,7 @@ export async function listStudents(
       vocabularyResultUrl: string | null;
       englishSpeakingUrl: string | null;
       mathUnitEvaluationUrl: string | null;
+      mathEvaluationSummaryUrl: string | null;
       familyKey: string | null;
       publicToken: string;
       attendanceCode: string;
@@ -892,6 +915,7 @@ export async function listStudents(
         vocabularyResultUrl: row.vocabularyResultUrl,
         englishSpeakingUrl: row.englishSpeakingUrl,
         mathUnitEvaluationUrl: row.mathUnitEvaluationUrl,
+        mathEvaluationSummaryUrl: row.mathEvaluationSummaryUrl,
         familyKey: row.familyKey,
         publicToken: row.publicToken,
         attendanceCode: row.attendanceCode,
@@ -1090,6 +1114,7 @@ export async function getJournalWorkspace(
       vocabularyResultUrl: students.vocabularyResultUrl,
       englishSpeakingUrl: students.englishSpeakingUrl,
       mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
+      mathEvaluationSummaryUrl: students.mathEvaluationSummaryUrl,
       attendanceId: attendanceRecords.id,
       attendanceStatus: attendanceRecords.status,
       attendanceArrivalTime: attendanceRecords.arrivalTime,
@@ -1148,6 +1173,7 @@ export async function getJournalWorkspace(
         vocabularyResultUrl: row.vocabularyResultUrl,
         englishSpeakingUrl: row.englishSpeakingUrl,
         mathUnitEvaluationUrl: row.mathUnitEvaluationUrl,
+        mathEvaluationSummaryUrl: row.mathEvaluationSummaryUrl,
       },
       attendance: effectiveStatus
         ? {
@@ -1803,6 +1829,7 @@ export async function updateStudentLearningLinks(
     vocabularyResultUrl: string;
     englishSpeakingUrl: string;
     mathUnitEvaluationUrl: string;
+    mathEvaluationSummaryUrl: string;
   }
 ) {
   const db = await requireDb();
@@ -1818,6 +1845,7 @@ export async function updateStudentLearningLinks(
       vocabularyResultUrl: input.vocabularyResultUrl || null,
       englishSpeakingUrl: input.englishSpeakingUrl || null,
       mathUnitEvaluationUrl: input.mathUnitEvaluationUrl || null,
+      mathEvaluationSummaryUrl: input.mathEvaluationSummaryUrl || null,
     })
     .where(eq(students.id, id));
 }
@@ -3149,6 +3177,7 @@ export async function getPublicStudentWeek(
       vocabularyResultUrl: students.vocabularyResultUrl,
       englishSpeakingUrl: students.englishSpeakingUrl,
       mathUnitEvaluationUrl: students.mathUnitEvaluationUrl,
+      mathEvaluationSummaryUrl: students.mathEvaluationSummaryUrl,
     })
     .from(students)
     .where(eq(students.id, selectedMember.id))
@@ -3391,6 +3420,7 @@ export async function getPublicStudentWeek(
       vocabularyResultUrl: student.vocabularyResultUrl,
       englishSpeakingUrl: student.englishSpeakingUrl,
       mathUnitEvaluationUrl: student.mathUnitEvaluationUrl,
+      mathEvaluationSummaryUrl: student.mathEvaluationSummaryUrl,
     },
     dates,
     weekStart,

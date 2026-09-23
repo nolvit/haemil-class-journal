@@ -2,10 +2,16 @@ export type StudentLearningLinks = {
   vocabularyResultUrl?: string | null;
   englishSpeakingUrl?: string | null;
   mathUnitEvaluationUrl?: string | null;
+  mathEvaluationSummaryUrl?: string | null;
 };
 
 export function countSavedLearningLinks(links: StudentLearningLinks) {
-  return [links.vocabularyResultUrl, links.englishSpeakingUrl, links.mathUnitEvaluationUrl].filter(value => Boolean(value?.trim())).length;
+  return [
+    links.vocabularyResultUrl,
+    links.englishSpeakingUrl,
+    links.mathUnitEvaluationUrl,
+    links.mathEvaluationSummaryUrl,
+  ].filter(value => Boolean(value?.trim())).length;
 }
 
 /** 학습 링크 열기에 사용할 수 있는 HTTP(S) 주소만 반환한다. */
@@ -34,7 +40,7 @@ export function getSubjectLearningLinks(
 ): SubjectLearningLink[] {
   if (subject.includes("수학")) {
     const url = getOpenableLearningLink(links.mathUnitEvaluationUrl);
-    return url ? [{ kind: "math", label: "수학 단원 평가", url }] : [];
+    return url ? [{ kind: "math", label: "수학(세부)", url }] : [];
   }
   if (subject.includes("영어")) {
     const result: SubjectLearningLink[] = [];

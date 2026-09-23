@@ -1,4 +1,5 @@
 import ParentMathProgress from "@/components/MathCourseProgress";
+import PortalQuickMenu, { type PortalQuickMenuItem } from "@/components/PortalQuickMenu";
 import { Badge } from "@/components/ui/badge";
 import { AvatarRewards } from "@/avatarRewards/AvatarRewards";
 import { useAvatarBackGuard } from "@/avatarRewards/avatarNavigation";
@@ -21,13 +22,16 @@ import {
   mobileAttendanceStatusLabel,
 } from "@shared/journalRules";
 import {
+  BarChart3,
   BookOpenCheck,
   CalendarRange,
   CalendarX2,
   ChevronLeft,
+  ClipboardCheck,
   ChevronRight,
   GraduationCap,
   HeartHandshake,
+  Mic,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRoute } from "wouter";
@@ -302,6 +306,36 @@ export default function StudentPortal() {
   };
   const period = `${data.dates[0]?.replaceAll("-", ".")} ~ ${data.dates[data.dates.length - 1]?.replaceAll("-", ".")}`;
   const targetMessage = data.summary.attendanceMessage;
+  const quickMenuItems: PortalQuickMenuItem[] = [
+    {
+      key: "vocabulary",
+      label: "단어",
+      ariaLabel: "단어 암기 결과",
+      href: data.resources.vocabularyResultUrl,
+      icon: BookOpenCheck,
+    },
+    {
+      key: "speaking",
+      label: "말하기",
+      ariaLabel: "영어 말하기 결과",
+      href: data.resources.englishSpeakingUrl,
+      icon: Mic,
+    },
+    {
+      key: "math-evaluation",
+      label: "수학(세부)",
+      ariaLabel: "수학 평가 세부 결과",
+      href: data.resources.mathUnitEvaluationUrl,
+      icon: ClipboardCheck,
+    },
+    {
+      key: "math-summary",
+      label: "수학(요약)",
+      ariaLabel: "수학 평가 요약",
+      href: data.resources.mathEvaluationSummaryUrl,
+      icon: BarChart3,
+    },
+  ];
   const weekdayDates = data.dates.filter(date => {
     const day = new Date(`${date}T00:00:00Z`).getUTCDay();
     return day >= 1 && day <= 5;
@@ -476,42 +510,7 @@ export default function StudentPortal() {
                 {targetMessage}
               </Badge>
             </div>
-            {(data.resources.vocabularyResultUrl ||
-              data.resources.englishSpeakingUrl ||
-              data.resources.mathUnitEvaluationUrl) && (
-              <div className="portal-resource-actions">
-                {data.resources.vocabularyResultUrl && (
-                  <a
-                    href={data.resources.vocabularyResultUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
-                  >
-                    단어 암기 결과
-                  </a>
-                )}
-                {data.resources.englishSpeakingUrl && (
-                  <a
-                    href={data.resources.englishSpeakingUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-lg border border-[#D8C59A]/70 bg-[#D8C59A] px-3 py-2 text-xs font-semibold text-[#193D3C] transition hover:bg-[#E8D5A6]"
-                  >
-                    영어 말하기
-                  </a>
-                )}
-                {data.resources.mathUnitEvaluationUrl && (
-                  <a
-                    href={data.resources.mathUnitEvaluationUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="rounded-lg border border-white/30 bg-white/10 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm transition hover:bg-white/20"
-                  >
-                    수학 단원 평가
-                  </a>
-                )}
-              </div>
-            )}
+            <PortalQuickMenu items={quickMenuItems} />
           </div>
           <GraduationCap className="portal-hero-icon" />
         </section>
