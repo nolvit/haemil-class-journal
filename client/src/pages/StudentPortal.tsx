@@ -22,6 +22,7 @@ import {
   mobileAttendanceStatusLabel,
 } from "@shared/journalRules";
 import {
+  BarChart3,
   BookOpenCheck,
   CalendarRange,
   CalendarX2,
@@ -322,10 +323,17 @@ export default function StudentPortal() {
     },
     {
       key: "math-evaluation",
-      label: "수학평가",
-      ariaLabel: "수학 단원 평가",
+      label: "수학(세부)",
+      ariaLabel: "수학 평가 세부 결과",
       href: data.resources.mathUnitEvaluationUrl,
       icon: ClipboardCheck,
+    },
+    {
+      key: "math-summary",
+      label: "수학(요약)",
+      ariaLabel: "수학 평가 요약",
+      href: data.resources.mathEvaluationSummaryUrl,
+      icon: BarChart3,
     },
   ];
   const weekdayDates = data.dates.filter(date => {
