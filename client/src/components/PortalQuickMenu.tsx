@@ -37,7 +37,7 @@ export default function PortalQuickMenu({
             title={item.ariaLabel}
             className="group flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-xl border border-white/25 bg-white/10 px-1.5 py-2.5 text-white backdrop-blur-sm transition hover:border-white/40 hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D8C59A]"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-full bg-white/12 transition group-hover:bg-white/20">
+            <span className="grid h-9 w-9 place-items-center rounded-full bg-white/15 transition group-hover:bg-white/20">
               <Icon className="h-5 w-5" aria-hidden="true" />
             </span>
             <span className="w-full truncate text-center text-[11px] font-semibold leading-4">
