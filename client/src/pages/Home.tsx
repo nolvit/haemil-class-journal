@@ -23,6 +23,14 @@ function currentTimeInKorea() {
 function shiftDate(value: string, days: number) { const date = new Date(`${value}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + days); return date.toISOString().slice(0, 10); }
 function gradeOrder(value: string) { const normalized = value.trim(); const level = normalized.startsWith("고") ? 0 : normalized.startsWith("중") ? 1 : 2; return level * 100 + (Number(normalized.replace(/[^0-9]/g, "")) || 99); }
 const dashboardScrollKey = "haemil.dashboard.scroll-position";
+const dashboardArrivalFilterKey = (journalDate: string) =>
+  `haemil.dashboard.arrival-filter.${journalDate}`;
+type ArrivalFilter = "arrived" | "pending" | undefined;
+function storedArrivalFilter(journalDate: string): ArrivalFilter {
+  if (typeof window === "undefined") return undefined;
+  const stored = sessionStorage.getItem(dashboardArrivalFilterKey(journalDate));
+  return stored === "arrived" || stored === "pending" ? stored : undefined;
+}
 function isReloadNavigation() {
   return performance.getEntriesByType("navigation").some(entry => (entry as PerformanceNavigationTiming).type === "reload");
 }
@@ -31,7 +39,9 @@ export default function Home() {
   const [journalDate, setJournalDate] = useState(todayInKorea);
   const [refreshedAt, setRefreshedAt] = useState(() => new Date());
   const [selectedGrade, setSelectedGrade] = useState<string | undefined>();
-  const [arrivalFilter, setArrivalFilter] = useState<"arrived" | "pending" | undefined>();
+  const [arrivalFilter, setArrivalFilter] = useState<ArrivalFilter>(() =>
+    storedArrivalFilter(todayInKorea())
+  );
   const [subjectPicker, setSubjectPicker] = useState<{ student: { id: number; name: string }; classGroups: Array<{ id: number; subject: string; journalState: "complete" | "attention" | "not_required" }> } | null>(null);
   const [, setLocation] = useLocation();
   const queryInput = useMemo(() => ({ journalDate }), [journalDate]);
@@ -66,8 +76,14 @@ export default function Home() {
     pending: students.filter(student => isAttendancePending(student.attendanceStatus as AttendanceStatus | null)).length,
   }), [students]);
   const filterLabel = arrivalFilter === "arrived" ? "등원 완료" : arrivalFilter === "pending" ? "등원 미완료" : undefined;
-  const toggleArrivalFilter = (nextFilter: "arrived" | "pending") => {
-    setArrivalFilter(current => current === nextFilter ? undefined : nextFilter);
+  const toggleArrivalFilter = (nextFilter: Exclude<ArrivalFilter, undefined>) => {
+    setArrivalFilter(current => {
+      const next = current === nextFilter ? undefined : nextFilter;
+      const key = dashboardArrivalFilterKey(journalDate);
+      if (next) sessionStorage.setItem(key, next);
+      else sessionStorage.removeItem(key);
+      return next;
+    });
     setRefreshedAt(new Date());
     void refetch();
   };
@@ -78,6 +94,10 @@ export default function Home() {
     quickAttendanceUpdate.mutate({ studentId, journalDate, status });
   };
   const shouldRestoreScroll = useRef(isReloadNavigation());
+
+  useEffect(() => {
+    setArrivalFilter(storedArrivalFilter(journalDate));
+  }, [journalDate]);
 
   useEffect(() => {
     const saveScrollPosition = () => sessionStorage.setItem(dashboardScrollKey, String(window.scrollY));
