@@ -61,9 +61,9 @@ describe("math course progress", () => {
     expect(p.percent).toBe(0);
     expect(p.unmatched).toHaveLength(0);
   });
-  it("reports undefined courses, malformed headers and invalid small units", () => {
+  it("reports undefined units, malformed headers and invalid small units", () => {
     const p = calc([
-      row("[중3-2 / 기본 / 1-1단원]"),
+      row("[중3-2 / 기본 / 6-1단원]"),
       row("수학 학습", 2),
       row("[중2-2 / 기본 / 2-99단원]", 3),
     ]);
@@ -163,8 +163,9 @@ describe("2026-09-22 initial progress and grade accumulation", () => {
       baseline,
       grade: "중3",
     });
-    expect(p.terms.map(t => t.term)).toEqual(["중2-2"]);
+    expect(p.terms.map(t => t.term)).toEqual(["중2-2", "중3-1"]);
     expect(unit(p, 1).complete).toBe(true);
+    expect(p.terms.find(t => t.term === "중3-1")?.percent).toBe(0);
   });
   it("adds current grade and retains the recorded starting grade", () => {
     const baseline = createProgressBaseline(
@@ -249,6 +250,26 @@ describe("2026-09-22 initial progress and grade accumulation", () => {
         grade: "중2",
       }).terms.map(t => t.term)
     ).toEqual(["중2-2"]);
+  });
+
+  it("uses the dated middle-3 second-term course and keeps 2027 promotion in semester 1", () => {
+    const oldCourse = calculateMathProgress([], [], "2026-12-31").terms.find(
+      t => t.term === "중3-2"
+    )!;
+    const newCourse = calculateMathProgress([], [], "2027-01-01").terms.find(
+      t => t.term === "중3-2"
+    )!;
+    expect(oldCourse.units[3].cells.filter(c => c.sector === "learn")).toHaveLength(2);
+    expect(newCourse.units[3].cells.filter(c => c.sector === "learn")).toHaveLength(3);
+    expect(oldCourse.units[4].cells[1].label).toBe("5-2 상자그림");
+    expect(newCourse.units[4].cells[1].label).toBe("5-2 산포도");
+    const baseline = createProgressBaseline([latest], "중2");
+    expect(
+      calculateMathProgress([], [], "2027-01-01", {
+        baseline,
+        grade: "중3",
+      }).terms.map(t => t.term)
+    ).toEqual(["중2-2", "중3-1"]);
   });
 });
 it("continues to reflect edits and new records on the baseline date itself", () => {

@@ -1,4 +1,4 @@
-import { mathCurriculum } from "./mathCurriculum";
+import { mathCurriculumForDate } from "./mathCurriculum";
 
 export const PARENT_MATH_TITLE_START_DATE = "2026-09-28";
 
@@ -31,7 +31,7 @@ export function parentMathJournalContent(
     const match = line.trim().match(smallUnitTitle);
     if (!match) continue;
 
-    const course = mathCurriculum.find(item => item.term === match[1]);
+    const course = mathCurriculumForDate(today).find(item => item.term === match[1]);
     const unit = course?.units[Number(match[2]) - 1];
     const name = unit?.smalls[Number(match[3]) - 1];
     if (!name || lines[index + 1]?.trim() === name) continue;

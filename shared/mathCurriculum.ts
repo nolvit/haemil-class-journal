@@ -3,6 +3,57 @@ export type Curriculum = {
   term: string;
   units: { name: string; smalls: string[] }[];
 };
+export const MIDDLE3_SECOND_TERM_SWITCH_DATE = "2027-01-01";
+const middle3SecondTerm2026: Curriculum = {
+  term: "중3-2",
+  units: [
+    {
+      name: "삼각비",
+      smalls: ["삼각비의 뜻", "30°, 45°, 60°의 삼각비의 값", "예각의 삼각비의 값"],
+    },
+    {
+      name: "삼각비의 활용",
+      smalls: ["삼각비의 활용 - 길이 구하기", "삼각비의 활용 - 넓이 구하기"],
+    },
+    {
+      name: "원과 직선",
+      smalls: ["원의 현에 관한 성질", "원의 접선에 관한 성질"],
+    },
+    {
+      name: "원주각",
+      smalls: ["원주각의 성질", "원주각의 활용"],
+    },
+    {
+      name: "통계",
+      smalls: ["산포도", "상자그림", "산점도와 상관관계"],
+    },
+  ],
+};
+const middle3SecondTerm2027: Curriculum = {
+  term: "중3-2",
+  units: [
+    {
+      name: "삼각비",
+      smalls: ["삼각비의 뜻", "30°, 45°, 60°의 삼각비의 값", "예각의 삼각비의 값"],
+    },
+    {
+      name: "삼각비의 활용",
+      smalls: ["삼각비의 활용 - 길이 구하기", "삼각비의 활용 - 넓이 구하기"],
+    },
+    {
+      name: "원과 직선",
+      smalls: ["원의 현에 관한 성질", "원의 접선에 관한 성질"],
+    },
+    {
+      name: "원주각",
+      smalls: ["원주각과 그 성질", "원에 내접하는 사각형의 성질", "원의 접선과 현이 이루는 각"],
+    },
+    {
+      name: "통계",
+      smalls: ["대푯값", "산포도", "산점도와 상관관계"],
+    },
+  ],
+};
 export const mathCurriculum: Curriculum[] = [
   {
     term: "중1-1",
@@ -259,7 +310,15 @@ export const mathCurriculum: Curriculum[] = [
       },
     ],
   },
+  middle3SecondTerm2027,
 ];
+/** 2026년까지는 기존 목차를 쓰고 2027년부터 개정 목차를 쓴다. */
+export function mathCurriculumForDate(date: string): Curriculum[] {
+  if (date >= MIDDLE3_SECOND_TERM_SWITCH_DATE) return mathCurriculum;
+  return mathCurriculum.map(course =>
+    course.term === "중3-2" ? middle3SecondTerm2026 : course
+  );
+}
 export const progressStates = ["waiting", "active", "complete"] as const;
 export type ProgressState = (typeof progressStates)[number];
 export const progressLabels: Record<ProgressState, string> = {

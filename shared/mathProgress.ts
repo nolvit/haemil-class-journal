@@ -1,5 +1,6 @@
 import {
   mathCurriculum,
+  mathCurriculumForDate,
   type ProgressState,
   assessmentKeys,
 } from "./mathCurriculum";
@@ -61,8 +62,8 @@ function parseHeaders(content: string) {
     ),
   }));
 }
-function validHeader(h: ReturnType<typeof parseHeaders>[number]) {
-  const c = mathCurriculum.find(c => c.term === h.term),
+function validHeader(h: ReturnType<typeof parseHeaders>[number], date: string) {
+  const c = mathCurriculumForDate(date).find(c => c.term === h.term),
     u = c?.units[h.unit - 1];
   return c &&
     u &&
@@ -100,7 +101,7 @@ export function calculateFocusedLearning(
   for (const row of ordered) {
     for (const header of parseHeaders(row.content ?? "")) {
       if (!header.basic) continue;
-      const valid = validHeader(header);
+      const valid = validHeader(header, today);
       if (!valid) continue;
       const events = Array.from(
         header.body.matchAll(/(\d+)\s*-\s*(\d+)\s*소단원\s*(재수강|재평가)/g)
@@ -141,7 +142,8 @@ function emptyStates() {
 function applyRecord(
   row: ProgressJournal,
   automatic: Record<string, ProgressState>,
-  allowedTerms: Set<string>
+  allowedTerms: Set<string>,
+  date: string
 ) {
   let recognized = false,
     invalid = false,
@@ -158,7 +160,7 @@ function applyRecord(
       ignored = true;
       continue;
     }
-    if (!mathCurriculum.some(c => c.term === h.term)) {
+    if (!mathCurriculumForDate(date).some(c => c.term === h.term)) {
       invalid = true;
       continue;
     }
@@ -166,7 +168,7 @@ function applyRecord(
       ignored = true;
       continue;
     }
-    const valid = validHeader(h);
+    const valid = validHeader(h, date);
     if (!valid) {
       invalid = true;
       continue;
@@ -278,18 +280,18 @@ export function createProgressBaseline(
   const terms = Array.from(
     new Set(
       headers
-        .filter(h => h.grade === initialGrade && validHeader(h))
+        .filter(h => h.grade === initialGrade && validHeader(h, snapshotDate))
         .map(h => h.term)
     )
   );
   const states = emptyStates();
   const allowed = new Set(
-    mathCurriculum
+    mathCurriculumForDate(snapshotDate)
       .filter(c => Number(c.term[1]) === initialGrade)
       .map(c => c.term)
   );
   const result = parsedSource
-    ? applyRecord(parsedSource, states, allowed)
+    ? applyRecord(parsedSource, states, allowed, snapshotDate)
     : null;
   return {
     terms,
@@ -371,7 +373,7 @@ export function calculateMathProgress(
           h.basic &&
           h.grade >= (baseline.initialGrade ?? 1) &&
           h.grade <= (currentGrade ?? 3) &&
-          validHeader(h)
+          validHeader(h, today)
         )
           trackedTerms.add(h.term);
     }
@@ -382,12 +384,16 @@ export function calculateMathProgress(
     currentGrade != null &&
     !Array.from(trackedTerms).some(t => Number(t[1]) === currentGrade)
   ) {
-    const latest = mathCurriculum
-      .filter(c => Number(c.term[1]) === currentGrade)
-      .at(-1);
-    if (latest) trackedTerms.add(latest.term);
+    const gradeCourses = mathCurriculumForDate(today).filter(
+      c => Number(c.term[1]) === currentGrade
+    );
+    // The 2026 middle-2 baseline begins in semester 2; promoted students
+    // start middle-3 in semester 1 without an invented middle-3-2 history.
+    const startingCourse =
+      currentGrade === 3 ? gradeCourses[0] : gradeCourses.at(-1);
+    if (startingCourse) trackedTerms.add(startingCourse.term);
   }
-  const curriculum = mathCurriculum.filter(
+  const curriculum = mathCurriculumForDate(today).filter(
     c =>
       !baseline ||
       (trackedTerms.has(c.term) &&
@@ -417,7 +423,7 @@ export function calculateMathProgress(
       (baseline && isCoveredByBaseline(row, baseline))
     )
       continue;
-    const result = applyRecord(row, automatic, allowed);
+    const result = applyRecord(row, automatic, allowed, today);
     if (result.recognized && row.id === baseline?.sourceId) {
       const index = unmatched.findIndex(r => r.id === row.id);
       if (index >= 0) unmatched.splice(index, 1);
@@ -584,14 +590,14 @@ function shiftDate(date: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-function countsAsLearningSession(row: ProgressJournal) {
+function countsAsLearningSession(row: ProgressJournal, today: string) {
   if (row.isDraft || !row.content?.trim() || /재수강/.test(row.content))
     return false;
   return parseHeaders(row.content).some(
     header =>
       header.basic &&
       header.small !== null &&
-      validHeader(header) !== null
+      validHeader(header, today) !== null
   );
 }
 
@@ -667,7 +673,7 @@ export function calculateRecentLearningStats(
         row =>
           row.journalDate > startDate &&
           row.journalDate <= today &&
-          countsAsLearningSession(row)
+          countsAsLearningSession(row, today)
       )
       .map(row => row.journalDate)
   ).size;

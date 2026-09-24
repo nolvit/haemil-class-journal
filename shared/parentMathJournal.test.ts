@@ -30,4 +30,14 @@ describe("parent math journal small-unit display", () => {
       parentMathJournalContent("[중2-2 / 1단계 / 8-1단원]", "수학", "2026-09-28")
     ).toBe("[중2-2 / 1단계 / 8-1단원]");
   });
+
+  it("uses the correct middle-3 second-term title on either side of the switch", () => {
+    const content = "[중3-2 / 1단계 / 5-2단원]";
+    expect(parentMathJournalContent(content, "수학", "2026-12-31")).toBe(
+      content + "\n상자그림"
+    );
+    expect(parentMathJournalContent(content, "수학", "2027-01-01")).toBe(
+      content + "\n산포도"
+    );
+  });
 });
