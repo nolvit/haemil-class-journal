@@ -91,7 +91,7 @@ export default function MathProgress() {
                     "기본 · 학습률 · 평가율",
                     "최근 4주",
                     "기본 과정 진행 속도",
-                    "확인할 기록",
+                    "자동 인식 실패 기록",
                     "상세",
                   ].map(h => (
                     <th key={h} className="whitespace-nowrap p-3">
@@ -116,6 +116,14 @@ export default function MathProgress() {
                         <span className="ml-2 text-xs font-normal text-stone-500">
                           {s.grade}
                         </span>
+                        {s.progress.focusedLearning.length > 0 && <div className="mt-1 text-[11px] font-normal text-[#765E10]">
+                          {s.progress.focusedLearning.filter(item => item.phase === "retraining").length > 0 &&
+                            `재수강 ${s.progress.focusedLearning.filter(item => item.phase === "retraining").length}건`}
+                          {s.progress.focusedLearning.some(item => item.phase === "retraining") &&
+                            s.progress.focusedLearning.some(item => item.phase === "reassessment_pending") && " · "}
+                          {s.progress.focusedLearning.filter(item => item.phase === "reassessment_pending").length > 0 &&
+                            `재평가 예정 ${s.progress.focusedLearning.filter(item => item.phase === "reassessment_pending").length}건`}
+                        </div>}
                       </td>
                       <td className="p-3">
                         {s.progress.terms.map(t => (

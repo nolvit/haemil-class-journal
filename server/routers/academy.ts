@@ -370,6 +370,7 @@ async function assertJournalEditable(
 export const academyRouter = router({
   mathProgress: router({
     list: adminProcedure.query(() => mathProgress.allProgress()),
+    focused: adminProcedure.input(z.object({studentId:z.number().int().positive(),throughDate:isoDate})).query(({input})=>mathProgress.focusedLearningForStudent(input.studentId,input.throughDate)),
     save: adminProcedure.input(z.object({studentId:z.number().int().positive(),key:z.string().refine(k=>progressKeys.includes(k)),state:z.enum(progressStates).nullable(),reason:z.string().trim().min(1).max(500)})).mutation(({input,ctx})=>mathProgress.saveProgressOverride(input,ctx.user.id)),
     public: publicProcedure.input(z.object({token:z.string().min(8).max(64),studentId:z.number().int().positive().optional(),version:z.literal(2).optional()})).query(({input})=>mathProgress.publicProgress(input.token,input.studentId,input.version ?? 1)),
   }),

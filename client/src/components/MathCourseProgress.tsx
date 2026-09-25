@@ -1,12 +1,13 @@
+import React from "react";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { LockKeyhole, CheckCircle2, RefreshCcw } from "lucide-react";
+import { LockKeyhole, CheckCircle2, CornerDownRight } from "lucide-react";
 import { assessmentLabels, progressLabels } from "@shared/mathCurriculum";
-import type { MathProgress, RecentCourseStats } from "@shared/mathProgress";
+import type { MathProgress, MathReviewEvent, RecentCourseStats } from "@shared/mathProgress";
 import { trpc } from "@/lib/trpc";
 
 type MathProgressView = MathProgress & {
@@ -82,40 +83,16 @@ export function MathCourseDetails({
     cell: MathProgress["terms"][number]["units"][number]["cells"][number]
   ) => React.ReactNode;
 }) {
+  const reviewByEvaluation = new Map<string, MathReviewEvent[]>();
+  for (const event of progress.reviewHistory ?? []) {
+    const entries = reviewByEvaluation.get(event.parentKey) ?? [];
+    entries.push(event);
+    reviewByEvaluation.set(event.parentKey, entries);
+  }
+  const activeTerms = Array.from(new Set(progress.focusedLearning.map(item => item.term)));
+  const activeUnits = new Set(progress.focusedLearning.map(item => `${item.term}:${item.unit}`));
   return (
     <div className="space-y-4 text-[#193D3C]">
-      {progress.focusedLearning.length > 0 && (
-        <section className="rounded-xl border border-[#D7C797] bg-[#FBF7E9] p-4">
-          <div className="flex items-center gap-2">
-            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#E9DCAE] text-[#315B57]">
-              <RefreshCcw className="h-4 w-4" aria-hidden="true" />
-            </span>
-            <div>
-              <h3 className="font-semibold text-[#315B57]">
-                집중 관리 중인 학습
-              </h3>
-              <p className="mt-0.5 text-xs text-[#71817D]">
-                평가 후 부족했던 내용을 다시 학습하고 있습니다.
-              </p>
-            </div>
-          </div>
-          <div className="mt-3 grid gap-2">
-            {progress.focusedLearning.map(item => (
-              <div
-                key={item.key}
-                className="rounded-lg border border-[#E5D8AF] bg-white/80 px-3 py-2"
-              >
-                <p className="text-sm font-semibold text-[#315B57]">
-                  {item.label} 소단원 보완학습 중
-                </p>
-                <p className="mt-0.5 text-[11px] text-[#71817D]">
-                  {item.term} · {item.startedAt.replaceAll("-", ".")}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
       <p className="text-xs leading-relaxed text-[#71817D]">
         소단원 학습 → 고난이도 실력문제 → 소단원 평가 → 중단원 예비 평가 → 실력문제 예비 평가 → 최종 평가
       </p>
@@ -183,7 +160,7 @@ export function MathCourseDetails({
             </p>
           </div>
         )}
-        <Accordion type="multiple" className="mt-3">
+        <Accordion type="multiple" defaultValue={activeTerms} className="mt-3">
           {progress.terms.map(term => (
             <AccordionItem key={term.term} value={term.term}>
               <AccordionTrigger>
@@ -221,7 +198,7 @@ export function MathCourseDetails({
                         </span>
                       </div>
                       <ProgressMeter value={unit.percent} />
-                      <Accordion type="single" collapsible>
+                      <Accordion type="single" collapsible defaultValue={activeUnits.has(`${term.term}:${unit.number}`) ? "details" : undefined}>
                         <AccordionItem value="details">
                           <AccordionTrigger className="text-xs">
                             소단원 및 평가 상세
@@ -229,27 +206,33 @@ export function MathCourseDetails({
                           <AccordionContent>
                             <div className="space-y-2">
                               {unit.cells.map(cell => (
-                                <div
-                                  key={cell.key}
-                                  className="flex flex-wrap items-center justify-between gap-2 border-b border-stone-100 py-2 text-xs"
-                                >
-                                  <span className="min-w-0 flex-1 break-keep">
-                                    {cell.sector === "learn" ? "학습 · " : ""}
-                                    {assessmentLabels[
-                                      cell.label as keyof typeof assessmentLabels
-                                    ] ?? cell.label}
-                                  </span>
-                                  <span
-                                    className={
-                                      cell.state === "complete"
-                                        ? "font-semibold text-emerald-700"
-                                        : "text-stone-500"
-                                    }
-                                  >
-                                    {progressLabels[cell.state]}
-                                    {cell.override ? " · 보정" : ""}
-                                  </span>
-                                  {edit?.(cell)}
+                                <div key={cell.key} className="border-b border-stone-100">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs">
+                                    <span className="min-w-0 flex-1 break-keep">
+                                      {cell.sector === "learn" ? "학습 · " : ""}
+                                      {assessmentLabels[
+                                        cell.label as keyof typeof assessmentLabels
+                                      ] ?? cell.label}
+                                    </span>
+                                    <span
+                                      className={
+                                        cell.state === "complete"
+                                          ? "font-semibold text-emerald-700"
+                                          : "text-stone-500"
+                                      }
+                                    >
+                                      {progressLabels[cell.state]}
+                                      {cell.override ? " · 보정" : ""}
+                                    </span>
+                                    {edit?.(cell)}
+                                  </div>
+                                  {reviewByEvaluation.get(cell.key)?.map((event, index) => (
+                                    <div key={`${event.journalDate}-${event.kind}-${index}`} className="ml-2 flex items-start gap-1.5 border-l-2 border-[#D8C999] bg-[#FBF8EC] px-2 py-1.5 text-[11px] text-[#685626]">
+                                      <CornerDownRight className="mt-0.5 h-3 w-3 shrink-0" aria-hidden="true" />
+                                      <span className="min-w-0 flex-1 break-keep">{event.label}</span>
+                                      <time className="shrink-0 text-[#867B5D]" dateTime={event.journalDate}>{event.journalDate.slice(5).replace("-", ".")}</time>
+                                    </div>
+                                  ))}
                                 </div>
                               ))}
                             </div>

@@ -178,21 +178,36 @@ export type FocusedLearningItem = {
   key: string;
   term: string;
   unit: number;
+  /** 0은 중단원 전체 재수강, 양수는 해당 소단원 재수강이다. */
   small: number;
   label: string;
   startedAt: string;
+  phase: "retraining" | "reassessment_pending";
+  reassessmentPlannedAt?: string;
   journalId?: number;
+};
+
+export type MathReviewEvent = {
+  key: string;
+  parentKey: string;
+  term: string;
+  unit: number;
+  small: number;
+  kind: "retraining" | "reassessment_pending" | "reassessment_completed";
+  label: string;
+  journalDate: string;
 };
 
 /**
  * 명시적인 재수강/재평가 기록만 날짜와 일지 ID 순으로 적용한다.
  * 정규 과정 상태와 진행률에는 이 결과를 합치지 않는다.
  */
-export function calculateFocusedLearning(
+function calculateMathReviewActivity(
   journals: ProgressJournal[],
   today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
-): FocusedLearningItem[] {
+): { focusedLearning: FocusedLearningItem[]; reviewHistory: MathReviewEvent[] } {
   const active = new Map<string, FocusedLearningItem>();
+  const reviewHistory: MathReviewEvent[] = [];
   const ordered = [...journals]
     .filter(
       row =>
@@ -206,35 +221,81 @@ export function calculateFocusedLearning(
       const valid = validHeader(header, today);
       if (!valid) continue;
       const events = Array.from(
-        header.body.matchAll(/(\d+)\s*-\s*(\d+)\s*소단원\s*(재수강|재평가)/g)
+        header.body.matchAll(/(\d+)\s*-\s*(\d+)\s*소단원\s*(재수강|재평가)(?:[ \t]*(예정|완료))?|중단원\s*(재수강|재평가)(?:[ \t]*(예정|완료))?/g)
       );
       for (const event of events) {
+        if (event[5]) {
+          const key = `${header.term}:${header.unit}:middle`;
+          const kind = event[5] === "재수강" ? "retraining" : event[6] === "예정" ? "reassessment_pending" : "reassessment_completed";
+          reviewHistory.push({
+            key, parentKey: `${header.term}:${header.unit}:preliminary`,
+            term: header.term, unit: header.unit, small: 0, kind,
+            label: `중단원 ${kind === "retraining" ? "재수강" : kind === "reassessment_pending" ? "재평가 예정" : "재평가 완료"}`,
+            journalDate: row.journalDate,
+          });
+          if (event[5] === "재평가" && event[6] !== "예정") {
+            active.delete(key);
+            continue;
+          }
+          const previous = active.get(key);
+          active.set(key, {
+            key,
+            term: header.term,
+            unit: header.unit,
+            small: 0,
+            label: `${header.unit}단원 ${valid.u.name}`,
+            startedAt: event[5] === "재수강" ? row.journalDate : previous?.startedAt ?? row.journalDate,
+            phase: event[5] === "재수강" ? "retraining" : "reassessment_pending",
+            ...(event[5] === "재평가" ? { reassessmentPlannedAt: row.journalDate } : {}),
+            journalId: row.id,
+          });
+          continue;
+        }
         const unit = Number(event[1]);
         const small = Number(event[2]);
         if (unit !== header.unit || small < 1 || small > valid.u.smalls.length)
           continue;
         const key = `${header.term}:${unit}:${small}`;
-        if (event[3] === "재평가") {
+        const kind = event[3] === "재수강" ? "retraining" : event[4] === "예정" ? "reassessment_pending" : "reassessment_completed";
+        reviewHistory.push({
+          key, parentKey: `${header.term}:${unit}:test:${small}`,
+          term: header.term, unit, small, kind,
+          label: `${unit}-${small} 소단원 ${kind === "retraining" ? "재수강" : kind === "reassessment_pending" ? "재평가 예정" : "재평가 완료"}`,
+          journalDate: row.journalDate,
+        });
+        if (event[3] === "재평가" && event[4] !== "예정") {
           active.delete(key);
           continue;
         }
+        const previous = active.get(key);
         active.set(key, {
           key,
           term: header.term,
           unit,
           small,
           label: `${unit}-${small} ${valid.u.smalls[small - 1]}`,
-          startedAt: row.journalDate,
+          startedAt: event[3] === "재수강" ? row.journalDate : previous?.startedAt ?? row.journalDate,
+          phase: event[3] === "재수강" ? "retraining" : "reassessment_pending",
+          ...(event[3] === "재평가" ? { reassessmentPlannedAt: row.journalDate } : {}),
           journalId: row.id,
         });
       }
     }
   }
 
-  return Array.from(active.values()).sort(
+  const focusedLearning = Array.from(active.values()).sort(
     (a, b) =>
-      a.term.localeCompare(b.term, "ko") || a.unit - b.unit || a.small - b.small
+      a.term.localeCompare(b.term, "ko") || a.unit - b.unit ||
+      (a.small || Number.MAX_SAFE_INTEGER) - (b.small || Number.MAX_SAFE_INTEGER)
   );
+  return { focusedLearning, reviewHistory };
+}
+
+export function calculateFocusedLearning(
+  journals: ProgressJournal[],
+  today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" })
+): FocusedLearningItem[] {
+  return calculateMathReviewActivity(journals, today).focusedLearning;
 }
 function emptyStates() {
   return Object.fromEntries(
@@ -450,7 +511,7 @@ export function calculateMathProgress(
   options: { baseline?: ProgressBaseline; grade?: string } = {}
 ) {
   const baseline = options.baseline;
-  const focusedLearning = calculateFocusedLearning(journals, today);
+  const { focusedLearning, reviewHistory } = calculateMathReviewActivity(journals, today);
   const currentGrade = options.grade
     ? (middleGrade(options.grade) ?? baseline?.initialGrade)
     : null;
@@ -692,6 +753,7 @@ export function calculateMathProgress(
     percent: completionRate(allCells),
     unmatched,
     focusedLearning,
+    reviewHistory,
   };
 }
 export type MathProgress = ReturnType<typeof calculateMathProgress>;

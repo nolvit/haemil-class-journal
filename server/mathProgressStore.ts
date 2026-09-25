@@ -20,6 +20,7 @@ import {
 } from "../drizzle/schema";
 import {
   calculateMathProgress,
+  calculateFocusedLearning,
   calculateRecentCourseStats,
   calculateLegacyRecentLearningStats,
   type MathProgress,
@@ -238,6 +239,9 @@ async function readMathJournals(studentId: number) {
       : null,
   }));
 }
+export async function focusedLearningForStudent(studentId: number, throughDate: string) {
+  return calculateFocusedLearning(await readMathJournals(studentId), throughDate);
+}
 async function ensureBaseline(
   studentId: number,
   grade: string
@@ -399,7 +403,7 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v10-math-item-count-and-explicit-journals",
+        "v13-review-history-under-evaluations",
         progressKeys,
         today,
         student.grade,

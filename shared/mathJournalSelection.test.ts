@@ -41,6 +41,19 @@ it("keeps English-focused entry and review suggestions visible while the full se
   expect(html).toContain("2-3 소단원 재수강");
 });
 
+it("shows reassessment quick entry without expanding the selection list", () => {
+  const html = renderToStaticMarkup(createElement(MathJournalSelection, {
+    date: "2026-09-25", grade: "중2", sessionKind: "math", entries: [],
+    focusedLearning: [{ key: "중2-2:2:3", term: "중2-2", unit: 2, small: 3,
+      label: "2-3 여러 가지 사각형", startedAt: "2026-09-23", phase: "retraining" }],
+    onSessionKindChange: () => {}, onEntriesChange: () => {}, onReviewSuggestion: () => {},
+  }));
+  expect(html).toContain('aria-expanded="false"');
+  expect(html).toContain('aria-label="재평가 빠른 입력"');
+  expect(html).toContain("2-3 소단원 재평가 예정");
+  expect(html).toContain("2-3 소단원 재평가 완료");
+});
+
 it("labels an automatically prepared next step as unsaved", () => {
   const html = renderToStaticMarkup(createElement(MathJournalSelection, {
     date: "2026-09-30",

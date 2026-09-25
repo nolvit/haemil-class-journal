@@ -1,4 +1,4 @@
-import { mathUnitOptions, type MathJournalEntry } from "./mathProgress";
+import { mathUnitOptions, type FocusedLearningItem, type MathJournalEntry } from "./mathProgress";
 
 export type MathReviewSuggestion = {
   key: string;
@@ -24,6 +24,17 @@ export function getMathReviewSuggestions(entries: readonly MathJournalEntry[], d
     suggestions.set(key, { key, term, unit, label });
   }
   return Array.from(suggestions.values()).slice(-3).reverse();
+}
+
+/** Active review lessons offer a planned reassessment, followed by an explicit completion. */
+export function getMathReassessmentSuggestions(focused: readonly FocusedLearningItem[]): MathReviewSuggestion[] {
+  return focused.flatMap(item => {
+    const name = item.small === 0 ? "중단원" : `${item.unit}-${item.small} 소단원`;
+    const labels = item.phase === "reassessment_pending"
+      ? [`${name} 재평가 완료`]
+      : [`${name} 재평가 예정`, `${name} 재평가 완료`];
+    return labels.map(label => ({ key: `${item.key}:${label}`, term: item.term, unit: item.unit, label }));
+  });
 }
 
 /** Insert a review lesson under the right title; the review line is not a progress cell. */

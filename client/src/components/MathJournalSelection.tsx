@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { mathCurriculumForDate } from "@shared/mathCurriculum";
 import { nextMathJournalEntry } from "@shared/mathJournalCopy";
-import { getMathReviewSuggestions, type MathReviewSuggestion } from "@shared/mathJournalQuickEntry";
-import { mathItemLabel, mathUnitOptions, middleGrade, type MathJournalEntry, type MathJournalPayload } from "@shared/mathProgress";
+import { getMathReassessmentSuggestions, getMathReviewSuggestions, type MathReviewSuggestion } from "@shared/mathJournalQuickEntry";
+import { mathItemLabel, mathUnitOptions, middleGrade, type FocusedLearningItem, type MathJournalEntry, type MathJournalPayload } from "@shared/mathProgress";
 
 type Props = {
   date: string;
@@ -10,6 +10,7 @@ type Props = {
   sessionKind: MathJournalPayload["sessionKind"];
   entries: MathJournalEntry[];
   previousEntries?: MathJournalEntry[];
+  focusedLearning?: FocusedLearningItem[];
   autoStartedKey?: string | null;
   disabled?: boolean;
   legacy?: boolean;
@@ -18,7 +19,7 @@ type Props = {
   onReviewSuggestion?: (value: MathReviewSuggestion) => void;
 };
 
-export function MathJournalSelection({ date, grade, sessionKind, entries, previousEntries = [], autoStartedKey, disabled, legacy, onSessionKindChange, onEntriesChange, onReviewSuggestion }: Props) {
+export function MathJournalSelection({ date, grade, sessionKind, entries, previousEntries = [], focusedLearning = [], autoStartedKey, disabled, legacy, onSessionKindChange, onEntriesChange, onReviewSuggestion }: Props) {
   const courses = useMemo(() => mathCurriculumForDate(date), [date]);
   const lastEntry = entries.at(-1);
   const gradeNumber = middleGrade(grade) ?? 2;
@@ -45,6 +46,7 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, previo
   const options = mathUnitOptions(course?.term ?? term, unitNumber, date);
   const selected = new Map(entries.map(entry => [entry.key, entry.state]));
   const reviewSuggestions = getMathReviewSuggestions([...previousEntries, ...entries], date);
+  const reassessmentSuggestions = getMathReassessmentSuggestions(focusedLearning);
   const focusedEntry = entries.findLast(entry => entry.state === "active") ?? lastEntry;
   const nextItem = useMemo(() => focusedEntry && sessionKind === "math"
     ? nextMathJournalEntry(entries, date, focusedEntry.key) : null, [date, entries, focusedEntry, sessionKind]);
@@ -105,6 +107,10 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, previo
     {!disabled && sessionKind === "math" && onReviewSuggestion && reviewSuggestions.length > 0 && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="재수강 추천 입력">
       <span className="text-[11px] text-[#61746E]">재수강 빠른 입력</span>
       {reviewSuggestions.map(suggestion => <button key={suggestion.key} type="button" onClick={() => onReviewSuggestion(suggestion)} className="rounded-md border border-[#D9C28A] bg-[#FFF8DE] px-2 py-1 text-xs text-[#765E10]">{suggestion.label}</button>)}
+    </div>}
+    {!disabled && sessionKind === "math" && onReviewSuggestion && reassessmentSuggestions.length > 0 && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="재평가 빠른 입력">
+      <span className="text-[11px] text-[#61746E]">재평가 빠른 입력</span>
+      {reassessmentSuggestions.map(suggestion => <button key={suggestion.key} type="button" onClick={() => onReviewSuggestion(suggestion)} className="rounded-md border border-[#BBD3C4] bg-white px-2 py-1 text-xs text-[#315D45]">{suggestion.label}</button>)}
     </div>}
     {expanded && <div className="mt-3 border-t border-[#DDE7E0] pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
