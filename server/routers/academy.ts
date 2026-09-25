@@ -1,5 +1,5 @@
 import * as mathProgress from '../mathProgressStore';
-import { progressKeys } from '../../shared/mathProgress';
+import { formatMathJournalContent, progressKeys } from '../../shared/mathProgress';
 import { progressStates } from '../../shared/mathCurriculum';
 import { previewAlimtalkTest, sendAlimtalkTest } from "../alimtalkTest";
 import { createHash, randomBytes } from "node:crypto";
@@ -32,6 +32,20 @@ import { publishAttendanceLiveUpdate } from "../attendanceLiveUpdates";
 const isoDate = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "날짜 형식이 올바르지 않습니다.");
+const mathJournalPayloadSchema = z.object({
+  version: z.literal(1),
+  sessionKind: z.enum(["math", "english"]),
+  freeText: z.string().max(10000),
+  entries: z.array(z.object({
+    key: z.string().refine(key => progressKeys.includes(key), "수학 과정 항목이 올바르지 않습니다."),
+    state: z.enum(["active", "complete", "skipped"]),
+  })).max(100),
+}).superRefine((payload, context) => {
+  if (payload.sessionKind === "english" && payload.entries.length)
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "영어 집중 수업에는 수학 과정 항목을 선택할 수 없습니다." });
+  if (new Set(payload.entries.map(entry => entry.key)).size !== payload.entries.length)
+    context.addIssue({ code: z.ZodIssueCode.custom, message: "같은 수학 항목을 중복 선택할 수 없습니다." });
+});
 const classInput = z.object({
   subject: z.string().trim().min(1, "과목을 입력해 주세요.").max(80),
   description: z.string().trim().max(2000).optional(),
@@ -357,7 +371,7 @@ export const academyRouter = router({
   mathProgress: router({
     list: adminProcedure.query(() => mathProgress.allProgress()),
     save: adminProcedure.input(z.object({studentId:z.number().int().positive(),key:z.string().refine(k=>progressKeys.includes(k)),state:z.enum(progressStates).nullable(),reason:z.string().trim().min(1).max(500)})).mutation(({input,ctx})=>mathProgress.saveProgressOverride(input,ctx.user.id)),
-    public: publicProcedure.input(z.object({token:z.string().min(8).max(64),studentId:z.number().int().positive().optional()})).query(({input})=>mathProgress.publicProgress(input.token,input.studentId)),
+    public: publicProcedure.input(z.object({token:z.string().min(8).max(64),studentId:z.number().int().positive().optional(),version:z.literal(2).optional()})).query(({input})=>mathProgress.publicProgress(input.token,input.studentId,input.version ?? 1)),
   }),
   alimtalkTest: router({
     preview: adminProcedure.query(() => previewAlimtalkTest()),
@@ -931,6 +945,7 @@ export const academyRouter = router({
           homework: z.string().trim().max(10000),
           notes: z.string().trim().max(10000),
           isDraft: z.boolean().optional(),
+          mathProgress: mathJournalPayloadSchema.optional(),
         })
       )
       .mutation(async ({ input, ctx }) => {
@@ -949,22 +964,25 @@ export const academyRouter = router({
             ? (attendance.status as AttendanceStatus)
             : (calendarEvent?.status ??
               (attendance?.status as AttendanceStatus | undefined));
-        if (
-          isJournalWriteBlocked(
+        const effectiveContent = input.mathProgress
+          ? formatMathJournalContent(input.mathProgress, input.journalDate)
+          : input.content;
+        if (effectiveContent.length > 10000)
+          throw new TRPCError({ code: "BAD_REQUEST", message: "수업 내용은 10,000자 이하로 입력해 주세요." });
+        if (isJournalWriteBlocked(
             effectiveStatus,
-            input.content,
+            effectiveContent,
             input.homework,
             input.notes
-          )
-        ) {
+          )) {
           throw new TRPCError({
             code: "BAD_REQUEST",
             message:
               "결석·미등록·공휴일·휴강 상태에는 수업 내용과 과제를 저장할 수 없습니다. 결석·미등록일의 비고는 저장할 수 있습니다.",
           });
         }
-        await academyDb.saveLessonJournal({ ...input, userId: ctx.user.id });
-        return { success: true };
+        const saved = await academyDb.saveLessonJournal({ ...input, userId: ctx.user.id });
+        return { success: true, ...saved };
       }),
   }),
   weeklyComments: router({

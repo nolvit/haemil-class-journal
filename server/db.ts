@@ -26,6 +26,7 @@ import {
   legalHolidayNotices,
   kakaoNotificationDeliveries,
   lessonJournals,
+  mathJournalProgress,
   notificationDeliveryLogs,
   parentPortalMonthlyViews,
   parentPushSubscriptions,
@@ -38,6 +39,8 @@ import {
   weeklyCountAccruals,
   weeklySubjectComments,
 } from "../drizzle/schema";
+import { formatMathJournalContent, isEnglishFocusedLesson, type MathJournalPayload } from "../shared/mathProgress";
+import { relocatedMathJournalPayloads } from "../shared/mathJournalMoves";
 import {
   getAttendanceSessionUnits,
   getHolidayAdjustedTarget,
@@ -112,6 +115,42 @@ async function requireDb() {
   const db = await getDb();
   if (!db) throw new Error("데이터베이스에 연결할 수 없습니다.");
   return db;
+}
+
+let mathJournalSchemaPromise: Promise<void> | undefined;
+export async function ensureMathJournalSchema() {
+  const db = await requireDb();
+  if (!mathJournalSchemaPromise)
+    mathJournalSchemaPromise = db.execute(sql`
+      CREATE TABLE IF NOT EXISTS math_journal_progress (
+        journalId INT NOT NULL PRIMARY KEY,
+        payload TEXT NOT NULL
+      )
+    `).then(() => {}).catch(error => {
+      mathJournalSchemaPromise = undefined;
+      throw error;
+    });
+  await mathJournalSchemaPromise;
+}
+
+type DbTransaction = Parameters<Parameters<Awaited<ReturnType<typeof requireDb>>["transaction"]>[0]>[0];
+
+/** Copy sidecar payloads from the original journal rows after content has moved. */
+async function moveMathJournalProgress(
+  tx: DbTransaction,
+  moves: Array<{ sourceId: number; targetId: number }>,
+  clearIds: number[]
+) {
+  const sourceIds = Array.from(new Set(moves.map(move => move.sourceId)));
+  const original = sourceIds.length
+    ? await tx.select().from(mathJournalProgress).where(inArray(mathJournalProgress.journalId, sourceIds))
+    : [];
+  const changedIds = Array.from(new Set([...clearIds, ...moves.map(move => move.targetId)]));
+  if (changedIds.length)
+    await tx.delete(mathJournalProgress).where(inArray(mathJournalProgress.journalId, changedIds));
+  for (const row of relocatedMathJournalPayloads(original, moves))
+    await tx.insert(mathJournalProgress).values(row)
+      .onDuplicateKeyUpdate({ set: { payload: row.payload } });
 }
 
 export async function ensureRemainingCountNotificationSchema() {
@@ -1095,6 +1134,7 @@ export async function getJournalWorkspace(
   journalDate: string,
   classGroupId?: number
 ) {
+  await ensureMathJournalSchema();
   const db = await requireDb();
   const conditions = [
     eq(studentEnrollments.active, true),
@@ -1129,6 +1169,7 @@ export async function getJournalWorkspace(
       journalCreatedBy: lessonJournals.createdByUserId,
       journalUpdatedBy: lessonJournals.updatedByUserId,
       journalUpdatedAt: lessonJournals.updatedAt,
+      mathProgressPayload: mathJournalProgress.payload,
     })
     .from(studentEnrollments)
     .innerJoin(students, eq(students.id, studentEnrollments.studentId))
@@ -1148,6 +1189,7 @@ export async function getJournalWorkspace(
         eq(lessonJournals.journalDate, journalDate)
       )
     )
+    .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
     .where(and(...conditions))
     .orderBy(asc(classGroups.name), asc(students.grade), asc(students.name));
 
@@ -1197,6 +1239,9 @@ export async function getJournalWorkspace(
             createdByUserId: row.journalCreatedBy,
             updatedByUserId: row.journalUpdatedBy,
             updatedAt: row.journalUpdatedAt,
+            mathProgress: row.classSubject === "수학" && row.mathProgressPayload
+              ? JSON.parse(row.mathProgressPayload) as MathJournalPayload
+              : null,
           }
         : null,
       completeness: getJournalCompleteness(
@@ -1681,6 +1726,7 @@ export async function restoreStudent(id: number) {
 }
 
 export async function purgeStudent(id: number) {
+  await ensureMathJournalSchema();
   const db = await requireDb();
   await db.transaction(async tx => {
     const found = await tx
@@ -1713,6 +1759,11 @@ export async function purgeStudent(id: number) {
     await tx
       .delete(weeklySubjectComments)
       .where(eq(weeklySubjectComments.studentId, id));
+    const journalIds = await tx.select({ id: lessonJournals.id }).from(lessonJournals)
+      .where(eq(lessonJournals.studentId, id));
+    if (journalIds.length)
+      await tx.delete(mathJournalProgress).where(inArray(
+        mathJournalProgress.journalId, journalIds.map(row => row.id)));
     await tx.delete(lessonJournals).where(eq(lessonJournals.studentId, id));
     await tx
       .delete(attendanceRecords)
@@ -2423,6 +2474,7 @@ export async function saveAttendance(input: {
   overwriteCurrentJournal?: boolean;
   userId: number;
 }) {
+  await ensureMathJournalSchema();
   const db = await requireDb();
   const arrivalTime =
     input.status === "absent" ||
@@ -2445,6 +2497,8 @@ export async function saveAttendance(input: {
     input.status === "closed";
 
   const result = await db.transaction(async tx => {
+    const payloadMoves: Array<{ sourceId: number; targetId: number }> = [];
+    const payloadClearIds: number[] = [];
     const previousAttendance = await tx
       .select({ status: attendanceRecords.status })
       .from(attendanceRecords)
@@ -2475,6 +2529,7 @@ export async function saveAttendance(input: {
     const transferredTo: string[] = [];
     if (journalsToTransfer.length) {
       for (const source of journalsToTransfer) {
+        let carrySourceId = source.id;
         let carry = {
           content: source.content,
           homework: source.homework,
@@ -2510,6 +2565,13 @@ export async function saveAttendance(input: {
               ...journalValues,
               createdByUserId: carry.createdByUserId,
             });
+            const [inserted] = await tx.select({ id: lessonJournals.id })
+              .from(lessonJournals).where(and(
+                eq(lessonJournals.studentId, source.studentId),
+                eq(lessonJournals.classGroupId, source.classGroupId),
+                eq(lessonJournals.journalDate, targetDate),
+              )).limit(1);
+            if (inserted) payloadMoves.push({ sourceId: carrySourceId, targetId: inserted.id });
             moved = true;
             break;
           }
@@ -2518,6 +2580,7 @@ export async function saveAttendance(input: {
               .update(lessonJournals)
               .set(journalValues)
               .where(eq(lessonJournals.id, target.id));
+            payloadMoves.push({ sourceId: carrySourceId, targetId: target.id });
             moved = true;
             break;
           }
@@ -2525,6 +2588,8 @@ export async function saveAttendance(input: {
             .update(lessonJournals)
             .set(journalValues)
             .where(eq(lessonJournals.id, target.id));
+          payloadMoves.push({ sourceId: carrySourceId, targetId: target.id });
+          carrySourceId = target.id;
           carry = {
             content: target.content,
             homework: target.homework,
@@ -2535,6 +2600,7 @@ export async function saveAttendance(input: {
         }
         if (!moved) throw new Error("수업일지 이관 범위를 초과했습니다.");
         transferredTo.push(targetDate);
+        payloadClearIds.push(source.id);
         await tx
           .update(lessonJournals)
           .set({
@@ -2568,6 +2634,8 @@ export async function saveAttendance(input: {
           targetDate: null,
         };
       }
+      if (input.overwriteCurrentJournal && currentJournals.length)
+        payloadClearIds.push(...currentJournals.map(row => row.id));
       if (input.overwriteCurrentJournal && currentJournals.length)
         await tx
           .update(lessonJournals)
@@ -2667,6 +2735,8 @@ export async function saveAttendance(input: {
           ...sources.map(row => row.id),
         ];
         if (idsToClear.length)
+          payloadClearIds.push(...idsToClear);
+        if (idsToClear.length)
           await tx
             .update(lessonJournals)
             .set({
@@ -2704,8 +2774,22 @@ export async function saveAttendance(input: {
             });
           pulledFrom.push(source.journalDate);
         }
+        const targetRows = await tx.select({
+          id: lessonJournals.id, journalDate: lessonJournals.journalDate,
+        }).from(lessonJournals).where(and(
+          eq(lessonJournals.studentId, input.studentId),
+          eq(lessonJournals.classGroupId, classGroupId),
+          inArray(lessonJournals.journalDate, targetDates),
+        ));
+        const targetByDate = new Map(targetRows.map(row => [row.journalDate, row.id]));
+        for (let index = 0; index < sources.length; index += 1) {
+          const targetId = targetByDate.get(targetDates[index]!);
+          if (targetId) payloadMoves.push({ sourceId: sources[index]!.id, targetId });
+        }
       }
     }
+
+    await moveMathJournalProgress(tx, payloadMoves, payloadClearIds);
 
     await tx
       .insert(attendanceRecords)
@@ -2806,6 +2890,7 @@ export async function getMostRecentLesson(
   classGroupId: number,
   journalDate: string
 ) {
+  await ensureMathJournalSchema();
   const db = await requireDb();
   const rows = await db
     .select({
@@ -2814,8 +2899,10 @@ export async function getMostRecentLesson(
       homework: lessonJournals.homework,
       notes: lessonJournals.notes,
       isDraft: lessonJournals.isDraft,
+      mathProgressPayload: mathJournalProgress.payload,
     })
     .from(lessonJournals)
+    .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
     .where(
       and(
         eq(lessonJournals.studentId, studentId),
@@ -2831,7 +2918,12 @@ export async function getMostRecentLesson(
     )
     .orderBy(desc(lessonJournals.journalDate))
     .limit(1);
-  return rows[0] ?? null;
+  return rows[0] ? {
+    ...rows[0],
+    mathProgress: rows[0].mathProgressPayload
+      ? JSON.parse(rows[0].mathProgressPayload) as MathJournalPayload
+      : null,
+  } : null;
 }
 
 export async function saveLessonJournal(input: {
@@ -2842,33 +2934,99 @@ export async function saveLessonJournal(input: {
   homework: string;
   notes: string;
   isDraft?: boolean;
+  mathProgress?: MathJournalPayload;
   userId: number;
 }) {
   const db = await requireDb();
-  const existing = await getLessonJournal(
-    input.studentId,
-    input.classGroupId,
-    input.journalDate
-  );
-  if (!existing) {
-    await db.insert(lessonJournals).values({
-      ...input,
-      isDraft: input.isDraft ?? false,
-      createdByUserId: input.userId,
-      updatedByUserId: input.userId,
-    });
-  } else {
-    await db
-      .update(lessonJournals)
-      .set({
-        content: input.content,
+  const [group] = await db.select({ subject: classGroups.subject }).from(classGroups)
+    .where(eq(classGroups.id, input.classGroupId)).limit(1);
+  if (!group) throw new Error("수업 그룹을 찾을 수 없습니다.");
+  if (group.subject !== "수학" && input.mathProgress)
+    throw new Error("수학 진도 선택은 수학 과목에서만 저장할 수 있습니다.");
+  if (group.subject !== "수학") {
+    const existing = await getLessonJournal(input.studentId, input.classGroupId, input.journalDate);
+    if (!existing)
+      await db.insert(lessonJournals).values({
+        studentId: input.studentId, classGroupId: input.classGroupId,
+        journalDate: input.journalDate, content: input.content,
+        homework: input.homework, notes: input.notes, isDraft: input.isDraft ?? false,
+        createdByUserId: input.userId, updatedByUserId: input.userId,
+      });
+    else
+      await db.update(lessonJournals).set({
+        content: input.content, homework: input.homework, notes: input.notes,
+        isDraft: input.isDraft ?? false, updatedByUserId: input.userId,
+      }).where(eq(lessonJournals.id, existing.id));
+    return { content: input.content, mathProgress: null };
+  }
+  await ensureMathJournalSchema();
+  return db.transaction(async tx => {
+    const [existing] = await tx.select().from(lessonJournals).where(and(
+      eq(lessonJournals.studentId, input.studentId),
+      eq(lessonJournals.classGroupId, input.classGroupId),
+      eq(lessonJournals.journalDate, input.journalDate),
+    )).limit(1);
+    const [existingSidecar] = existing && group.subject === "수학"
+      ? await tx.select().from(mathJournalProgress)
+          .where(eq(mathJournalProgress.journalId, existing.id)).limit(1)
+      : [];
+    const previousPayload = existingSidecar
+      ? JSON.parse(existingSidecar.payload) as MathJournalPayload : undefined;
+    if (!input.mathProgress && previousPayload?.entries.length &&
+        input.content !== existing?.content)
+      throw new Error("선택한 수학 과정 항목이 있는 일지는 최신 앱에서 다시 열어 수정해 주세요.");
+    const requestedPayload = input.mathProgress && !input.mathProgress.entries.length &&
+      isEnglishFocusedLesson(input.mathProgress.freeText)
+      ? { ...input.mathProgress, sessionKind: "english" as const }
+      : input.mathProgress;
+    const payload = group.subject === "수학"
+      ? requestedPayload ?? (previousPayload ? {
+          ...previousPayload,
+          freeText: previousPayload.entries.length ? previousPayload.freeText : input.content,
+          sessionKind: !previousPayload.entries.length && isEnglishFocusedLesson(input.content)
+            ? "english" as const : previousPayload.sessionKind,
+        } : !existing ? {
+          version: 1 as const,
+          sessionKind: isEnglishFocusedLesson(input.content) ? "english" as const : "math" as const,
+          freeText: input.content,
+          entries: [],
+        } : undefined)
+      : undefined;
+    const storedContent = requestedPayload
+      ? formatMathJournalContent(requestedPayload, input.journalDate)
+      : input.content;
+    if (!existing) {
+      await tx.insert(lessonJournals).values({
+        studentId: input.studentId,
+        classGroupId: input.classGroupId,
+        journalDate: input.journalDate,
+        content: storedContent,
+        homework: input.homework,
+        notes: input.notes,
+        isDraft: input.isDraft ?? false,
+        createdByUserId: input.userId,
+        updatedByUserId: input.userId,
+      });
+    } else {
+      await tx.update(lessonJournals).set({
+        content: storedContent,
         homework: input.homework,
         notes: input.notes,
         isDraft: input.isDraft ?? false,
         updatedByUserId: input.userId,
-      })
-      .where(eq(lessonJournals.id, existing.id));
-  }
+      }).where(eq(lessonJournals.id, existing.id));
+    }
+    const [saved] = await tx.select({ id: lessonJournals.id }).from(lessonJournals).where(and(
+      eq(lessonJournals.studentId, input.studentId),
+      eq(lessonJournals.classGroupId, input.classGroupId),
+      eq(lessonJournals.journalDate, input.journalDate),
+    )).limit(1);
+    if (!saved) throw new Error("수업일지를 저장할 수 없습니다.");
+    if (payload)
+      await tx.insert(mathJournalProgress).values({ journalId: saved.id, payload: JSON.stringify(payload) })
+        .onDuplicateKeyUpdate({ set: { payload: JSON.stringify(payload) } });
+    return { content: storedContent, mathProgress: payload ?? null };
+  });
 }
 
 /** 새 수업일지를 현재 날짜에 삽입하고, 같은 학생·과목의 이후 기록을 다음 입력 가능 날짜로 순차 이동한다. */
@@ -2879,6 +3037,7 @@ export async function insertLessonJournal(input: {
   includeWeekend: boolean;
   userId: number;
 }) {
+  await ensureMathJournalSchema();
   const db = await requireDb();
   return db.transaction(async tx => {
     const sourceRows = await tx
@@ -2967,6 +3126,19 @@ export async function insertLessonJournal(input: {
         })
         .where(eq(lessonJournals.id, current.id));
     }
+    const targetRows = moves.length ? await tx.select({
+      id: lessonJournals.id, journalDate: lessonJournals.journalDate,
+    }).from(lessonJournals).where(and(
+      eq(lessonJournals.studentId, input.studentId),
+      eq(lessonJournals.classGroupId, input.classGroupId),
+      inArray(lessonJournals.journalDate, moves.map(move => move.targetDate)),
+    )) : [];
+    const targetByDate = new Map(targetRows.map(row => [row.journalDate, row.id]));
+    await moveMathJournalProgress(tx, moves.flatMap(move => {
+      const sourceId = sourceByDate.get(move.sourceDate)?.id;
+      const targetId = targetByDate.get(move.targetDate);
+      return sourceId && targetId ? [{ sourceId, targetId }] : [];
+    }), sourceRows.map(row => row.id));
     return {
       movedCount: sourceRows.length,
       movedDates: moves.map(move => move.targetDate),
@@ -2981,6 +3153,7 @@ export async function deleteAndPullLessonJournal(input: {
   includeWeekend: boolean;
   userId: number;
 }) {
+  await ensureMathJournalSchema();
   const db = await requireDb();
   return db.transaction(async tx => {
     const sourceRows = await tx
@@ -3106,6 +3279,18 @@ export async function deleteAndPullLessonJournal(input: {
           },
         });
     }
+    const targetRows = targetDates.length ? await tx.select({
+      id: lessonJournals.id, journalDate: lessonJournals.journalDate,
+    }).from(lessonJournals).where(and(
+      eq(lessonJournals.studentId, input.studentId),
+      eq(lessonJournals.classGroupId, input.classGroupId),
+      inArray(lessonJournals.journalDate, targetDates),
+    )) : [];
+    const targetByDate = new Map(targetRows.map(row => [row.journalDate, row.id]));
+    await moveMathJournalProgress(tx, sourceRows.flatMap((source, index) => {
+      const targetId = targetByDate.get(targetDates[index]!);
+      return targetId ? [{ sourceId: source.id, targetId }] : [];
+    }), rowsToClear.map(row => row.id));
     return {
       movedCount: sourceRows.length,
       movedFrom: sourceRows.map(row => row.journalDate),

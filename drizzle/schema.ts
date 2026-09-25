@@ -656,6 +656,12 @@ export const avatarLikeRewards = mysqlTable(
   })
 );
 
+/** Explicit math-only journal events; existing lesson_journals rows remain unchanged. */
+export const mathJournalProgress = mysqlTable('math_journal_progress', {
+  journalId: int('journalId').primaryKey(),
+  payload: text('payload').notNull(),
+});
+
 export const mathProgressOverrides = mysqlTable('math_progress_overrides', {
  studentId:int('studentId').notNull(), key:varchar('itemKey',{length:100}).notNull(),
  state:varchar('state',{length:20}).notNull(), reason:text('reason').notNull(),

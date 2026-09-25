@@ -5,12 +5,13 @@ import {
 } from "../shared/mathProgressCorrections";
 import { and, eq, sql, asc } from "drizzle-orm";
 import { createHash } from "node:crypto";
-import { getDb, getPortalFamilyByToken } from "./db";
+import { ensureMathJournalSchema, getDb, getPortalFamilyByToken } from "./db";
 import {
   students,
   studentEnrollments,
   classGroups,
   lessonJournals,
+  mathJournalProgress,
   mathProgressCache,
   mathProgressOverrides,
   mathProgressBaselines,
@@ -29,6 +30,7 @@ import {
   isMathProgressEligible,
   isMathProgressSession,
   progressKeys,
+  type MathJournalPayload,
 } from "../shared/mathProgress";
 import type { ProgressState } from "../shared/mathCurriculum";
 import { getKoreanHolidayDates } from "./koreanHolidays";
@@ -147,6 +149,7 @@ function futureDates(today: string, days = 365) {
   );
 }
 async function database() {
+  await ensureMathJournalSchema();
   const db = await getDb();
   if (!db) throw new Error("데이터베이스에 연결할 수 없습니다.");
   if (!schema)
@@ -208,21 +211,32 @@ export async function progressStudents() {
 }
 async function readMathJournals(studentId: number) {
   const db = await database();
-  return db
+  const rows = await db
     .select({
       id: lessonJournals.id,
       content: lessonJournals.content,
       journalDate: lessonJournals.journalDate,
       isDraft: lessonJournals.isDraft,
+      mathProgressPayload: mathJournalProgress.payload,
     })
     .from(lessonJournals)
     .innerJoin(classGroups, eq(classGroups.id, lessonJournals.classGroupId))
+    .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
     .where(
       and(
         eq(lessonJournals.studentId, studentId),
         eq(classGroups.subject, "수학")
       )
     );
+  return rows.map(row => ({
+    id: row.id,
+    content: row.content,
+    journalDate: row.journalDate,
+    isDraft: row.isDraft,
+    mathProgress: row.mathProgressPayload
+      ? JSON.parse(row.mathProgressPayload) as MathJournalPayload
+      : null,
+  }));
 }
 async function ensureBaseline(
   studentId: number,
@@ -337,10 +351,11 @@ export async function studentProgress(studentId: number) {
       db
         .select({
           id: lessonJournals.id,
-          hash: sql<string>`SHA2(CONCAT_WS('|', COALESCE(${lessonJournals.content},''), ${lessonJournals.journalDate}, ${lessonJournals.isDraft}),256)`,
+          hash: sql<string>`SHA2(CONCAT_WS('|', COALESCE(${lessonJournals.content},''), ${lessonJournals.journalDate}, ${lessonJournals.isDraft}, COALESCE(${mathJournalProgress.payload},'')),256)`,
         })
         .from(lessonJournals)
         .innerJoin(classGroups, eq(classGroups.id, lessonJournals.classGroupId))
+        .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
         .where(
           and(
             eq(lessonJournals.studentId, studentId),
@@ -384,7 +399,7 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v9-course-pace-and-forecast",
+        "v10-math-item-count-and-explicit-journals",
         progressKeys,
         today,
         student.grade,
@@ -440,7 +455,8 @@ export async function studentProgress(studentId: number) {
     student.grade,
     calculated,
     today,
-    forecast
+    forecast,
+    baseline
   );
 
   const result: StoredMathProgress = {
@@ -539,7 +555,7 @@ export async function saveProgressOverride(
       });
   return studentProgress(input.studentId);
 }
-export async function publicProgress(token: string, studentId?: number) {
+export async function publicProgress(token: string, studentId?: number, version: 1 | 2 = 1) {
   const family = await getPortalFamilyByToken(token);
   const student = studentId
     ? family.find(s => s.id === studentId)
@@ -571,7 +587,7 @@ export async function publicProgress(token: string, studentId?: number) {
         term: currentTerm,
         percent: Math.round(
           cohort.reduce(
-            (sum, candidate) => sum + candidate.learningPercent,
+            (sum, candidate) => sum + (version === 1 ? candidate.learningPercent : candidate.percent),
             0
           ) / cohort.length
         ),
@@ -601,7 +617,12 @@ export async function publicProgress(token: string, studentId?: number) {
       ...t,
       units: t.units.map(u => ({
         ...u,
-        cells: u.cells.map(c => ({ ...c, override: null })),
+        cells: u.cells.map(c => ({
+          ...c,
+          state: version === 1 && c.state === "skipped" ? "waiting" as const : c.state,
+          automatic: version === 1 && c.automatic === "skipped" ? "waiting" as const : c.automatic,
+          override: null,
+        })),
       })),
     })),
   };

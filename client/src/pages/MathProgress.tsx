@@ -88,7 +88,7 @@ export default function MathProgress() {
                   {[
                     "학생",
                     "현재 및 누적 과정",
-                    "학습률 · 평가율",
+                    "기본 · 학습률 · 평가율",
                     "최근 4주",
                     "기본 과정 진행 속도",
                     "확인할 기록",
@@ -126,10 +126,10 @@ export default function MathProgress() {
                       </td>
                       <td className="min-w-36 p-3">
                         <div className="mb-1 text-xs">
-                          학습 {s.progress.learningPercent}% · 평가{" "}
+                          기본 {s.progress.percent}% · 학습 {s.progress.learningPercent}% · 평가{" "}
                           {s.progress.masteryPercent}%
                         </div>
-                        <ProgressMeter value={s.progress.learningPercent} />
+                        <ProgressMeter value={s.progress.percent} />
                       </td>
                       <td className="whitespace-nowrap p-3">
                         {s.progress.recentCourse ? (

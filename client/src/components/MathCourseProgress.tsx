@@ -117,11 +117,11 @@ export function MathCourseDetails({
         </section>
       )}
       <p className="text-xs leading-relaxed text-[#71817D]">
-        소단원 학습 → 고난이도 실력문제 → 소단원 평가 → 예비평가 → 최종평가
+        소단원 학습 → 고난이도 실력문제 → 소단원 평가 → 중단원 예비 평가 → 실력문제 예비 평가 → 최종 평가
       </p>
       <div className="rounded-xl border border-[#B7CFC5] bg-[#EFF5F0] p-4">
         <div className="mb-3 font-semibold">
-          <span>1단계 · 기본 과정</span>
+          <span>1단계 · 기본 과정 {progress.percent}%</span>
         </div>
         <div className="mb-3 grid grid-cols-2 gap-2">
           <div className="rounded-lg bg-white px-3 py-2">
@@ -134,7 +134,7 @@ export function MathCourseDetails({
           </div>
         </div>
         <ProgressMeter
-          value={progress.learningPercent}
+          value={progress.percent}
           averageValue={sameCourseAverage?.percent}
         />
         {sameCourseAverage && (
@@ -168,7 +168,9 @@ export function MathCourseDetails({
             <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
               <span className="text-[#71817D]">기본 과정 완료 예상 시점</span>
               <strong className="text-[#193D3C]">
-                {progress.terms.length > 0 &&
+                {progress.recentCourse.hasSkipped
+                  ? "건너뜀 항목 확인 필요"
+                  : progress.terms.length > 0 &&
                 progress.recentCourse.estimatedCompletionSessions === 0
                   ? "기본 과정 완료"
                   : progress.recentCourse.estimatedCompletionDate
@@ -293,7 +295,7 @@ export default function ParentMathProgress({
   studentId?: number;
 }) {
   const query = trpc.academy.mathProgress.public.useQuery(
-    { token, studentId },
+    { token, studentId, version: 2 },
     { enabled: !!token }
   );
   if (query.isLoading) return null;

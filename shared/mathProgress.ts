@@ -3,12 +3,25 @@ import {
   mathCurriculumForDate,
   type ProgressState,
   assessmentKeys,
+  assessmentLabels,
+  MIDDLE3_SECOND_TERM_SWITCH_DATE,
 } from "./mathCurriculum";
+export type MathJournalEntry = {
+  key: string;
+  state: "active" | "complete" | "skipped";
+};
+export type MathJournalPayload = {
+  version: 1;
+  sessionKind: "math" | "english";
+  freeText: string;
+  entries: MathJournalEntry[];
+};
 export type ProgressJournal = {
   id: number;
   content: string | null;
   journalDate: string;
   isDraft: boolean;
+  mathProgress?: MathJournalPayload | null;
 };
 export type ProgressOverride = {
   key: string;
@@ -29,14 +42,61 @@ export type ProgressBaseline = {
   sourceText: string | null;
   recognized: boolean;
 };
-export const progressKeys = mathCurriculum.flatMap(c =>
+export const progressKeys = Array.from(new Set([
+  ...mathCurriculum,
+  ...mathCurriculumForDate(MIDDLE3_SECOND_TERM_SWITCH_DATE),
+].flatMap(c =>
   c.units.flatMap((u, i) => [
     ...u.smalls.map((_, j) => `${c.term}:${i + 1}:learn:${j + 1}`),
     `${c.term}:${i + 1}:challenge`,
     ...u.smalls.map((_, j) => `${c.term}:${i + 1}:test:${j + 1}`),
     ...assessmentKeys.map(k => `${c.term}:${i + 1}:${k}`),
   ])
-);
+)));
+const legacyAssessmentKeys = assessmentKeys.filter(k => k !== "practicePreliminary");
+
+export function mathUnitOptions(term: string, unitNumber: number, date: string) {
+  const unit = mathCurriculumForDate(date)
+    .find(course => course.term === term)?.units[unitNumber - 1];
+  if (!unit) return [];
+  const prefix = `${term}:${unitNumber}`;
+  return [
+    ...unit.smalls.map((name, index) => ({
+      key: `${prefix}:learn:${index + 1}`,
+      label: `${unitNumber}-${index + 1} ${name}`,
+      sector: "learn" as const,
+    })),
+    { key: `${prefix}:challenge`, label: "고난이도 실력문제 풀기", sector: "learn" as const },
+    ...unit.smalls.map((_, index) => ({
+      key: `${prefix}:test:${index + 1}`,
+      label: `${unitNumber}-${index + 1} 소단원 평가`,
+      sector: "assessment" as const,
+    })),
+    ...assessmentKeys.map(key => ({
+      key: `${prefix}:${key}`,
+      label: assessmentLabels[key],
+      sector: "assessment" as const,
+    })),
+  ];
+}
+
+export function mathItemLabel(key: string, date: string) {
+  const [term, unit] = key.split(":");
+  return mathUnitOptions(term, Number(unit), date).find(item => item.key === key)?.label ?? key;
+}
+
+export function formatMathJournalContent(payload: MathJournalPayload, date: string) {
+  const selected = payload.entries.map(entry => {
+    const [term, unit] = entry.key.split(":");
+    const label = mathItemLabel(entry.key, date);
+    const state = entry.state === "complete" ? "완료" : entry.state === "skipped" ? "건너뜀" : "진행 중";
+    return `[${term} / 기본 / ${unit}단원] ${label} · ${state}`;
+  });
+  const englishHeading = payload.sessionKind === "english" &&
+    !/(?:^|\n)\s*영어\s*집중/.test(payload.freeText) ? "영어 집중 수업" : "";
+  return [englishHeading, ...selected, payload.freeText.trim()]
+    .filter(Boolean).join("\n");
+}
 export function middleGrade(grade: string): number | null {
   const m = grade.match(/중(?:학교|등부|등)?\s*([123])/);
   if (m) return Number(m[1]);
@@ -63,7 +123,7 @@ function parseHeaders(content: string) {
   }));
 }
 
-function isEnglishFocusedLesson(content: string) {
+export function isEnglishFocusedLesson(content: string) {
   const text = content.normalize("NFKC");
   return (
     /(?:^|\n)\s*(?:-\s*)?영어\s*집중(?:\s*수업)?(?:\s|$)/.test(text) &&
@@ -191,7 +251,7 @@ function applyRecord(
       ...learning,
       `${prefix}:challenge`,
       ...tests,
-      ...assessmentKeys.map(k => `${prefix}:${k}`),
+      ...legacyAssessmentKeys.map(k => `${prefix}:${k}`),
     ];
     const reach = (key: string, state: ProgressState) => {
       const index = sequence.indexOf(key);
@@ -209,19 +269,27 @@ function applyRecord(
         line => !/(?:예정|미실시|미완료|진행\s*전|평가\s*대기)/.test(line)
       )
       .join("\n");
+    const hasPracticePreliminary = /실력\s*문제\s*예비\s*평가/.test(body);
+    if (hasPracticePreliminary) {
+      mark(`${prefix}:practicePreliminary`, "complete");
+      recognized = true;
+      headerRecognized = true;
+    }
+    // The new assessment must not also count as the old challenge or preliminary.
+    const ordinaryBody = body.replace(/실력\s*문제\s*예비\s*평가/g, "");
     if (
       /(?:고난[이]?도\s*(?:실력)?\s*문제|실력\s*(?:문제|향상)|고난도|고난이도)/.test(
-        body
+        ordinaryBody
       )
     )
       reach(
         `${prefix}:challenge`,
-        /(?:고난[이]?도|실력).*?(?:완료|마침)/.test(body)
+        /(?:고난[이]?도|실력).*?(?:완료|마침)/.test(ordinaryBody)
           ? "complete"
           : "active"
       );
     for (const e of Array.from(
-      body.matchAll(/(\d+)\s*-\s*(\d+)\s*소단원\s*평가/g)
+      ordinaryBody.matchAll(/(\d+)\s*-\s*(\d+)\s*소단원\s*평가/g)
     )) {
       const n = Number(e[2]);
       if (Number(e[1]) !== h.unit || n < 1 || n > u.smalls.length) {
@@ -235,9 +303,9 @@ function applyRecord(
       ["final1", /1\s*차\s*최종\s*평가/],
       ["final2", /2\s*차\s*최종\s*평가/],
     ] as const)
-      if (re.test(body)) reach(`${prefix}:${key}`, "complete");
+      if (re.test(ordinaryBody)) reach(`${prefix}:${key}`, "complete");
     // A plain final assessment denotes the first final round; no second-round assumption.
-    if (/최종\s*평가/.test(body) && !/[12]\s*차\s*최종\s*평가/.test(body))
+    if (/최종\s*평가/.test(ordinaryBody) && !/[12]\s*차\s*최종\s*평가/.test(ordinaryBody))
       reach(`${prefix}:final1`, "complete");
     if (headerRecognized) {
       for (let n = 1; n < h.unit; n++)
@@ -374,6 +442,14 @@ export function calculateMathProgress(
         isCoveredByBaseline(row, baseline)
       )
         continue;
+      for (const entry of row.mathProgress?.entries ?? []) {
+        const term = entry.key.split(":")[0];
+        if (term && Number(term[1]) >= (baseline.initialGrade ?? 1) &&
+            Number(term[1]) <= (currentGrade ?? 3) &&
+            mathCurriculumForDate(today).some(course => course.term === term))
+          trackedTerms.add(term);
+      }
+      if (row.mathProgress) continue;
       for (const h of parseHeaders(row.content ?? ""))
         if (
           h.basic &&
@@ -429,11 +505,11 @@ export function calculateMathProgress(
     if (
       row.isDraft ||
       row.journalDate > today ||
-      !row.content?.trim() ||
-      isEnglishFocusedLesson(row.content) ||
       (baseline && isCoveredByBaseline(row, baseline))
     )
       continue;
+    if (row.mathProgress) continue;
+    if (!row.content?.trim() || isEnglishFocusedLesson(row.content)) continue;
     const result = applyRecord(row, automatic, allowed, today);
     if (result.recognized && row.id === baseline?.sourceId) {
       const index = unmatched.findIndex(r => r.id === row.id);
@@ -448,6 +524,30 @@ export function calculateMathProgress(
           ? "단원 번호 확인 필요"
           : "과정·평가 표기 확인 필요",
       });
+  }
+  // Grandfather only units already complete according to historical journals.
+  // Structured entries never trigger inferred completion of this new step.
+  for (const course of curriculum)
+    course.units.forEach((unit, index) => {
+      const prefix = `${course.term}:${index + 1}`;
+      const historicalKeys = [
+        ...unit.smalls.map((_, small) => `${prefix}:learn:${small + 1}`),
+        `${prefix}:challenge`,
+        ...unit.smalls.map((_, small) => `${prefix}:test:${small + 1}`),
+        ...legacyAssessmentKeys.map(key => `${prefix}:${key}`),
+      ];
+      if (historicalKeys.every(key => automatic[key] === "complete"))
+        automatic[`${prefix}:practicePreliminary`] = "complete";
+    });
+  for (const row of [...journals].sort((a, b) =>
+    a.journalDate.localeCompare(b.journalDate) || a.id - b.id
+  )) {
+    if (row.isDraft || row.journalDate > today ||
+        (baseline && isCoveredByBaseline(row, baseline)) ||
+        row.mathProgress?.sessionKind !== "math") continue;
+    for (const entry of row.mathProgress.entries)
+      if (allowed.has(entry.key.split(":")[0]) && entry.key in automatic)
+        automatic[entry.key] = entry.state;
   }
   const overrideMap: Record<string, ProgressOverride | undefined> =
     Object.fromEntries(overrides.map(o => [o.key, o]));
@@ -479,7 +579,7 @@ export function calculateMathProgress(
         })),
         ...assessmentKeys.map(k => ({
           key: `${prefix}:${k}`,
-          label: k,
+          label: k === "practicePreliminary" ? assessmentLabels[k] : k,
           sector: "test" as const,
         })),
       ].map(cell => ({
@@ -494,21 +594,13 @@ export function calculateMathProgress(
         test = summarize(tests.map(c => c.state)),
         challenge = state(`${prefix}:challenge`);
       const complete = cells.every(c => c.state === "complete");
-      // Five equally weighted workflow phases. The two final rounds share the final phase.
       const fraction = (keys: string[]) =>
         keys.filter(k => state(k) === "complete").length / keys.length;
       const learningKeys = [...learning.map(c => c.key), `${prefix}:challenge`];
       const masteryKeys = tests.map(c => c.key);
       const learningPercent = Math.round(100 * fraction(learningKeys));
       const masteryPercent = Math.round(100 * fraction(masteryKeys));
-      const percent = Math.round(
-        20 *
-          (fraction(learning.map(c => c.key)) +
-            (challenge === "complete" ? 1 : 0) +
-            fraction(u.smalls.map((_, j) => `${prefix}:test:${j + 1}`)) +
-            (state(`${prefix}:preliminary`) === "complete" ? 1 : 0) +
-            fraction([`${prefix}:final1`, `${prefix}:final2`]))
-      );
+      const percent = Math.round(100 * fraction(cells.map(c => c.key)));
       return {
         number: i + 1,
         name: u.name,
@@ -542,9 +634,7 @@ export function calculateMathProgress(
       masteryPercent: completionRate(
         termCells.filter(cell => cell.sector === "test")
       ),
-      percent: Math.round(
-        units.reduce((n, u) => n + u.percent, 0) / units.length
-      ),
+      percent: completionRate(termCells),
     };
   });
   const allCells = terms.flatMap(term =>
@@ -568,9 +658,7 @@ export function calculateMathProgress(
     masteryPercent: completionRate(
       allCells.filter(cell => cell.sector === "test")
     ),
-    percent: terms.length
-      ? Math.round(terms.reduce((n, t) => n + t.percent, 0) / terms.length)
-      : 0,
+    percent: completionRate(allCells),
     unmatched,
     focusedLearning,
   };
@@ -592,6 +680,7 @@ export type RecentCourseStats = {
   sufficientPaceData: boolean;
   estimatedCompletionSessions: number | null;
   estimatedCompletionDate: string | null;
+  hasSkipped: boolean;
 };
 
 /** Kept for installed PWAs that still run the previous client bundle. */
@@ -613,6 +702,15 @@ function shiftDate(date: string, days: number) {
 }
 
 function mathSessionKinds(row: ProgressJournal, today: string) {
+  if (row.mathProgress) {
+    if (row.isDraft || row.mathProgress.sessionKind !== "math" ||
+        (!row.content?.trim() && !row.mathProgress.entries.length)) return null;
+    const hasLearning = row.mathProgress.entries.some(entry =>
+      /:learn:|:challenge$/.test(entry.key));
+    const hasAssessment = row.mathProgress.entries.some(entry =>
+      /:test:|:preliminary$|:practicePreliminary$|:final[12]$/.test(entry.key));
+    return { learning: hasLearning || !hasAssessment, assessment: hasAssessment };
+  }
   if (
     row.isDraft ||
     !row.content?.trim() ||
@@ -632,7 +730,7 @@ function mathSessionKinds(row: ProgressJournal, today: string) {
       )
       .join("\n");
     const hasAssessment =
-      /(?:\d+\s*-\s*\d+\s*소단원\s*(?:재)?평가|(?:중단원\s*)?예비\s*평가|(?:[12]\s*차\s*)?최종\s*평가)/.test(
+      /(?:\d+\s*-\s*\d+\s*소단원\s*(?:재)?평가|(?:중단원\s*|실력\s*문제\s*)?예비\s*평가|(?:[12]\s*차\s*)?최종\s*평가)/.test(
         body
       );
     if (hasAssessment) assessment = true;
@@ -647,6 +745,8 @@ export function isMathProgressSession(row: ProgressJournal, today: string) {
 }
 
 function countsAsLegacyLearningSession(row: ProgressJournal, today: string) {
+  if (row.mathProgress)
+    return mathSessionKinds(row, today)?.learning ?? false;
   if (
     row.isDraft ||
     !row.content?.trim() ||
@@ -681,41 +781,8 @@ function progressSnapshot(progress: MathProgress, reference: MathProgress) {
     cell => cell.sector === "learn" || cell.sector === "challenge"
   );
   const assessmentCells = cells.filter(cell => cell.sector === "test");
-  const fraction = (keys: string[]) =>
-    keys.length
-      ? keys.filter(key => completed.has(key)).length / keys.length
-      : 0;
-  const coursePercent = reference.terms.length
-    ? reference.terms.reduce(
-        (termSum, term) =>
-          termSum +
-          term.units.reduce((unitSum, unit) => {
-            const phaseKeys = [
-              unit.cells
-                .filter(cell => cell.sector === "learn")
-                .map(cell => cell.key),
-              unit.cells
-                .filter(cell => cell.sector === "challenge")
-                .map(cell => cell.key),
-              unit.cells
-                .filter(cell => cell.key.includes(":test:"))
-                .map(cell => cell.key),
-              unit.cells
-                .filter(cell => cell.key.endsWith(":preliminary"))
-                .map(cell => cell.key),
-              unit.cells
-                .filter(cell => /:final[12]$/.test(cell.key))
-                .map(cell => cell.key),
-            ];
-            return (
-              unitSum +
-              (20 * phaseKeys.reduce((sum, keys) => sum + fraction(keys), 0)) /
-                term.units.length
-            );
-          }, 0) /
-            reference.terms.length,
-        0
-      )
+  const coursePercent = cells.length
+    ? (100 * cells.filter(cell => completed.has(cell.key)).length) / cells.length
     : 0;
   return {
     coursePercent,
@@ -761,26 +828,29 @@ export function calculateRecentCourseStats(
   forecast: {
     scheduleWeekdays?: number[];
     blockedDates?: Iterable<string>;
-  } = {}
+  } = {},
+  baseline?: ProgressBaseline
 ): RecentCourseStats {
   const startDate = shiftDate(today, -28);
   const historicalRows = journals.filter(
     row => !row.isDraft && row.journalDate <= startDate && row.content?.trim()
   );
-  let historicalBaseline = createProgressBaseline([], grade, {
-    snapshotDate: startDate,
-  });
-  // A math-group journal can legitimately record an English-only lesson.
-  // Keep the last recognizable math state instead of resetting the snapshot.
-  for (const row of [...historicalRows].sort(
-    (a, b) => b.journalDate.localeCompare(a.journalDate) || b.id - a.id
-  )) {
-    const candidate = createProgressBaseline([row], grade, {
-      snapshotDate: startDate,
-    });
-    if (candidate.recognized) {
-      historicalBaseline = candidate;
-      break;
+  let historicalBaseline = baseline;
+  if (startDate < BASELINE_DATE || !historicalBaseline) {
+    historicalBaseline = createProgressBaseline([], grade, { snapshotDate: startDate });
+    // A math-group journal can legitimately record an English-only lesson.
+    // Keep the last recognizable legacy state instead of resetting the snapshot.
+    for (const row of [...historicalRows].sort(
+      (a, b) => b.journalDate.localeCompare(a.journalDate) || b.id - a.id
+    )) {
+      if (row.mathProgress) continue;
+      const candidate = createProgressBaseline([row], grade, {
+        snapshotDate: startDate,
+      });
+      if (candidate.recognized) {
+        historicalBaseline = candidate;
+        break;
+      }
     }
   }
   // Staff corrections are not new lessons. Apply the current corrections to
@@ -791,7 +861,7 @@ export function calculateRecentCourseStats(
     )
   );
   const historicalProgress = calculateMathProgress(
-    [],
+    startDate >= BASELINE_DATE && baseline ? historicalRows : [],
     currentOverrides,
     startDate,
     {
@@ -838,34 +908,24 @@ export function calculateRecentCourseStats(
       : null;
   const sufficientPaceData =
     mathSessionDays >= 5 && coursePointsPerSession !== null;
-  const sessionsNeeded = (
-    remaining: number,
-    gained: number,
-    observedDays: number
-  ) =>
-    remaining === 0
+  const sessionsNeeded = (remaining: number, gained: number, observedDays: number) =>
+    remaining === 0 ? 0 : gained > 0 && observedDays >= 2
+      ? Math.ceil((remaining * observedDays) / gained) : null;
+  const learningNeeded = sessionsNeeded(remainingLearningSteps, learningStepsGained, learningSessionDays);
+  const assessmentNeeded = sessionsNeeded(remainingAssessmentSteps, assessmentStepsGained, assessmentSessionDays);
+  const remainingItems = remainingLearningSteps + remainingAssessmentSteps;
+  const hasSkipped = currentProgress.terms.some(term => term.units.some(unit =>
+    unit.cells.some(cell => cell.state === "skipped")));
+  const estimatedCompletionSessions = hasSkipped
+    ? null
+    : remainingItems === 0
       ? 0
-      : gained > 0 && observedDays >= 2
-        ? Math.ceil((remaining * observedDays) / gained)
+      : learningNeeded !== null && assessmentNeeded !== null
+        ? learningNeeded + assessmentNeeded
         : null;
-  const learningNeeded = sessionsNeeded(
-    remainingLearningSteps,
-    learningStepsGained,
-    learningSessionDays
-  );
-  const assessmentNeeded = sessionsNeeded(
-    remainingAssessmentSteps,
-    assessmentStepsGained,
-    assessmentSessionDays
-  );
-  // Add phase-specific days conservatively; some real days may combine both.
-  const estimatedCompletionSessions =
-    learningNeeded === null || assessmentNeeded === null
-      ? null
-      : learningNeeded + assessmentNeeded;
   const estimatedCompletionDate =
     current.learningTotal + current.assessmentTotal > 0 &&
-    remainingLearningSteps + remainingAssessmentSteps === 0
+    remainingItems === 0 && !hasSkipped
       ? today
       : estimatedCompletionSessions !== null &&
           forecast.scheduleWeekdays?.length
@@ -895,6 +955,7 @@ export function calculateRecentCourseStats(
     sufficientPaceData,
     estimatedCompletionSessions,
     estimatedCompletionDate,
+    hasSkipped,
   };
 }
 

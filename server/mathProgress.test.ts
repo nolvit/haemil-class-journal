@@ -4,6 +4,7 @@ import {
   calculateRecentCourseStats,
   calculateLegacyRecentLearningStats,
   createProgressBaseline,
+  formatMathJournalContent,
   isMathProgressSession,
   middleGrade,
   type ProgressJournal,
@@ -46,6 +47,76 @@ describe("math course progress", () => {
     const p = calc([a, row("[중2-2 / 기본 / 2단원]\n2차 최종 평가", 2)]);
     expect(unit(p).complete).toBe(true);
     expect(unit(p).percent).toBe(100);
+  });
+  it("places the new practice preliminary evaluation between preliminary and final 1", () => {
+    const cells = unit(calc([])).cells;
+    expect(cells.map(cell => cell.key).slice(-4)).toEqual([
+      "중2-2:2:preliminary",
+      "중2-2:2:practicePreliminary",
+      "중2-2:2:final1",
+      "중2-2:2:final2",
+    ]);
+    const inProgress = unit(calc([row("[중2-2 / 기본 / 2단원]\n1차 최종 평가")]));
+    expect(inProgress.cells.find(cell => cell.key.endsWith(":practicePreliminary"))?.state).toBe("waiting");
+    const completed = unit(calc([row("[중2-2 / 기본 / 2단원]\n2차 최종 평가")]));
+    expect(completed.cells.find(cell => cell.key.endsWith(":practicePreliminary"))?.state).toBe("complete");
+    expect(completed.percent).toBe(100);
+  });
+  it("uses only explicit selections for new math journals, including multiple items and skips", () => {
+    const p = calc([row("[중2-2 / 기본 / 2단원]\n2차 최종 평가", 1, {
+      mathProgress: {
+        version: 1, sessionKind: "math", freeText: "[중2-2 / 기본 / 2단원]\n2차 최종 평가",
+        entries: [
+          { key: "중2-2:2:learn:2", state: "complete" },
+          { key: "중2-2:2:test:1", state: "complete" },
+          { key: "중2-2:2:practicePreliminary", state: "skipped" },
+        ],
+      },
+    })]);
+    const current = unit(p);
+    expect(current.cells.find(cell => cell.key.endsWith(":learn:1"))?.state).toBe("waiting");
+    expect(current.cells.find(cell => cell.key.endsWith(":learn:2"))?.state).toBe("complete");
+    expect(current.cells.find(cell => cell.key.endsWith(":test:1"))?.state).toBe("complete");
+    expect(current.cells.find(cell => cell.key.endsWith(":practicePreliminary"))?.state).toBe("skipped");
+    expect(current.percent).toBe(Math.round(200 / current.cells.length));
+    expect(current.complete).toBe(false);
+    const term = p.terms.find(term => term.term === "중2-2")!;
+    const termCells = term.units.flatMap(item => item.cells);
+    expect(term.percent).toBe(Math.round(200 / termCells.length));
+    const allCells = p.terms.flatMap(item => item.units.flatMap(value => value.cells));
+    expect(p.percent).toBe(Math.round(200 / allCells.length));
+    expect(p.unmatched).toEqual([]);
+  });
+  it("does not confuse practice preliminary with challenge or middle-unit preliminary", () => {
+    const current = unit(calc([row("[중2-2 / 기본 / 2단원]\n실력문제 예비 평가")]));
+    expect(current.cells.find(cell => cell.key.endsWith(":practicePreliminary"))?.state).toBe("complete");
+    expect(current.cells.find(cell => cell.key.endsWith(":challenge"))?.state).toBe("waiting");
+    expect(current.cells.find(cell => cell.key.endsWith(":preliminary"))?.state).toBe("waiting");
+  });
+  it("renders selected math items for the parent while keeping English-only lessons out of math sessions", () => {
+    const payload = { version: 1 as const, sessionKind: "math" as const, freeText: "교재 42쪽", entries: [
+      { key: "중2-2:2:practicePreliminary", state: "complete" as const },
+    ] };
+    expect(formatMathJournalContent(payload, "2026-09-22")).toContain("실력문제 예비 평가 · 완료");
+    expect(isMathProgressSession(row("영어 집중 수업", 1, {
+      mathProgress: { ...payload, sessionKind: "english", entries: [] },
+    }), "2026-09-22")).toBe(false);
+  });
+  it("replays explicit records at the four-week cutoff without counting older completions twice", () => {
+    const baseline = createProgressBaseline([], "중2");
+    const explicit = (id: number, journalDate: string, key: string) => row("수학 수업", id, {
+      journalDate,
+      mathProgress: { version: 1, sessionKind: "math", freeText: "수학 수업", entries: [{ key, state: "complete" }] },
+    });
+    const records = [
+      explicit(1, "2026-09-24", "중2-2:1:learn:1"),
+      explicit(2, "2026-10-10", "중2-2:1:test:1"),
+    ];
+    const current = calculateMathProgress(records, [], "2026-10-25", { baseline, grade: "중2" });
+    const stats = calculateRecentCourseStats(records, "중2", current, "2026-10-25", {}, baseline);
+    expect(stats.learningStepsGained).toBe(0);
+    expect(stats.assessmentStepsGained).toBe(1);
+    expect(stats.courseDeltaPercent).toBeGreaterThan(0);
   });
   it("does not lower completion when later records review earlier units", () => {
     const rows = [
@@ -242,7 +313,7 @@ describe("2026-09-22 initial progress and grade accumulation", () => {
     expect(u.cells.map(c => c.sector)).toEqual([
       ...Array(5).fill("learn"),
       "challenge",
-      ...Array(8).fill("test"),
+      ...Array(9).fill("test"),
     ]);
   });
   it("entering small-unit evaluations completes every learning section and challenge first", () => {

@@ -319,16 +319,18 @@ export function mathCurriculumForDate(date: string): Curriculum[] {
     course.term === "중3-2" ? middle3SecondTerm2026 : course
   );
 }
-export const progressStates = ["waiting", "active", "complete"] as const;
+export const progressStates = ["waiting", "active", "complete", "skipped"] as const;
 export type ProgressState = (typeof progressStates)[number];
 export const progressLabels: Record<ProgressState, string> = {
   waiting: "대기",
   active: "진행 중",
   complete: "완료",
+  skipped: "건너뜀",
 };
-export const assessmentKeys = ["preliminary", "final1", "final2"] as const;
+export const assessmentKeys = ["preliminary", "practicePreliminary", "final1", "final2"] as const;
 export const assessmentLabels = {
   preliminary: "중단원 예비 평가",
+  practicePreliminary: "실력문제 예비 평가",
   final1: "1차 최종 평가",
   final2: "2차 최종 평가",
 };

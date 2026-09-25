@@ -16,6 +16,7 @@ import { seedLocalUploads } from "../storage";
 import {
   ensureRemainingCountNotificationSchema,
   ensureLearningLinksSchema,
+  ensureMathJournalSchema,
   settlePreviousWeekCounts,
   applyWeeklyAutoUnregisteredDays,
 } from "../db";
@@ -70,6 +71,7 @@ async function startServer() {
   await seedLocalUploads();
   await ensureRemainingCountNotificationSchema();
   await ensureLearningLinksSchema();
+  await ensureMathJournalSchema();
   await ensureRewardSchema();
   let rewardSettlementRunning = false;
   const settleRewards = async () => {
