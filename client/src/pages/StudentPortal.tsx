@@ -708,7 +708,7 @@ export default function StudentPortal() {
                         )}
                         <p className="whitespace-pre-line">
                           {journal?.content
-                            ? parentMathJournalContent(journal.content, group.subject)
+                            ? parentMathJournalContent(journal.content, group.subject, date)
                             : statusMessage}
                         </p>
                         {journal?.homework && (
@@ -841,7 +841,7 @@ export default function StudentPortal() {
                         )}
                         <p className="mt-1 whitespace-pre-line text-sm leading-6 text-[#53645F]">
                           {journal?.content
-                            ? parentMathJournalContent(journal.content, group.subject)
+                            ? parentMathJournalContent(journal.content, group.subject, date)
                             : statusMessage}
                         </p>
                         {journal?.homework && (
