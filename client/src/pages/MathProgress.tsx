@@ -10,7 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
-  learningPaceText,
+  coursePaceText,
   MathCourseDetails,
   ProgressMeter,
 } from "@/components/MathCourseProgress";
@@ -23,6 +23,7 @@ import {
 import type { MathProgress as Progress } from "@shared/mathProgress";
 import { toast } from "sonner";
 type Cell = Progress["terms"][number]["units"][number]["cells"][number];
+const studentCollator = new Intl.Collator("ko-KR", { numeric: true });
 export default function MathProgress() {
   const { user } = useAuth();
   const [search, setSearch] = useState("");
@@ -89,7 +90,7 @@ export default function MathProgress() {
                     "현재 및 누적 과정",
                     "학습률 · 평가율",
                     "최근 4주",
-                    "학습 속도",
+                    "기본 과정 진행 속도",
                     "확인할 기록",
                     "상세",
                   ].map(h => (
@@ -102,6 +103,12 @@ export default function MathProgress() {
               <tbody>
                 {query.data
                   ?.filter(s => `${s.name} ${s.grade}`.includes(search))
+                  .sort(
+                    (a, b) =>
+                      studentCollator.compare(a.grade, b.grade) ||
+                      studentCollator.compare(a.name, b.name) ||
+                      a.id - b.id
+                  )
                   .map(s => (
                     <tr key={s.id} className="border-t">
                       <td className="whitespace-nowrap p-3 font-semibold">
@@ -124,11 +131,28 @@ export default function MathProgress() {
                         </div>
                         <ProgressMeter value={s.progress.learningPercent} />
                       </td>
-                      <td className="whitespace-nowrap p-3 font-semibold">
-                        +{s.progress.recentLearning.deltaPercent}%p
+                      <td className="whitespace-nowrap p-3">
+                        {s.progress.recentCourse ? (
+                          <>
+                            <div className="font-semibold">
+                              기본 +{s.progress.recentCourse.courseDeltaPercent}
+                              %p
+                            </div>
+                            <div className="text-xs text-stone-500">
+                              학습 +
+                              {s.progress.recentCourse.learningDeltaPercent}%p ·
+                              평가 +
+                              {s.progress.recentCourse.assessmentDeltaPercent}%p
+                            </div>
+                          </>
+                        ) : (
+                          "업데이트 중"
+                        )}
                       </td>
                       <td className="whitespace-nowrap p-3 text-xs">
-                        {learningPaceText(s.progress.recentLearning)}
+                        {s.progress.recentCourse
+                          ? coursePaceText(s.progress.recentCourse)
+                          : "업데이트 중"}
                       </td>
                       <td className="p-3">{s.progress.unmatched.length}건</td>
                       <td className="p-3">
@@ -146,9 +170,11 @@ export default function MathProgress() {
             </table>
           </div>
           <p className="mt-2 text-xs text-stone-500">
-            과정 %는 학기별 대단원의 학습·실력문제·평가 단계를 합친 완료율입니다.
-            대단원마다 같은 비중으로 평균하며, 출석률이나 최근 4주 증가율은
-            아닙니다.
+            과정 %는 학기별 대단원의 학습·실력문제·평가 단계를 합친
+            완료율입니다. 대단원마다 같은 비중으로 평균하며, 출석률이나 최근 4주
+            증가율은 아닙니다. 진행 속도는 학습 40%·평가 60%의 과정 증가폭을
+            실제 수학 수업일로 나눠 비교합니다. 평가율은 점수가 아닌 평가 단계
+            완료 비율입니다.
           </p>
           {query.data?.length === 0 && (
             <p className="mt-4">수학 수강 학생이 없습니다.</p>

@@ -19,43 +19,71 @@ import {
 } from "../drizzle/schema";
 import {
   calculateMathProgress,
-  calculateRecentLearningStats,
+  calculateRecentCourseStats,
+  calculateLegacyRecentLearningStats,
   type MathProgress,
-  type RecentLearningStats,
+  type RecentCourseStats,
+  type LegacyRecentLearningStats,
   createProgressBaseline,
   type ProgressBaseline,
   isMathProgressEligible,
+  isMathProgressSession,
   progressKeys,
 } from "../shared/mathProgress";
 import type { ProgressState } from "../shared/mathCurriculum";
 import { getKoreanHolidayDates } from "./koreanHolidays";
 type StoredMathProgress = MathProgress & {
-  recentLearning: RecentLearningStats;
+  recentCourse: RecentCourseStats;
+  recentLearning: LegacyRecentLearningStats;
   baseline: Pick<
     ProgressBaseline,
     "sourceId" | "sourceDate" | "sourceText" | "recognized" | "termCorrection"
   >;
 };
 
-function compareLearningPace(
-  progress: { recentLearning: RecentLearningStats },
-  cohort: Array<{ recentLearning: RecentLearningStats }>
-) {
-  const validPaces = cohort
-    .filter(candidate => candidate.recentLearning.sufficientData)
-    .map(candidate => candidate.recentLearning.stepsPerSession)
-    .filter((pace): pace is number => pace !== null);
+function comparePace(pace: number | null, validPaces: number[]) {
   const average = validPaces.length
     ? validPaces.reduce((sum, pace) => sum + pace, 0) / validPaces.length
     : null;
-  const pace = progress.recentLearning.stepsPerSession;
-  if (!progress.recentLearning.sufficientData || pace === null || average === null)
+  if (pace === null || average === null)
     return { paceLabel: null, paceArrow: null };
   if (average === 0 ? pace > 0 : pace >= average * 1.2)
     return { paceLabel: "빠름" as const, paceArrow: "↑" as const };
   if (average > 0 && pace <= average * 0.8)
     return { paceLabel: "느림" as const, paceArrow: "↓" as const };
   return { paceLabel: "보통" as const, paceArrow: "→" as const };
+}
+
+function compareCoursePace(
+  progress: { recentCourse: RecentCourseStats },
+  cohort: Array<{ recentCourse: RecentCourseStats }>
+) {
+  const validPaces = cohort
+    .filter(candidate => candidate.recentCourse.sufficientPaceData)
+    .map(candidate => candidate.recentCourse.coursePointsPerSession)
+    .filter((pace): pace is number => pace !== null);
+  return comparePace(
+    progress.recentCourse.sufficientPaceData
+      ? progress.recentCourse.coursePointsPerSession
+      : null,
+    validPaces
+  );
+}
+
+function compareLegacyLearningPace(
+  progress: { recentLearning: LegacyRecentLearningStats },
+  cohort: Array<{ recentLearning: LegacyRecentLearningStats }>
+) {
+  const validPaces = cohort
+    .filter(candidate => candidate.recentLearning.sufficientData)
+    .map(candidate => candidate.recentLearning.stepsPerSession)
+    .filter((pace): pace is number => pace !== null);
+  return comparePace(
+    progress.recentLearning.sufficientData
+      ? progress.recentLearning.stepsPerSession
+      : null,
+    validPaces
+  );
 }
 
 let schema: Promise<void> | undefined;
@@ -78,14 +106,23 @@ function shiftIsoDate(date: string, days: number) {
 }
 
 function inferRecentMathWeekdays(
-  journals: Array<{ journalDate: string; isDraft: boolean }>,
+  journals: Array<{
+    journalDate: string;
+    isDraft: boolean;
+    content: string | null;
+    id: number;
+  }>,
   today: string,
   fallback: number[]
 ) {
   const start = shiftIsoDate(today, -56);
   const weeksByWeekday = new Map<number, Set<string>>();
   for (const row of journals) {
-    if (row.isDraft || row.journalDate < start || row.journalDate > today)
+    if (
+      row.journalDate < start ||
+      row.journalDate > today ||
+      !isMathProgressSession(row, today)
+    )
       continue;
     const date = new Date(`${row.journalDate}T00:00:00Z`);
     const weekday = date.getUTCDay();
@@ -322,7 +359,10 @@ export async function studentProgress(studentId: number) {
       db
         .select({ meetingDays: classGroups.meetingDays })
         .from(studentEnrollments)
-        .innerJoin(classGroups, eq(classGroups.id, studentEnrollments.classGroupId))
+        .innerJoin(
+          classGroups,
+          eq(classGroups.id, studentEnrollments.classGroupId)
+        )
         .where(
           and(
             eq(studentEnrollments.studentId, studentId),
@@ -344,7 +384,7 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v8-math-lesson-sessions",
+        "v9-course-pace-and-forecast",
         progressKeys,
         today,
         student.grade,
@@ -394,15 +434,24 @@ export async function studentProgress(studentId: number) {
       )
     )
       blockedDates.add(date);
+  const forecast = { scheduleWeekdays, blockedDates };
+  const recentCourse = calculateRecentCourseStats(
+    journals,
+    student.grade,
+    calculated,
+    today,
+    forecast
+  );
 
   const result: StoredMathProgress = {
     ...calculated,
-    recentLearning: calculateRecentLearningStats(
+    recentCourse,
+    recentLearning: calculateLegacyRecentLearningStats(
+      recentCourse,
       journals,
-      student.grade,
       calculated,
       today,
-      { scheduleWeekdays, blockedDates }
+      forecast
     ),
     baseline: {
       sourceId: baseline.sourceId,
@@ -422,7 +471,9 @@ export async function studentProgress(studentId: number) {
 }
 export async function allProgress() {
   const rows = await progressStudents();
-  const output: Array<(typeof rows)[number] & { progress: StoredMathProgress }> = [];
+  const output: Array<
+    (typeof rows)[number] & { progress: StoredMathProgress }
+  > = [];
   // Bound database concurrency even for a large roster.
   for (let i = 0; i < rows.length; i += 5)
     output.push(
@@ -441,9 +492,13 @@ export async function allProgress() {
       ...student,
       progress: {
         ...student.progress,
+        recentCourse: {
+          ...student.progress.recentCourse,
+          ...compareCoursePace(student.progress, cohort),
+        },
         recentLearning: {
           ...student.progress.recentLearning,
-          ...compareLearningPace(student.progress, cohort),
+          ...compareLegacyLearningPace(student.progress, cohort),
         },
       },
     };
@@ -503,9 +558,7 @@ export async function publicProgress(token: string, studentId?: number) {
   if (currentTerm) {
     for (let i = 0; i < roster.length; i += 5) {
       const batch = await Promise.all(
-        roster
-          .slice(i, i + 5)
-          .map(candidate => studentProgress(candidate.id))
+        roster.slice(i, i + 5).map(candidate => studentProgress(candidate.id))
       );
       cohort.push(
         ...batch.filter(
@@ -525,7 +578,8 @@ export async function publicProgress(token: string, studentId?: number) {
       };
   }
 
-  const paceComparison = compareLearningPace(progress, cohort);
+  const paceComparison = compareCoursePace(progress, cohort);
+  const legacyPaceComparison = compareLegacyLearningPace(progress, cohort);
 
   // Raw journal text and staff correction notes are admin-only.
   return {
@@ -533,9 +587,13 @@ export async function publicProgress(token: string, studentId?: number) {
     focusedLearning: progress.focusedLearning.map(
       ({ journalId: _journalId, ...item }) => item
     ),
+    recentCourse: {
+      ...progress.recentCourse,
+      ...paceComparison,
+    },
     recentLearning: {
       ...progress.recentLearning,
-      ...paceComparison,
+      ...legacyPaceComparison,
     },
     sameCourseAverage,
     unmatched: [],

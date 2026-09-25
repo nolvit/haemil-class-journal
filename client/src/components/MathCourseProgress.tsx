@@ -6,24 +6,24 @@ import {
 } from "@/components/ui/accordion";
 import { LockKeyhole, CheckCircle2, RefreshCcw } from "lucide-react";
 import { assessmentLabels, progressLabels } from "@shared/mathCurriculum";
-import type { MathProgress, RecentLearningStats } from "@shared/mathProgress";
+import type { MathProgress, RecentCourseStats } from "@shared/mathProgress";
 import { trpc } from "@/lib/trpc";
 
 type MathProgressView = MathProgress & {
-  recentLearning?: RecentLearningStats & {
+  recentCourse?: RecentCourseStats & {
     paceLabel?: "빠름" | "보통" | "느림" | null;
     paceArrow?: "↑" | "→" | "↓" | null;
   };
 };
 
-export function learningPaceText(
-  recent: NonNullable<MathProgressView["recentLearning"]>
+export function coursePaceText(
+  recent: NonNullable<MathProgressView["recentCourse"]>
 ) {
   if (recent.paceArrow && recent.paceLabel)
     return `${recent.paceArrow} ${recent.paceLabel}`;
-  if (recent.learningSessions < 5)
-    return `수학 수업일 ${recent.learningSessions}/5일`;
-  if (recent.deltaSteps === 0) return "진도 변화 없음";
+  if (recent.mathSessionDays < 5)
+    return `수학 수업일 ${recent.mathSessionDays}/5일`;
+  if (recent.coursePointsPerSession === null) return "진도 변화 없음";
   return "비교 자료 부족";
 }
 
@@ -139,33 +139,46 @@ export function MathCourseDetails({
         />
         {sameCourseAverage && (
           <p className="mt-1 text-[11px] text-[#7C6A48]">
-            ▲ {sameCourseAverage.term.replace(/^중([123])-([12])$/, "중$1 - $2학기")} 원내 평균 진행률 {sameCourseAverage.percent}%
+            ▲{" "}
+            {sameCourseAverage.term.replace(
+              /^중([123])-([12])$/,
+              "중$1 - $2학기"
+            )}{" "}
+            원내 평균 진행률 {sameCourseAverage.percent}%
           </p>
         )}
-        {progress.recentLearning && (
+        {progress.recentCourse && (
           <div className="mt-3 rounded-lg bg-white px-3 py-2 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-[#71817D]">최근 4주</span>
               <strong className="text-[#193D3C]">
-                +{progress.recentLearning.deltaPercent}%p
+                기본 과정 +{progress.recentCourse.courseDeltaPercent}%p
+              </strong>
+            </div>
+            <p className="mt-1 text-[#71817D]">
+              학습률 +{progress.recentCourse.learningDeltaPercent}%p · 평가율 +
+              {progress.recentCourse.assessmentDeltaPercent}%p
+            </p>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[#71817D]">기본 과정 진행 속도</span>
+              <strong className="text-[#193D3C]">
+                {coursePaceText(progress.recentCourse)}
               </strong>
             </div>
             <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[#71817D]">학습 속도</span>
+              <span className="text-[#71817D]">기본 과정 완료 예상 시점</span>
               <strong className="text-[#193D3C]">
-                {learningPaceText(progress.recentLearning)}
+                {progress.terms.length > 0 &&
+                progress.recentCourse.estimatedCompletionSessions === 0
+                  ? "기본 과정 완료"
+                  : progress.recentCourse.estimatedCompletionDate
+                    ? `${completionPeriod(progress.recentCourse.estimatedCompletionDate)} 완료 예상`
+                    : "예측 자료 부족"}
               </strong>
             </div>
-            <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[#71817D]">예상 완료 시점</span>
-              <strong className="text-[#193D3C]">
-                {progress.learningPercent >= 100
-                  ? "학습 완료"
-                  : progress.recentLearning.estimatedCompletionDate
-                    ? `${completionPeriod(progress.recentLearning.estimatedCompletionDate)} 완료 예상`
-                    : "데이터 부족"}
-              </strong>
-            </div>
+            <p className="mt-1 text-[11px] text-[#71817D]">
+              평가율은 평가 점수가 아닌 평가 단계 완료 비율입니다.
+            </p>
           </div>
         )}
         <Accordion type="multiple" className="mt-3">
@@ -301,7 +314,8 @@ export default function ParentMathProgress({
           <AccordionTrigger className="py-5 text-base font-semibold text-[#193D3C]">
             중등 수학 과정 현황{" "}
             <span className="text-sm">
-              학습 {query.data.learningPercent}% · 평가 {query.data.masteryPercent}%
+              학습 {query.data.learningPercent}% · 평가{" "}
+              {query.data.masteryPercent}%
             </span>
           </AccordionTrigger>
           <AccordionContent>

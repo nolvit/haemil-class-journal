@@ -307,11 +307,7 @@ export function createProgressBaseline(
     terms,
     cutoffEntries: Object.fromEntries(
       journals
-        .filter(
-          r =>
-            r.journalDate ===
-            (options.snapshotDate ?? BASELINE_DATE)
-        )
+        .filter(r => r.journalDate === (options.snapshotDate ?? BASELINE_DATE))
         .map(r => [r.id, journalVersion(r)])
     ),
     termCorrection: options.termOverride,
@@ -501,10 +497,7 @@ export function calculateMathProgress(
       // Five equally weighted workflow phases. The two final rounds share the final phase.
       const fraction = (keys: string[]) =>
         keys.filter(k => state(k) === "complete").length / keys.length;
-      const learningKeys = [
-        ...learning.map(c => c.key),
-        `${prefix}:challenge`,
-      ];
+      const learningKeys = [...learning.map(c => c.key), `${prefix}:challenge`];
       const masteryKeys = tests.map(c => c.key);
       const learningPercent = Math.round(100 * fraction(learningKeys));
       const masteryPercent = Math.round(100 * fraction(masteryKeys));
@@ -530,9 +523,7 @@ export function calculateMathProgress(
       };
     });
     const termCells = units.flatMap(u => u.cells);
-    const completionRate = (
-      selected: typeof termCells
-    ) =>
+    const completionRate = (selected: typeof termCells) =>
       selected.length
         ? Math.round(
             (selected.filter(cell => cell.state === "complete").length /
@@ -559,9 +550,7 @@ export function calculateMathProgress(
   const allCells = terms.flatMap(term =>
     term.units.flatMap(unit => unit.cells)
   );
-  const completionRate = (
-    selected: typeof allCells
-  ) =>
+  const completionRate = (selected: typeof allCells) =>
     selected.length
       ? Math.round(
           (selected.filter(cell => cell.state === "complete").length /
@@ -588,7 +577,25 @@ export function calculateMathProgress(
 }
 export type MathProgress = ReturnType<typeof calculateMathProgress>;
 
-export type RecentLearningStats = {
+export type RecentCourseStats = {
+  courseDeltaPercent: number;
+  learningDeltaPercent: number;
+  assessmentDeltaPercent: number;
+  coursePointsPerSession: number | null;
+  mathSessionDays: number;
+  learningSessionDays: number;
+  assessmentSessionDays: number;
+  learningStepsGained: number;
+  assessmentStepsGained: number;
+  remainingLearningSteps: number;
+  remainingAssessmentSteps: number;
+  sufficientPaceData: boolean;
+  estimatedCompletionSessions: number | null;
+  estimatedCompletionDate: string | null;
+};
+
+/** Kept for installed PWAs that still run the previous client bundle. */
+export type LegacyRecentLearningStats = {
   deltaPercent: number;
   deltaSteps: number;
   learningSessions: number;
@@ -605,7 +612,41 @@ function shiftDate(date: string, days: number) {
   return d.toISOString().slice(0, 10);
 }
 
-function countsAsLearningSession(row: ProgressJournal, today: string) {
+function mathSessionKinds(row: ProgressJournal, today: string) {
+  if (
+    row.isDraft ||
+    !row.content?.trim() ||
+    isEnglishFocusedLesson(row.content)
+  )
+    return null;
+  let learning = false;
+  let assessment = false;
+  // Remedial learning and reassessment still consume a math class day even
+  // when they do not complete a new curriculum cell.
+  for (const header of parseHeaders(row.content)) {
+    if (!header.basic || !validHeader(header, today)) continue;
+    const body = header.body
+      .split("\n")
+      .filter(
+        line => !/(?:예정|미실시|미완료|진행\s*전|평가\s*대기)/.test(line)
+      )
+      .join("\n");
+    const hasAssessment =
+      /(?:\d+\s*-\s*\d+\s*소단원\s*(?:재)?평가|(?:중단원\s*)?예비\s*평가|(?:[12]\s*차\s*)?최종\s*평가)/.test(
+        body
+      );
+    if (hasAssessment) assessment = true;
+    if (!hasAssessment && (header.small !== null || Boolean(body.trim())))
+      learning = true;
+  }
+  return learning || assessment ? { learning, assessment } : null;
+}
+
+export function isMathProgressSession(row: ProgressJournal, today: string) {
+  return mathSessionKinds(row, today) !== null;
+}
+
+function countsAsLegacyLearningSession(row: ProgressJournal, today: string) {
   if (
     row.isDraft ||
     !row.content?.trim() ||
@@ -621,17 +662,69 @@ function countsAsLearningSession(row: ProgressJournal, today: string) {
   );
 }
 
-function learningStepCounts(progress: MathProgress) {
-  const learningCells = progress.terms.flatMap(term =>
-    term.units.flatMap(unit =>
-      unit.cells.filter(
-        cell => cell.sector === "learn" || cell.sector === "challenge"
+function progressSnapshot(progress: MathProgress, reference: MathProgress) {
+  // Both dates use today's tracked cells as their denominator. A newly added
+  // term must not make the historical percentage appear artificially high.
+  const completed = new Set(
+    progress.terms.flatMap(term =>
+      term.units.flatMap(unit =>
+        unit.cells
+          .filter(cell => cell.state === "complete")
+          .map(cell => cell.key)
       )
     )
   );
+  const cells = reference.terms.flatMap(term =>
+    term.units.flatMap(unit => unit.cells)
+  );
+  const learningCells = cells.filter(
+    cell => cell.sector === "learn" || cell.sector === "challenge"
+  );
+  const assessmentCells = cells.filter(cell => cell.sector === "test");
+  const fraction = (keys: string[]) =>
+    keys.length
+      ? keys.filter(key => completed.has(key)).length / keys.length
+      : 0;
+  const coursePercent = reference.terms.length
+    ? reference.terms.reduce(
+        (termSum, term) =>
+          termSum +
+          term.units.reduce((unitSum, unit) => {
+            const phaseKeys = [
+              unit.cells
+                .filter(cell => cell.sector === "learn")
+                .map(cell => cell.key),
+              unit.cells
+                .filter(cell => cell.sector === "challenge")
+                .map(cell => cell.key),
+              unit.cells
+                .filter(cell => cell.key.includes(":test:"))
+                .map(cell => cell.key),
+              unit.cells
+                .filter(cell => cell.key.endsWith(":preliminary"))
+                .map(cell => cell.key),
+              unit.cells
+                .filter(cell => /:final[12]$/.test(cell.key))
+                .map(cell => cell.key),
+            ];
+            return (
+              unitSum +
+              (20 * phaseKeys.reduce((sum, keys) => sum + fraction(keys), 0)) /
+                term.units.length
+            );
+          }, 0) /
+            reference.terms.length,
+        0
+      )
+    : 0;
   return {
-    complete: learningCells.filter(cell => cell.state === "complete").length,
-    total: learningCells.length,
+    coursePercent,
+    learningComplete: learningCells.filter(cell => completed.has(cell.key))
+      .length,
+    learningTotal: learningCells.length,
+    assessmentComplete: assessmentCells.filter(cell => completed.has(cell.key))
+      .length,
+    assessmentTotal: assessmentCells.length,
   };
 }
 
@@ -643,7 +736,9 @@ export function estimateCompletionDateBySchedule(
 ) {
   if (requiredSessions <= 0) return today;
   const weekdays = new Set(
-    scheduleWeekdays.filter(day => Number.isInteger(day) && day >= 0 && day <= 6)
+    scheduleWeekdays.filter(
+      day => Number.isInteger(day) && day >= 0 && day <= 6
+    )
   );
   if (!weekdays.size) return null;
   const blocked = new Set(blockedDates);
@@ -658,7 +753,7 @@ export function estimateCompletionDateBySchedule(
   return null;
 }
 
-export function calculateRecentLearningStats(
+export function calculateRecentCourseStats(
   journals: ProgressJournal[],
   grade: string,
   currentProgress: MathProgress,
@@ -667,7 +762,7 @@ export function calculateRecentLearningStats(
     scheduleWeekdays?: number[];
     blockedDates?: Iterable<string>;
   } = {}
-): RecentLearningStats {
+): RecentCourseStats {
   const startDate = shiftDate(today, -28);
   const historicalRows = journals.filter(
     row => !row.isDraft && row.journalDate <= startDate && row.content?.trim()
@@ -688,59 +783,174 @@ export function calculateRecentLearningStats(
       break;
     }
   }
-  const historicalProgress = calculateMathProgress([], [], startDate, {
-    baseline: historicalBaseline,
-    grade,
-  });
-  const currentSteps = learningStepCounts(currentProgress);
-  const historicalSteps = learningStepCounts(historicalProgress);
-  const deltaSteps = Math.max(0, currentSteps.complete - historicalSteps.complete);
-  const remainingSteps = Math.max(0, currentSteps.total - currentSteps.complete);
-  const deltaPercent = Math.max(
-    0,
-    currentProgress.learningPercent - historicalProgress.learningPercent
+  // Staff corrections are not new lessons. Apply the current corrections to
+  // both snapshots so they cannot create artificial four-week gains.
+  const currentOverrides = currentProgress.terms.flatMap(term =>
+    term.units.flatMap(unit =>
+      unit.cells.flatMap(cell => (cell.override ? [cell.override] : []))
+    )
   );
+  const historicalProgress = calculateMathProgress(
+    [],
+    currentOverrides,
+    startDate,
+    {
+      baseline: historicalBaseline,
+      grade,
+    }
+  );
+  const current = progressSnapshot(currentProgress, currentProgress);
+  const historical = progressSnapshot(historicalProgress, currentProgress);
+  const roundPercent = (value: number) => Math.round(value * 10) / 10;
+  const learningStepsGained = Math.max(
+    0,
+    current.learningComplete - historical.learningComplete
+  );
+  const assessmentStepsGained = Math.max(
+    0,
+    current.assessmentComplete - historical.assessmentComplete
+  );
+  const remainingLearningSteps =
+    current.learningTotal - current.learningComplete;
+  const remainingAssessmentSteps =
+    current.assessmentTotal - current.assessmentComplete;
+  const courseDelta = Math.max(
+    0,
+    current.coursePercent - historical.coursePercent
+  );
+  const mathDays = new Set<string>();
+  const learningDays = new Set<string>();
+  const assessmentDays = new Set<string>();
+  for (const row of journals) {
+    if (row.journalDate <= startDate || row.journalDate > today) continue;
+    const kinds = mathSessionKinds(row, today);
+    if (!kinds) continue;
+    mathDays.add(row.journalDate);
+    if (kinds.learning) learningDays.add(row.journalDate);
+    if (kinds.assessment) assessmentDays.add(row.journalDate);
+  }
+  const mathSessionDays = mathDays.size;
+  const learningSessionDays = learningDays.size;
+  const assessmentSessionDays = assessmentDays.size;
+  const coursePointsPerSession =
+    mathSessionDays > 0 && courseDelta > 0
+      ? courseDelta / mathSessionDays
+      : null;
+  const sufficientPaceData =
+    mathSessionDays >= 5 && coursePointsPerSession !== null;
+  const sessionsNeeded = (
+    remaining: number,
+    gained: number,
+    observedDays: number
+  ) =>
+    remaining === 0
+      ? 0
+      : gained > 0 && observedDays >= 2
+        ? Math.ceil((remaining * observedDays) / gained)
+        : null;
+  const learningNeeded = sessionsNeeded(
+    remainingLearningSteps,
+    learningStepsGained,
+    learningSessionDays
+  );
+  const assessmentNeeded = sessionsNeeded(
+    remainingAssessmentSteps,
+    assessmentStepsGained,
+    assessmentSessionDays
+  );
+  // Add phase-specific days conservatively; some real days may combine both.
+  const estimatedCompletionSessions =
+    learningNeeded === null || assessmentNeeded === null
+      ? null
+      : learningNeeded + assessmentNeeded;
+  const estimatedCompletionDate =
+    current.learningTotal + current.assessmentTotal > 0 &&
+    remainingLearningSteps + remainingAssessmentSteps === 0
+      ? today
+      : estimatedCompletionSessions !== null &&
+          forecast.scheduleWeekdays?.length
+        ? estimateCompletionDateBySchedule(
+            today,
+            estimatedCompletionSessions,
+            forecast.scheduleWeekdays,
+            forecast.blockedDates
+          )
+        : null;
+  return {
+    courseDeltaPercent: roundPercent(courseDelta),
+    learningDeltaPercent: Math.round(
+      (100 * learningStepsGained) / (current.learningTotal || 1)
+    ),
+    assessmentDeltaPercent: Math.round(
+      (100 * assessmentStepsGained) / (current.assessmentTotal || 1)
+    ),
+    coursePointsPerSession,
+    mathSessionDays,
+    learningSessionDays,
+    assessmentSessionDays,
+    learningStepsGained,
+    assessmentStepsGained,
+    remainingLearningSteps,
+    remainingAssessmentSteps,
+    sufficientPaceData,
+    estimatedCompletionSessions,
+    estimatedCompletionDate,
+  };
+}
+
+export function calculateLegacyRecentLearningStats(
+  recentCourse: RecentCourseStats,
+  journals: ProgressJournal[],
+  currentProgress: MathProgress,
+  today: string,
+  forecast: {
+    scheduleWeekdays?: number[];
+    blockedDates?: Iterable<string>;
+  } = {}
+): LegacyRecentLearningStats {
+  const startDate = shiftDate(today, -28);
   const learningSessions = new Set(
     journals
       .filter(
         row =>
           row.journalDate > startDate &&
           row.journalDate <= today &&
-          countsAsLearningSession(row, today)
+          countsAsLegacyLearningSession(row, today)
       )
       .map(row => row.journalDate)
   ).size;
   const stepsPerSession =
-    learningSessions > 0 && deltaSteps > 0
-      ? Math.round((deltaSteps / learningSessions) * 100) / 100
+    learningSessions > 0 && recentCourse.learningStepsGained > 0
+      ? Math.round(
+          (recentCourse.learningStepsGained / learningSessions) * 100
+        ) / 100
       : null;
-  const sufficientData =
-    learningSessions >= 5 && deltaSteps > 0 && stepsPerSession !== null;
+  const sufficientData = learningSessions >= 5 && stepsPerSession !== null;
   const estimatedLearningSessions =
-    remainingSteps === 0
+    recentCourse.remainingLearningSteps === 0
       ? 0
       : sufficientData
-        ? Math.ceil(remainingSteps / stepsPerSession!)
-        : null;
-  const estimatedCompletionDate =
-    currentProgress.learningPercent >= 100
-      ? today
-      : estimatedLearningSessions !== null && forecast.scheduleWeekdays?.length
-        ? estimateCompletionDateBySchedule(
-            today,
-            estimatedLearningSessions,
-            forecast.scheduleWeekdays,
-            forecast.blockedDates
-          )
+        ? Math.ceil(recentCourse.remainingLearningSteps / stepsPerSession!)
         : null;
   return {
-    deltaPercent,
-    deltaSteps,
+    deltaPercent: recentCourse.learningDeltaPercent,
+    deltaSteps: recentCourse.learningStepsGained,
     learningSessions,
     stepsPerSession,
-    remainingSteps,
+    remainingSteps: recentCourse.remainingLearningSteps,
     estimatedLearningSessions,
     sufficientData,
-    estimatedCompletionDate,
+    estimatedCompletionDate:
+      currentProgress.learningPercent >= 100
+        ? today
+        : estimatedLearningSessions !== null &&
+            forecast.scheduleWeekdays?.length
+          ? estimateCompletionDateBySchedule(
+              today,
+              estimatedLearningSessions,
+              forecast.scheduleWeekdays,
+              forecast.blockedDates
+            )
+          : null,
   };
 }

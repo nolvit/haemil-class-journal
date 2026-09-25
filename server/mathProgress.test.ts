@@ -1,8 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
   calculateMathProgress,
-  calculateRecentLearningStats,
+  calculateRecentCourseStats,
+  calculateLegacyRecentLearningStats,
   createProgressBaseline,
+  isMathProgressSession,
   middleGrade,
   type ProgressJournal,
   type ProgressOverride,
@@ -279,8 +281,12 @@ describe("2026-09-22 initial progress and grade accumulation", () => {
     const newCourse = calculateMathProgress([], [], "2027-01-01").terms.find(
       t => t.term === "중3-2"
     )!;
-    expect(oldCourse.units[3].cells.filter(c => c.sector === "learn")).toHaveLength(2);
-    expect(newCourse.units[3].cells.filter(c => c.sector === "learn")).toHaveLength(3);
+    expect(
+      oldCourse.units[3].cells.filter(c => c.sector === "learn")
+    ).toHaveLength(2);
+    expect(
+      newCourse.units[3].cells.filter(c => c.sector === "learn")
+    ).toHaveLength(3);
     expect(oldCourse.units[4].cells[1].label).toBe("5-2 상자그림");
     expect(newCourse.units[4].cells[1].label).toBe("5-2 산포도");
     const baseline = createProgressBaseline([latest], "중2");
@@ -320,7 +326,6 @@ it("continues to reflect edits and new records on the baseline date itself", () 
     ).complete
   ).toBe(true);
 });
-
 
 describe("learning mastery and recent pace metrics", () => {
   it("separates learning progress from assessment mastery", () => {
@@ -366,7 +371,7 @@ describe("learning mastery and recent pace metrics", () => {
       }),
       grade: "중2",
     });
-    const stats = calculateRecentLearningStats(
+    const stats = calculateRecentCourseStats(
       rows,
       "중2",
       currentProgress,
@@ -374,12 +379,22 @@ describe("learning mastery and recent pace metrics", () => {
     );
 
     expect(currentProgress.learningPercent).toBe(50);
-    expect(stats.deltaPercent).toBe(17);
-    expect(stats.deltaSteps).toBe(5);
-    expect(stats.learningSessions).toBe(1);
+    expect(stats.learningDeltaPercent).toBe(17);
+    expect(stats.learningStepsGained).toBe(5);
+    expect(stats.mathSessionDays).toBe(1);
+    expect(stats.assessmentSessionDays).toBe(1);
+    expect(stats.courseDeltaPercent).toBeGreaterThan(0);
+    const legacy = calculateLegacyRecentLearningStats(
+      stats,
+      rows,
+      currentProgress,
+      "2026-09-25"
+    );
+    expect(legacy.deltaPercent).toBe(17);
+    expect(legacy.learningSessions).toBe(1);
   });
 
-  it("counts dated unit-level math lessons but not English or repeat-study lessons", () => {
+  it("counts math learning, assessment, and repeat-study days but not English-only days", () => {
     const rows = [
       row("[중2-2 / 1단계 / 1단원]\n이등변삼각형의 성질", 1, {
         journalDate: "2026-09-01",
@@ -407,18 +422,157 @@ describe("learning mastery and recent pace metrics", () => {
       }),
       grade: "중2",
     });
-    const stats = calculateRecentLearningStats(
+    const stats = calculateRecentCourseStats(
       rows,
       "중2",
       currentProgress,
       "2026-09-25"
     );
-    expect(stats.learningSessions).toBe(5);
-    expect(stats.sufficientData).toBe(true);
-    expect(stats.stepsPerSession).toBeGreaterThan(0);
+    expect(stats.mathSessionDays).toBe(6);
+    expect(stats.learningSessionDays).toBe(5);
+    expect(stats.assessmentSessionDays).toBe(1);
+    expect(stats.sufficientPaceData).toBe(true);
+    expect(stats.coursePointsPerSession).toBeGreaterThan(0);
   });
 
-  it("forecasts completion from remaining learning steps and scheduled sessions", () => {
+  it("credits assessment-only progress without inventing learning progress", () => {
+    const rows = [
+      row("[중2-2 / 1단계 / 1단원]\n1-1 소단원 평가", 1, {
+        journalDate: "2026-08-28",
+      }),
+      row("[중2-2 / 1단계 / 1단원]\n1-2 소단원 평가", 2, {
+        journalDate: "2026-09-20",
+      }),
+    ];
+    const currentProgress = calculateMathProgress([], [], "2026-09-25", {
+      baseline: createProgressBaseline(rows, "중2", {
+        snapshotDate: "2026-09-25",
+      }),
+      grade: "중2",
+    });
+    const stats = calculateRecentCourseStats(
+      rows,
+      "중2",
+      currentProgress,
+      "2026-09-25"
+    );
+    expect(stats.learningDeltaPercent).toBe(0);
+    expect(stats.assessmentDeltaPercent).toBeGreaterThan(0);
+    expect(stats.courseDeltaPercent).toBeGreaterThan(0);
+    expect(stats.mathSessionDays).toBe(1);
+    expect(stats.assessmentSessionDays).toBe(1);
+    expect(isMathProgressSession(rows[1], "2026-09-25")).toBe(true);
+    expect(
+      isMathProgressSession(
+        row("영어 집중 수업", 3, { journalDate: "2026-09-20" }),
+        "2026-09-25"
+      )
+    ).toBe(false);
+  });
+
+  it("forecasts remaining learning and assessment days separately", () => {
+    const rows = [
+      row("[중2-2 / 1단계 / 1-1단원]", 1, { journalDate: "2026-09-01" }),
+      row("[중2-2 / 1단계 / 1-2단원]", 2, { journalDate: "2026-09-05" }),
+      row("[중2-2 / 1단계 / 1-3단원]", 3, { journalDate: "2026-09-10" }),
+      row("[중2-2 / 1단계 / 1-4단원]", 4, { journalDate: "2026-09-15" }),
+      row("[중2-2 / 1단계 / 1단원]\n1-1 소단원 평가", 5, {
+        journalDate: "2026-09-18",
+      }),
+      row("[중2-2 / 1단계 / 1단원]\n1-2 소단원 평가", 6, {
+        journalDate: "2026-09-20",
+      }),
+    ];
+    const currentProgress = calculateMathProgress([], [], "2026-09-22", {
+      baseline: createProgressBaseline(rows, "중2", {
+        snapshotDate: "2026-09-22",
+      }),
+      grade: "중2",
+    });
+    const stats = calculateRecentCourseStats(
+      rows,
+      "중2",
+      currentProgress,
+      "2026-09-22",
+      { scheduleWeekdays: [1, 3, 5] }
+    );
+    expect(stats.learningSessionDays).toBe(4);
+    expect(stats.assessmentSessionDays).toBe(2);
+    expect(stats.estimatedCompletionSessions).toBe(
+      Math.ceil(
+        (stats.remainingLearningSteps * stats.learningSessionDays) /
+          stats.learningStepsGained
+      ) +
+        Math.ceil(
+          (stats.remainingAssessmentSteps * stats.assessmentSessionDays) /
+            stats.assessmentStepsGained
+        )
+    );
+    expect(stats.estimatedCompletionDate).not.toBeNull();
+  });
+
+  it("does not mark basic course complete when only learning is complete", () => {
+    const baseline = createProgressBaseline([], "중2");
+    const initial = calculateMathProgress([], [], "2026-09-25", {
+      baseline,
+      grade: "중2",
+    });
+    const overrides = initial.terms.flatMap(term =>
+      term.units.flatMap(unit =>
+        unit.cells
+          .filter(cell => cell.sector !== "test")
+          .map(cell => ({
+            key: cell.key,
+            state: "complete" as const,
+            reason: "기존 상태 보정",
+            updatedByUserId: 1,
+            updatedAt: "2026-09-01",
+          }))
+      )
+    );
+    const currentProgress = calculateMathProgress([], overrides, "2026-09-25", {
+      baseline,
+      grade: "중2",
+    });
+    const stats = calculateRecentCourseStats(
+      [],
+      "중2",
+      currentProgress,
+      "2026-09-25"
+    );
+    expect(currentProgress.learningPercent).toBe(100);
+    expect(stats.learningDeltaPercent).toBe(0);
+    expect(stats.remainingLearningSteps).toBe(0);
+    expect(stats.remainingAssessmentSteps).toBeGreaterThan(0);
+    expect(stats.estimatedCompletionSessions).toBeNull();
+    expect(stats.estimatedCompletionDate).toBeNull();
+  });
+
+  it("marks basic course complete only after the final assessment is complete", () => {
+    const rows = [
+      row("[중2-2 / 기본 / 7단원]\n2차 최종 평가", 1, {
+        journalDate: "2026-09-24",
+      }),
+    ];
+    const currentProgress = calculateMathProgress([], [], "2026-09-25", {
+      baseline: createProgressBaseline(rows, "중2", {
+        snapshotDate: "2026-09-25",
+      }),
+      grade: "중2",
+    });
+    const stats = calculateRecentCourseStats(
+      rows,
+      "중2",
+      currentProgress,
+      "2026-09-25"
+    );
+    expect(stats.remainingLearningSteps).toBe(0);
+    expect(stats.remainingAssessmentSteps).toBe(0);
+    expect(stats.estimatedCompletionSessions).toBe(0);
+    expect(stats.estimatedCompletionDate).toBe("2026-09-25");
+  });
+
+  it("does not forecast the full course without assessment pace evidence", () => {
     const rows = [
       row("[중2-2 / 기본 / 1-1단원]", 1, { journalDate: "2026-09-01" }),
       row("[중2-2 / 기본 / 1-2단원]", 2, { journalDate: "2026-09-05" }),
@@ -436,7 +590,7 @@ describe("learning mastery and recent pace metrics", () => {
       baseline: currentBaseline,
       grade: "중2",
     });
-    const stats = calculateRecentLearningStats(
+    const stats = calculateRecentCourseStats(
       rows,
       "중2",
       currentProgress,
@@ -446,13 +600,26 @@ describe("learning mastery and recent pace metrics", () => {
         blockedDates: ["2026-09-25"],
       }
     );
-    expect(stats.deltaPercent).toBe(17);
-    expect(stats.deltaSteps).toBe(5);
-    expect(stats.learningSessions).toBe(5);
-    expect(stats.stepsPerSession).toBe(1);
-    expect(stats.remainingSteps).toBe(25);
-    expect(stats.estimatedLearningSessions).toBe(25);
-    expect(stats.sufficientData).toBe(true);
-    expect(stats.estimatedCompletionDate).toBe("2026-11-20");
+    expect(stats.learningDeltaPercent).toBe(17);
+    expect(stats.learningStepsGained).toBe(5);
+    expect(stats.mathSessionDays).toBe(6);
+    expect(stats.remainingLearningSteps).toBe(25);
+    expect(stats.remainingAssessmentSteps).toBeGreaterThan(0);
+    expect(stats.assessmentSessionDays).toBe(0);
+    expect(stats.sufficientPaceData).toBe(true);
+    expect(stats.estimatedCompletionSessions).toBeNull();
+    expect(stats.estimatedCompletionDate).toBeNull();
+    const legacy = calculateLegacyRecentLearningStats(
+      stats,
+      rows,
+      currentProgress,
+      "2026-09-22",
+      {
+        scheduleWeekdays: [1, 3, 5],
+        blockedDates: ["2026-09-25"],
+      }
+    );
+    expect(legacy.learningSessions).toBe(5);
+    expect(legacy.estimatedCompletionDate).toBe("2026-11-20");
   });
 });
