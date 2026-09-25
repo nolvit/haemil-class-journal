@@ -72,10 +72,12 @@ import {
   isDateVisibleToParent,
   isFinalJournalVisibleToParent,
   isJournalHomeworkVisible,
+  isMathJournalOutcomeVisible,
   shouldPullJournalForAttendance,
   shouldTransferJournalForAttendance,
   type AttendanceStatus,
 } from "../shared/journalRules";
+import { parentMathJournalScheduledContent } from "../shared/parentMathJournal";
 import { getValidUntilAfterTotalCountChange } from "../shared/studentExpiryRules";
 import { getAutomaticTuitionMatch } from "../shared/tuitionRules";
 import {
@@ -3524,18 +3526,26 @@ export async function getPublicStudentWeek(
   const subjectByGroupId = new Map(groupRows.map(group => [group.id, group.subject]));
   const visibleJournals = allJournals
     .filter(journal => isFinalJournalVisibleToParent(journal.isDraft))
-    .map(journal => ({
-      ...journal,
-      homework: isJournalHomeworkVisible({
-        subject: subjectByGroupId.get(journal.classGroupId) ?? "",
+    .map(journal => {
+      const subject = subjectByGroupId.get(journal.classGroupId) ?? "";
+      const attendance = attendanceByDate.get(journal.journalDate);
+      const outcome = {
         content: journal.content,
-        homework: journal.homework,
         journalDate: journal.journalDate,
-        attendanceStatus: attendanceByDate.get(journal.journalDate)?.status,
-        departureTime: attendanceByDate.get(journal.journalDate)?.departureTime,
+        attendanceStatus: attendance?.status,
+        departureTime: attendance?.departureTime,
         now,
-      }) ? journal.homework : "",
-    }));
+      };
+      return {
+        ...journal,
+        content: journal.content ? parentMathJournalScheduledContent(
+          journal.content, subject, journal.journalDate, isMathJournalOutcomeVisible(outcome)
+        ) : journal.content,
+        homework: isJournalHomeworkVisible({
+          ...outcome, subject, homework: journal.homework,
+        }) ? journal.homework : "",
+      };
+    });
   const weekendDates = allWeekDates.slice(-2);
   const weekendActive =
     visibleAttendances.some(

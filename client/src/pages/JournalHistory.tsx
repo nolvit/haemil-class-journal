@@ -86,7 +86,7 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   };
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = `${title} · 최근 4주 달력 | 해밀학원`;
+    document.title = `${title} · 4주 달력 | 해밀학원`;
     return () => { document.title = previousTitle; };
   }, [title]);
   useEffect(() => {
@@ -123,7 +123,7 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
     <main className="history-page">
       <header className="history-heading">
         <div><p className="history-eyebrow">HAEMIL · LESSON CALENDAR</p>
-          <h1>{title} <span>최근 4주 수업일지</span></h1>
+          <h1>{title} <span>4주 수업일지</span></h1>
           <p className="history-subtitle">{targetRow?.student.grade && <>{targetRow.student.grade} · </>}{weeks[3].weekStart} ~ {rangeEnd}<span className="history-readonly">조회 전용</span></p>
         </div>
         <div className="history-actions">
@@ -131,9 +131,9 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
           <button type="button" className="history-action" disabled={queries.some(query => query.isFetching)} onClick={refresh}><RefreshCw size={15} aria-hidden="true" />새로고침</button>
         </div>
       </header>
-      <div className="history-guide"><CalendarDays size={16} aria-hidden="true" /><p>이번 주와 지난 3주를 보여줍니다. <strong>날짜별 복사 버튼으로 수업 내용만 복사합니다.</strong> 과제와 비고는 제외됩니다.</p></div>
+      <div className="history-guide"><CalendarDays size={16} aria-hidden="true" /><p>월~수에는 이번 주까지, 목~일에는 다음 주까지 4주를 보여줍니다. <strong>날짜별 복사 버튼으로 수업 내용만 복사합니다.</strong> 과제와 비고는 제외됩니다.</p></div>
       <p className="history-mobile-hint">달력을 좌우로 밀어 다른 요일을 확인하세요.</p>
-      <div className="history-calendar-scroll" role="region" aria-label="최근 4주 수업일지 달력" tabIndex={0}>
+      <div className="history-calendar-scroll" role="region" aria-label="4주 수업일지 달력" tabIndex={0}>
         <table className="history-calendar">
           <caption className="history-sr-only">{title} · 월요일부터 {target.includeWeekend ? "일요일까지 7칸" : "금요일까지 5칸"}씩 4주. 3주 전부터 이번 주까지 날짜순으로 표시합니다.</caption>
           <thead><tr>{dayLabels.map((day, index) => <th key={day} scope="col" data-weekend={index > 4 || undefined}>{day}<span>요일</span></th>)}</tr></thead>

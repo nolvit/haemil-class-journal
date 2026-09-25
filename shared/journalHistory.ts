@@ -18,7 +18,7 @@ export type JournalHistoryWeek = {
   dates: string[];
 };
 
-/** Exactly four Monday-Sunday weeks, newest first. This is not a rolling 28-day window. */
+/** 월~수는 이번 주가 4주차, 목~일은 다음 주가 4주차인 4개 달력 주. 최신 주부터 반환한다. */
 export function getJournalHistoryWeeks(referenceDate: string): JournalHistoryWeek[] {
   const anchor = new Date(`${referenceDate}T00:00:00Z`);
   if (
@@ -28,17 +28,19 @@ export function getJournalHistoryWeeks(referenceDate: string): JournalHistoryWee
   ) {
     throw new RangeError("올바른 기준 날짜가 필요합니다.");
   }
-  anchor.setUTCDate(anchor.getUTCDate() - ((anchor.getUTCDay() + 6) % 7));
+  const weekday = anchor.getUTCDay();
+  const showNextWeek = weekday === 0 || weekday >= 4;
+  anchor.setUTCDate(anchor.getUTCDate() - ((weekday + 6) % 7));
   const dateAt = (offset: number) => {
     const date = new Date(anchor);
     date.setUTCDate(date.getUTCDate() + offset);
     return date.toISOString().slice(0, 10);
   };
   return Array.from({ length: 4 }, (_, index) => ({
-    weekStart: dateAt(-7 * index),
-    weekEnd: dateAt(-7 * index + 6),
-    label: index === 0 ? "이번 주" : `${index}주 전`,
-    dates: Array.from({ length: 7 }, (_, day) => dateAt(-7 * index + day)),
+    weekStart: dateAt((showNextWeek ? 7 : 0) - 7 * index),
+    weekEnd: dateAt((showNextWeek ? 7 : 0) - 7 * index + 6),
+    label: `${4 - index}주차`,
+    dates: Array.from({ length: 7 }, (_, day) => dateAt((showNextWeek ? 7 : 0) - 7 * index + day)),
   }));
 }
 

@@ -13,35 +13,42 @@ describe("journal history calendar", () => {
     expect(date).toBe("2026-09-14");
     expect(getJournalHistoryWeeks(date)[0].weekStart).toBe("2026-09-14");
   });
-  it("returns the current week and the previous three weeks newest first", () => {
+  it("shows the current week as week 3 and the next week as week 4 from Thursday", () => {
     expect(getJournalHistoryWeeks("2026-09-18").map(({ weekStart, weekEnd, label }) => ({ weekStart, weekEnd, label }))).toEqual([
-      { weekStart: "2026-09-14", weekEnd: "2026-09-20", label: "이번 주" },
-      { weekStart: "2026-09-07", weekEnd: "2026-09-13", label: "1주 전" },
-      { weekStart: "2026-08-31", weekEnd: "2026-09-06", label: "2주 전" },
-      { weekStart: "2026-08-24", weekEnd: "2026-08-30", label: "3주 전" },
+      { weekStart: "2026-09-21", weekEnd: "2026-09-27", label: "4주차" },
+      { weekStart: "2026-09-14", weekEnd: "2026-09-20", label: "3주차" },
+      { weekStart: "2026-09-07", weekEnd: "2026-09-13", label: "2주차" },
+      { weekStart: "2026-08-31", weekEnd: "2026-09-06", label: "1주차" },
     ]);
   });
-  it("returns the same range for every day of the current week", () => {
+  it("switches the four-week range on Thursday, not before", () => {
     const expected = getJournalHistoryWeeks("2026-09-14");
-    for (const day of ["15", "16", "17", "18", "19", "20"]) {
+    for (const day of ["15", "16"]) {
       expect(getJournalHistoryWeeks(`2026-09-${day}`)).toEqual(expected);
     }
+    expect(expected[0].weekStart).toBe("2026-09-14");
+    expect(expected[0].label).toBe("4주차");
+    const shifted = getJournalHistoryWeeks("2026-09-17");
+    for (const day of ["18", "19", "20"])
+      expect(getJournalHistoryWeeks(`2026-09-${day}`)).toEqual(shifted);
+    expect(shifted[1].weekStart).toBe("2026-09-14");
+    expect(shifted[1].label).toBe("3주차");
   });
   it("returns all 28 distinct dates including both weekend days", () => {
     const dates = getJournalHistoryWeeks("2026-09-18").flatMap(week => week.dates);
     expect(dates.length).toBe(28);
     expect(new Set(dates).size).toBe(28);
     expect(dates.includes("2026-09-19")).toBe(true);
-    expect(dates.includes("2026-09-20")).toBe(true);
+    expect(dates.includes("2026-09-27")).toBe(true);
   });
   it("handles the December/January boundary", () => {
     const weeks = getJournalHistoryWeeks("2026-01-01");
-    expect(weeks[0].weekStart).toBe("2025-12-29");
-    expect(weeks[0].weekEnd).toBe("2026-01-04");
-    expect(weeks[3].weekStart).toBe("2025-12-08");
+    expect(weeks[0].weekStart).toBe("2026-01-05");
+    expect(weeks[0].weekEnd).toBe("2026-01-11");
+    expect(weeks[3].weekStart).toBe("2025-12-15");
   });
   it("handles leap day without shifting weekdays", () => {
-    const week = getJournalHistoryWeeks("2024-02-29")[0];
+    const week = getJournalHistoryWeeks("2024-02-29")[1];
     expect(week.weekStart).toBe("2024-02-26");
     expect(week.weekEnd).toBe("2024-03-03");
     expect(week.dates[3]).toBe("2024-02-29");
@@ -57,7 +64,7 @@ describe("journal history calendar", () => {
 });
 
 describe("journal history student/subject selection", () => {
-  const week = getJournalHistoryWeeks("2026-09-18")[0];
+  const week = getJournalHistoryWeeks("2026-09-18")[1];
   const row = (studentId: number, classGroupId: number, content: string) => ({
     student: { id: studentId, name: "동명이인" },
     classGroup: { id: classGroupId },

@@ -1,7 +1,30 @@
 import { mathCurriculumForDate } from "./mathCurriculum";
-import { normalizeMathJournalDisplayContent } from "./mathProgress";
+import { mathUnitOptions, normalizeMathJournalDisplayContent } from "./mathProgress";
 
 export const PARENT_MATH_TITLE_START_DATE = "2026-09-28";
+
+/** 보호자 공개용 사본에서만 선택형 수학 과정의 결과를 예정으로 바꾼다. 자유 서술은 보존한다. */
+export function parentMathJournalScheduledContent(
+  content: string,
+  subject: string,
+  journalDate: string,
+  showOutcome: boolean,
+): string {
+  if (!subject.includes("수학") || showOutcome) return content;
+  const lines = normalizeMathJournalDisplayContent(content).split(/\r?\n/);
+  let selectedLabels = new Set<string>();
+  return lines.map(line => {
+    const title = line.trim().match(/^\[(중[1-3]-[12])\s*\/\s*기본\s*\/\s*(\d+)단원\]$/);
+    if (title) {
+      selectedLabels = new Set(mathUnitOptions(title[1]!, Number(title[2]), journalDate).map(item => item.label));
+      return line;
+    }
+    const selected = line.match(/^(\s*)(.+?)\s*·\s*(진행 중|완료|건너뜀)\s*$/);
+    return selected && selectedLabels.has(selected[2]!.trim())
+      ? `${selected[1]}${selected[2]!.trim()} · 예정`
+      : line;
+  }).join("\n");
+}
 
 const smallUnitTitle =
   /^\[\s*(중[1-3]-[12])\s*\/\s*1단계\s*\/\s*(\d+)-(\d+)단원\s*\]$/;

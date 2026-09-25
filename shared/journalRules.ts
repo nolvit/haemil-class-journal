@@ -78,23 +78,19 @@ export function initialJournalHomework(
 export const MATH_HOMEWORK_FALLBACK_HOUR_KST = 22;
 
 /**
- * 빠른 입력용 수학 과제 기본값은 수업이 끝나기 전에는 평가처럼 공개하지 않는다.
- * 다른 과목 및 교사가 직접 입력한 다른 과제 상태의 기존 표시 방식은 유지한다.
+ * 수학 수업의 실제 진행 결과는 하원 후, 또는 하원이 누락된 출석 수업의
+ * 당일 밤 10시 이후에만 보호자에게 공개한다. 계획/입력 전에는 공개하지 않는다.
  */
-export function isJournalHomeworkVisible({
-  subject, content, homework, journalDate, attendanceStatus, departureTime, isDraft = false, now = new Date(),
+export function isMathJournalOutcomeVisible({
+  content, journalDate, attendanceStatus, departureTime, isDraft = false, now = new Date(),
 }: {
-  subject: string;
   content: string | null | undefined;
-  homework: string | null | undefined;
   journalDate: string;
   attendanceStatus: AttendanceStatus | null | undefined;
   departureTime: string | null | undefined;
   isDraft?: boolean;
   now?: Date;
 }): boolean {
-  if (!homework?.trim()) return false;
-  if (subject !== "수학" || homework !== "양호") return true;
   if (isDraft || !content?.trim()) return false;
   if (attendanceStatus !== "present" && attendanceStatus !== "makeup" && attendanceStatus !== "makeup_double") return false;
   const koreanDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(now);
@@ -105,6 +101,18 @@ export function isJournalHomeworkVisible({
     timeZone: "Asia/Seoul", hour: "2-digit", hourCycle: "h23",
   }).format(now));
   return koreanHour >= MATH_HOMEWORK_FALLBACK_HOUR_KST;
+}
+
+/** 빠른 입력용 수학 과제 기본값은 실제 수업 결과가 공개될 때 함께 보여 준다. */
+export function isJournalHomeworkVisible({
+  subject, homework, ...outcome
+}: Parameters<typeof isMathJournalOutcomeVisible>[0] & {
+  subject: string;
+  homework: string | null | undefined;
+}): boolean {
+  if (!homework?.trim()) return false;
+  if (subject !== "수학" || homework !== "양호") return true;
+  return isMathJournalOutcomeVisible(outcome);
 }
 
 export const homeworkStatusDescriptions: Record<HomeworkStatusOption, string> = {

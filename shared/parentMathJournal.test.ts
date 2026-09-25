@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parentMathJournalContent } from "./parentMathJournal";
+import { parentMathJournalContent, parentMathJournalScheduledContent } from "./parentMathJournal";
+import { isMathJournalOutcomeVisible } from "./journalRules";
 
 describe("parent math journal small-unit display", () => {
   it("uses the curriculum name after each consecutive small-unit title", () => {
@@ -56,5 +57,48 @@ describe("parent math journal small-unit display", () => {
       "3-1 다각형 · 진행 중\n" +
       "3-2 삼각형의 내각과 외각 · 완료"
     );
+  });
+});
+
+describe("scheduled math lesson text for parents", () => {
+  const saved =
+    "[중1-2 / 기본 / 3단원]\n" +
+    "3-1 다각형 · 진행 중\n" +
+    "3-2 삼각형의 내각과 외각 · 완료\n" +
+    "[중1-2 / 기본 / 4단원]\n" +
+    "4-1 다면체 · 건너뜀\n" +
+    "선생님 메모: 복습 완료";
+
+  it("shows every selected step as planned while preserving titles and free prose", () => {
+    expect(parentMathJournalScheduledContent(saved, "수학", "2026-09-28", false)).toBe(
+      "[중1-2 / 기본 / 3단원]\n" +
+      "3-1 다각형 · 예정\n" +
+      "3-2 삼각형의 내각과 외각 · 예정\n" +
+      "[중1-2 / 기본 / 4단원]\n" +
+      "4-1 다면체 · 예정\n" +
+      "선생님 메모: 복습 완료"
+    );
+  });
+
+  it("normalizes old one-line selected steps before showing them as planned", () => {
+    const old = "[중1-2 / 기본 / 3단원] 3-1 다각형 · 완료";
+    expect(parentMathJournalScheduledContent(old, "수학", "2026-09-28", false)).toBe(
+      "[중1-2 / 기본 / 3단원]\n3-1 다각형 · 예정"
+    );
+  });
+
+  it("restores the saved states after the lesson and leaves non-math unchanged", () => {
+    expect(parentMathJournalScheduledContent(saved, "수학", "2026-09-28", true)).toBe(saved);
+    expect(parentMathJournalScheduledContent(saved, "영어", "2026-09-28", false)).toBe(saved);
+  });
+
+  it("uses the homework timing rule for departure and the 22:00 fallback", () => {
+    const lesson = { content: saved, journalDate: "2026-09-28", attendanceStatus: "present" as const, departureTime: null };
+    const before = isMathJournalOutcomeVisible({ ...lesson, now: new Date("2026-09-28T12:59:00Z") });
+    const departed = isMathJournalOutcomeVisible({ ...lesson, departureTime: "20:30", now: new Date("2026-09-28T12:59:00Z") });
+    const cutoff = isMathJournalOutcomeVisible({ ...lesson, now: new Date("2026-09-28T13:00:00Z") });
+    expect(parentMathJournalScheduledContent(saved, "수학", lesson.journalDate, before)).toContain("3-1 다각형 · 예정");
+    expect(parentMathJournalScheduledContent(saved, "수학", lesson.journalDate, departed)).toContain("3-1 다각형 · 진행 중");
+    expect(parentMathJournalScheduledContent(saved, "수학", lesson.journalDate, cutoff)).toContain("3-2 삼각형의 내각과 외각 · 완료");
   });
 });
