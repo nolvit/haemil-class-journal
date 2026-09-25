@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { mathCurriculumForDate } from "@shared/mathCurriculum";
+import { getMathReviewSuggestions, type MathReviewSuggestion } from "@shared/mathJournalQuickEntry";
 import { mathItemLabel, mathUnitOptions, middleGrade, type MathJournalEntry, type MathJournalPayload } from "@shared/mathProgress";
 
 type Props = {
@@ -7,13 +8,15 @@ type Props = {
   grade: string;
   sessionKind: MathJournalPayload["sessionKind"];
   entries: MathJournalEntry[];
+  previousEntries?: MathJournalEntry[];
   disabled?: boolean;
   legacy?: boolean;
   onSessionKindChange: (value: MathJournalPayload["sessionKind"]) => void;
   onEntriesChange: (value: MathJournalEntry[]) => void;
+  onReviewSuggestion?: (value: MathReviewSuggestion) => void;
 };
 
-export function MathJournalSelection({ date, grade, sessionKind, entries, disabled, legacy, onSessionKindChange, onEntriesChange }: Props) {
+export function MathJournalSelection({ date, grade, sessionKind, entries, previousEntries = [], disabled, legacy, onSessionKindChange, onEntriesChange, onReviewSuggestion }: Props) {
   const courses = useMemo(() => mathCurriculumForDate(date), [date]);
   const lastEntry = entries.at(-1);
   const gradeNumber = middleGrade(grade) ?? 2;
@@ -39,6 +42,7 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, disabl
   const course = courses.find(value => value.term === term) ?? courses[0];
   const options = mathUnitOptions(course?.term ?? term, unitNumber, date);
   const selected = new Map(entries.map(entry => [entry.key, entry.state]));
+  const reviewSuggestions = getMathReviewSuggestions([...previousEntries, ...entries], date);
   const focusedEntry = entries.findLast(entry => entry.state === "active") ?? lastEntry;
   const nextItem = useMemo(() => {
     if (!focusedEntry || sessionKind !== "math") return null;
@@ -74,8 +78,13 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, disabl
         <strong>수학 과정</strong>
         <span className="ml-2 text-xs text-[#61746E]">{sessionKind === "english" ? "영어 집중 · 수학 진도 제외" : entries.length ? `이번 일지 ${entries.length}개 항목` : "선택한 항목 없음"}</span>
       </div>
-      <button type="button" aria-expanded={expanded} disabled={disabled} onClick={() => setExpanded(value => !value)} className="shrink-0 rounded-lg border border-[#C5D4CC] bg-white px-2.5 py-1 text-xs font-semibold text-[#31564B] disabled:opacity-50">{expanded ? "선택 닫기" : "과정 변경"}</button>
+      <div className="flex shrink-0 flex-wrap items-center gap-1">
+        <button type="button" aria-label="수학 수업 선택" aria-pressed={sessionKind === "math"} disabled={disabled} onClick={() => onSessionKindChange("math")} className={`rounded-lg border px-2 py-1 text-xs font-semibold disabled:opacity-50 ${sessionKind === "math" ? "border-[#8FB9A2] bg-[#E9F4EC] text-[#285943]" : "border-[#C5D4CC] bg-white text-[#61746E]"}`}>수학</button>
+        <button type="button" aria-label="영어 집중 수업 선택" aria-pressed={sessionKind === "english"} disabled={disabled} onClick={() => onSessionKindChange("english")} className={`rounded-lg border px-2 py-1 text-xs font-semibold disabled:opacity-50 ${sessionKind === "english" ? "border-[#8FB9A2] bg-[#E9F4EC] text-[#285943]" : "border-[#C5D4CC] bg-white text-[#61746E]"}`}>영어 집중 수업</button>
+        <button type="button" aria-expanded={expanded} disabled={disabled} onClick={() => setExpanded(value => !value)} className="rounded-lg border border-[#C5D4CC] bg-white px-2.5 py-1 text-xs font-semibold text-[#31564B] disabled:opacity-50">{expanded ? "선택 닫기" : "과정 변경"}</button>
+      </div>
     </div>
+    {sessionKind === "english" && entries.length > 0 && <p className="mt-2 text-xs text-[#765E10]">영어 집중으로 저장하면 선택한 수학 과정 {entries.length}개는 이번 일지의 진도에 반영되지 않습니다.</p>}
     {sessionKind === "math" && entries.length > 0 && <div className="mt-2 space-y-1" aria-label="이번 일지의 수학 과정 항목">
       {entries.map(entry => {
         const [entryTerm, entryUnit] = entry.key.split(":");
@@ -95,12 +104,13 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, disabl
       {focusedEntry.state === "active" && <button type="button" onClick={() => change(focusedEntry.key, "complete")} className="rounded-md border border-[#BBD3C4] bg-white px-2 py-1 text-xs text-[#315D45]">현재 항목 완료</button>}
       {nextItem && <button type="button" onClick={startNext} className="rounded-md border border-[#BBD3C4] bg-white px-2 py-1 text-xs text-[#315D45]">{focusedEntry.state === "active" ? "완료 후 다음 과정" : "다음 과정 시작"}</button>}
     </div>}
+    {!disabled && sessionKind === "math" && onReviewSuggestion && reviewSuggestions.length > 0 && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="재수강 추천 입력">
+      <span className="text-[11px] text-[#61746E]">재수강 빠른 입력</span>
+      {reviewSuggestions.map(suggestion => <button key={suggestion.key} type="button" onClick={() => onReviewSuggestion(suggestion)} className="rounded-md border border-[#D9C28A] bg-[#FFF8DE] px-2 py-1 text-xs text-[#765E10]">{suggestion.label}</button>)}
+    </div>}
     {expanded && <div className="mt-3 border-t border-[#DDE7E0] pt-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-[#61746E]">여러 항목을 선택할 수 있습니다. 설명 문장만으로는 진도를 완료 처리하지 않습니다.</p>
-        <select aria-label="수업 종류" value={sessionKind} disabled={disabled} onChange={event => onSessionKindChange(event.target.value as MathJournalPayload["sessionKind"])} className="rounded-lg border border-[#C5D4CC] bg-white px-2 py-1.5">
-          <option value="math">수학 수업</option><option value="english">영어 집중 수업 · 수학 진도 제외</option>
-        </select>
       </div>
       {sessionKind === "math" && <>
         <div className="mt-3 flex gap-2">
