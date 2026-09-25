@@ -86,16 +86,49 @@ export function mathItemLabel(key: string, date: string) {
 }
 
 export function formatMathJournalContent(payload: MathJournalPayload, date: string) {
-  const selected = payload.entries.map(entry => {
+  const selected: string[] = [];
+  let previousUnit = "";
+  for (const entry of payload.entries) {
     const [term, unit] = entry.key.split(":");
     const label = mathItemLabel(entry.key, date);
     const state = entry.state === "complete" ? "완료" : entry.state === "skipped" ? "건너뜀" : "진행 중";
-    return `[${term} / 기본 / ${unit}단원] ${label} · ${state}`;
-  });
+    const currentUnit = `${term}:${unit}`;
+    if (currentUnit !== previousUnit) selected.push(`[${term} / 기본 / ${unit}단원]`);
+    selected.push(`${label} · ${state}`);
+    previousUnit = currentUnit;
+  }
   const englishHeading = payload.sessionKind === "english" &&
     !/(?:^|\n)\s*영어\s*집중/.test(payload.freeText) ? "영어 집중 수업" : "";
   return [englishHeading, ...selected, payload.freeText.trim()]
     .filter(Boolean).join("\n");
+}
+
+/**
+ * 이미 저장된 선택형 수학 일지의 옛 한 줄 표시만 화면에서 정리한다.
+ * 저장 데이터나 1단계 형식의 과거 일지는 바꾸지 않는다.
+ */
+export function normalizeMathJournalDisplayContent(content: string): string {
+  const lines = content.split(/\r?\n/);
+  const display: string[] = [];
+  const structuredLine = /^(\s*)\[(중[1-3]-[12])\s*\/\s*기본\s*\/\s*(\d+)단원\][ \t]+(.+?)\s*·\s*(완료|건너뜀|진행 중)[ \t]*$/;
+  let previousUnit = "";
+  let changed = false;
+
+  for (const line of lines) {
+    const match = line.match(structuredLine);
+    if (!match) {
+      display.push(line);
+      previousUnit = "";
+      continue;
+    }
+    const unit = `${match[2]}:${match[3]}`;
+    if (unit !== previousUnit) display.push(`${match[1]}[${match[2]} / 기본 / ${match[3]}단원]`);
+    display.push(`${match[4].trim()} · ${match[5]}`);
+    previousUnit = unit;
+    changed = true;
+  }
+
+  return changed ? display.join("\n") : content;
 }
 export function middleGrade(grade: string): number | null {
   const m = grade.match(/중(?:학교|등부|등)?\s*([123])/);

@@ -11,10 +11,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
 import { useAttendanceLiveUpdates } from "@/hooks/useAttendanceLiveUpdates";
-import { attendanceStatusBadgeClass, attendanceStatusLabels, chooseJournalClassId, formatAttendanceProgressLabel, getAdjacentJournalDate, getJournalCompleteness, getMonday, isJournalAttentionDue, HOMEWORK_STATUS_OPTIONS, homeworkStatusDescriptions, type AttendanceStatus, type HomeworkStatusOption } from "@shared/journalRules";
-import type { MathJournalEntry, MathJournalPayload } from "@shared/mathProgress";
+import { attendanceStatusBadgeClass, attendanceStatusLabels, chooseJournalClassId, formatAttendanceProgressLabel, getAdjacentJournalDate, getJournalCompleteness, getMonday, initialJournalHomework, isJournalAttentionDue, HOMEWORK_STATUS_OPTIONS, homeworkStatusDescriptions, type AttendanceStatus, type HomeworkStatusOption } from "@shared/journalRules";
+import { mathItemLabel, mathUnitOptions, normalizeMathJournalDisplayContent, type MathJournalEntry, type MathJournalPayload } from "@shared/mathProgress";
+import { suggestMathJournalCopy } from "@shared/mathJournalCopy";
 import { AlertCircle, CalendarDays, Check, ChevronLeft, ChevronRight, ClipboardPenLine, Edit3, MessageSquareText, Plus, Save, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import "./journal.css";
 
@@ -164,7 +165,7 @@ function JournalStudentIdentity({ student, classGroup, today, now, includeWeeken
   return <div className="px-4 py-4"><JournalHistoryButton student={student.student} classGroup={classGroup} includeWeekend={includeWeekend} /><p className="mt-0.5 text-xs text-[#71817D]">{student.student.grade}</p>{progress !== "—" && <p className={`mt-1 text-[11px] font-semibold ${progress === "결석" || progress === "미등록" ? "text-[#A16A3B]" : "text-[#52706A]"}`}>{progress}</p>}</div>;
 }
 
-function JournalCell({ row, journalDate, onClick, onAttendanceChange }: { row: EditorRow | undefined; journalDate: string; onClick: () => void; onAttendanceChange: (row: EditorRow, journalDate: string, status: AttendanceStatus) => void }) { if (!row) return <div className="border-l border-[#EEE9DE] p-3" />; const isAttention = row.completeness.state === "attention"; const status = row.attendance?.status ?? "not_entered"; return <div className={`min-h-[112px] border-l border-[#EEE9DE] p-3 text-left transition-colors hover:bg-[#FAF7EF] ${isAttention ? "bg-[#FFFDF4]" : ""}`}><div className="flex items-center justify-between gap-1"><select aria-label={`${row.student.name} ${journalDate} 출석 상태`} value={status} onChange={event => onAttendanceChange(row, journalDate, event.target.value as AttendanceStatus)} onClick={event => event.stopPropagation()} className={`rounded-full border-0 px-2 py-1 text-xs font-semibold outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-[#B8891B] ${attendanceStatusBadgeClass(status)}`}>{(status === "holiday" || status === "closed") && <option value={status}>{attendanceStatusLabels[status]}</option>}<option value="not_entered">{attendanceStatusLabels.not_entered}</option><option value="present">{attendanceStatusLabels.present}</option><option value="absent">{attendanceStatusLabels.absent}</option><option value="not_registered">{attendanceStatusLabels.not_registered}</option><option value="makeup">{attendanceStatusLabels.makeup}</option><option value="makeup_double">{attendanceStatusLabels.makeup_double}</option></select><button type="button" aria-label={`${row.student.name} ${journalDate} 수업일지 열기`} onClick={onClick} className="rounded p-1 text-[#81918D] hover:bg-[#EFEADE]"><Edit3 className="h-3.5 w-3.5" /></button></div><button type="button" onClick={onClick} className="mt-2 block w-full text-left"><p className="whitespace-pre-line text-xs leading-5 text-[#3E5651]">{row.journal?.content || (isAttention ? "필수 기록 입력" : "작성 제외")}</p>{row.journal?.homework && <p className="mt-2 whitespace-pre-line text-[11px] leading-4 text-[#84713E]"><b>과제</b> {row.journal.homework}</p>}{row.journal?.notes && <p className="mt-1 whitespace-pre-line text-[11px] leading-4 text-[#7C6A5C]"><b>비고</b> {row.journal.notes}</p>}{isAttention && <p className="mt-2 text-[10px] font-semibold text-[#A37C14]">{row.completeness.isDraft ? "임시 저장 · 최종 저장 필요" : `${row.completeness.missingFields.map(value => ({ attendance: "출석", content: "내용", homework: "과제" }[value])).join(" · ")} 입력 전`}</p>}</button></div>; }
+function JournalCell({ row, journalDate, onClick, onAttendanceChange }: { row: EditorRow | undefined; journalDate: string; onClick: () => void; onAttendanceChange: (row: EditorRow, journalDate: string, status: AttendanceStatus) => void }) { if (!row) return <div className="border-l border-[#EEE9DE] p-3" />; const isAttention = row.completeness.state === "attention"; const status = row.attendance?.status ?? "not_entered"; const displayedContent = row.journal?.content && row.classGroup.subject === "수학" ? normalizeMathJournalDisplayContent(row.journal.content) : row.journal?.content; return <div className={`min-h-[112px] border-l border-[#EEE9DE] p-3 text-left transition-colors hover:bg-[#FAF7EF] ${isAttention ? "bg-[#FFFDF4]" : ""}`}><div className="flex items-center justify-between gap-1"><select aria-label={`${row.student.name} ${journalDate} 출석 상태`} value={status} onChange={event => onAttendanceChange(row, journalDate, event.target.value as AttendanceStatus)} onClick={event => event.stopPropagation()} className={`rounded-full border-0 px-2 py-1 text-xs font-semibold outline-none ring-offset-1 focus-visible:ring-2 focus-visible:ring-[#B8891B] ${attendanceStatusBadgeClass(status)}`}>{(status === "holiday" || status === "closed") && <option value={status}>{attendanceStatusLabels[status]}</option>}<option value="not_entered">{attendanceStatusLabels.not_entered}</option><option value="present">{attendanceStatusLabels.present}</option><option value="absent">{attendanceStatusLabels.absent}</option><option value="not_registered">{attendanceStatusLabels.not_registered}</option><option value="makeup">{attendanceStatusLabels.makeup}</option><option value="makeup_double">{attendanceStatusLabels.makeup_double}</option></select><button type="button" aria-label={`${row.student.name} ${journalDate} 수업일지 열기`} onClick={onClick} className="rounded p-1 text-[#81918D] hover:bg-[#EFEADE]"><Edit3 className="h-3.5 w-3.5" /></button></div><button type="button" onClick={onClick} className="mt-2 block w-full text-left"><p className="whitespace-pre-line text-xs leading-5 text-[#3E5651]">{displayedContent || (isAttention ? "필수 기록 입력" : "작성 제외")}</p>{row.journal?.homework && <p className="mt-2 whitespace-pre-line text-[11px] leading-4 text-[#84713E]"><b>과제</b> {row.journal.homework}</p>}{row.journal?.notes && <p className="mt-1 whitespace-pre-line text-[11px] leading-4 text-[#7C6A5C]"><b>비고</b> {row.journal.notes}</p>}{isAttention && <p className="mt-2 text-[10px] font-semibold text-[#A37C14]">{row.completeness.isDraft ? "임시 저장 · 최종 저장 필요" : `${row.completeness.missingFields.map(value => ({ attendance: "출석", content: "내용", homework: "과제" }[value])).join(" · ")} 입력 전`}</p>}</button></div>; }
 
 function WeeklyAnnouncementEditor({ commenting, weekStart, onClose }: { commenting: { classGroup: EditorRow["classGroup"] } | null; weekStart: string; onClose: () => void }) {
   const [comment, setComment] = useState("");
@@ -182,22 +183,38 @@ function JournalEditor({ editing, includeWeekend, onClose }: { editing: { row: E
   const [content, setContent] = useState(""); const [homework, setHomework] = useState(""); const [notes, setNotes] = useState("");
   const [mathEntries, setMathEntries] = useState<MathJournalEntry[]>([]);
   const [mathSessionKind, setMathSessionKind] = useState<MathJournalPayload["sessionKind"]>("math");
+  const initializedEditorRef = useRef<string | null>(null);
   const swipeStartRef = useRef<{ x: number; y: number } | null>(null);
   const closeAfterSaveRef = useRef(true);
   const utils = trpc.useUtils();
   const workspaceInput = useMemo(() => row ? { journalDate, classGroupId: row.classGroup.id } : { journalDate, classGroupId: 1 }, [journalDate, row?.classGroup.id]);
   const dailyWorkspace = trpc.academy.workspace.useQuery(workspaceInput, { enabled: Boolean(row) });
-  const activeRow = useMemo(() => {
+  const editorIdentity = row ? `${row.student.id}:${row.classGroup.id}:${journalDate}` : null;
+  const needsInitialHydration = Boolean(editorIdentity && initializedEditorRef.current !== editorIdentity);
+  const fetchedRow = useMemo(() => {
     if (!row) return null;
-    const workspaceRow = dailyWorkspace.data?.find(item => item.student.id === row.student.id && item.classGroup.id === row.classGroup.id) as EditorRow | undefined;
-    return workspaceRow ?? (journalDate === editing?.journalDate ? row : null);
-  }, [dailyWorkspace.data, editing?.journalDate, journalDate, row]);
+    return (dailyWorkspace.data?.find(item => item.student.id === row.student.id && item.classGroup.id === row.classGroup.id) as EditorRow | undefined) ?? null;
+  }, [dailyWorkspace.data, row]);
+  const loadError = Boolean(needsInitialHydration && (dailyWorkspace.isError || (dailyWorkspace.isSuccess && !dailyWorkspace.isFetching && !fetchedRow)));
+  // Do not show or save the previous date's local form state before this date has hydrated.
+  const isLoadingDate = Boolean(needsInitialHydration && !loadError);
+  const activeRow = isLoadingDate || loadError ? null : fetchedRow;
   const isLegacyMathJournal = Boolean(activeRow?.classGroup.subject === "수학" && activeRow.journal && !activeRow.journal.mathProgress &&
     activeRow.journal.content.trim());
   const referenceInput = useMemo(() => row ? { studentId: row.student.id, classGroupId: row.classGroup.id, journalDate } : { studentId: 1, classGroupId: 1, journalDate }, [journalDate, row?.classGroup.id, row?.student.id]);
   const recentLesson = trpc.academy.journals.recent.useQuery(referenceInput, { enabled: Boolean(row) });
   useEffect(() => { if (editing) setJournalDate(editing.journalDate); }, [editing?.journalDate, editing?.row.classGroup.id, editing?.row.student.id]);
-  useEffect(() => { setContent(activeRow?.journal?.mathProgress?.freeText ?? activeRow?.journal?.content ?? ""); setHomework(activeRow?.journal?.homework ?? ""); setNotes(activeRow?.journal?.notes ?? ""); setMathEntries(activeRow?.journal?.mathProgress?.entries ?? []); setMathSessionKind(activeRow?.journal?.mathProgress?.sessionKind ?? "math"); }, [activeRow?.journal?.content, activeRow?.journal?.homework, activeRow?.journal?.notes, activeRow?.journal?.mathProgress, journalDate]);
+  useLayoutEffect(() => {
+    if (!editing) { initializedEditorRef.current = null; return; }
+    if (!fetchedRow || dailyWorkspace.isFetching || loadError) return;
+    if (initializedEditorRef.current === editorIdentity) return;
+    initializedEditorRef.current = editorIdentity;
+    setContent(fetchedRow.journal?.mathProgress?.freeText ?? fetchedRow.journal?.content ?? "");
+    setHomework(initialJournalHomework(fetchedRow.classGroup.subject, fetchedRow.journal, fetchedRow.attendance?.status));
+    setNotes(fetchedRow.journal?.notes ?? "");
+    setMathEntries(fetchedRow.journal?.mathProgress?.entries ?? []);
+    setMathSessionKind(fetchedRow.journal?.mathProgress?.sessionKind ?? "math");
+  }, [editing, fetchedRow, dailyWorkspace.isFetching, loadError, editorIdentity]);
   const patchJournalCaches = (values: { studentId: number; classGroupId: number; journalDate: string; content: string; homework: string; notes: string; isDraft?: boolean; mathProgress?: MathJournalPayload | null }) => {
     const patchRow = <T extends { student: EditorRow["student"]; classGroup: EditorRow["classGroup"]; attendance: EditorRow["attendance"] }>(raw: T): T => {
       if (raw.student.id !== values.studentId || raw.classGroup.id !== values.classGroupId) return raw;
@@ -214,22 +231,85 @@ function JournalEditor({ editing, includeWeekend, onClose }: { editing: { row: E
     });
     void utils.academy.dashboard.invalidate();
   };
-  const save = trpc.academy.journals.save.useMutation({ onSuccess: (result, values) => { patchJournalCaches({ ...values, content: result.content, mathProgress: result.mathProgress }); void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.mathProgress.invalidate(); toast.success(values.isDraft ? "임시 저장했습니다. 최종 저장 전까지 입력 전으로 표시됩니다." : "수업일지를 저장했습니다."); if (closeAfterSaveRef.current) onClose(); }, onError: error => toast.error(error.message) });
-  const insert = trpc.academy.journals.insert.useMutation({ onSuccess: result => { void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.mathProgress.invalidate(); void utils.academy.workspace.invalidate(); void utils.academy.dashboard.invalidate(); setContent(""); setHomework(""); setNotes(""); setMathEntries([]); setMathSessionKind("math"); toast.success(result.movedCount ? `새 수업일지 자리를 추가했습니다. 저장된 일지 ${result.movedCount}건을 다음 날짜로 이동했습니다.` : "현재 날짜에 새 수업일지 입력 자리를 준비했습니다."); }, onError: error => toast.error(error.message) });
+  const save = trpc.academy.journals.save.useMutation({ onSuccess: (result, values) => { patchJournalCaches({ ...values, content: result.content, mathProgress: result.mathProgress }); void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.mathProgress.invalidate(); if (!closeAfterSaveRef.current && result.mathProgress && !result.content) { setContent(result.mathProgress.freeText); setMathEntries(result.mathProgress.entries); setHomework(values.homework); } toast.success(values.isDraft ? "임시 저장했습니다. 최종 저장 전까지 입력 전으로 표시됩니다." : "수업일지를 저장했습니다."); if (closeAfterSaveRef.current) onClose(); }, onError: error => toast.error(error.message) });
+  const insert = trpc.academy.journals.insert.useMutation({ onSuccess: result => { void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.mathProgress.invalidate(); void utils.academy.workspace.invalidate(); void utils.academy.dashboard.invalidate(); setContent(""); setHomework(initialJournalHomework(activeRow?.classGroup.subject ?? "", null, activeRow?.attendance?.status)); setNotes(""); setMathEntries([]); setMathSessionKind("math"); toast.success(result.movedCount ? `새 수업일지 자리를 추가했습니다. 저장된 일지 ${result.movedCount}건을 다음 날짜로 이동했습니다.` : "현재 날짜에 새 수업일지 입력 자리를 준비했습니다."); }, onError: error => toast.error(error.message) });
   const deleteAndPull = trpc.academy.journals.deleteAndPull.useMutation({ onSuccess: result => { void utils.academy.weeklyWorkspace.invalidate(); void utils.academy.mathProgress.invalidate(); void utils.academy.workspace.invalidate(); void utils.academy.dashboard.invalidate(); setContent(""); setHomework(""); setNotes(""); setMathEntries([]); setMathSessionKind("math"); toast.success(result.movedCount ? `현재 일지를 삭제하고 미래 수업일지 ${result.movedCount}건을 앞당겼습니다.` : "현재 일지를 삭제했습니다."); onClose(); }, onError: error => toast.error(error.message) });
   const attendanceStatus = activeRow?.attendance?.status;
   const canWriteLesson = attendanceStatus !== "absent" && attendanceStatus !== "not_registered" && attendanceStatus !== "holiday" && attendanceStatus !== "closed";
   const canWriteNotes = attendanceStatus !== "holiday" && attendanceStatus !== "closed";
-  // 과제(homework)와 비고(notes)는 학생/일자마다 달라야 하므로 복사·붙여넣기 대상에서 제외한다.
-  // 수업 내용(content)만 최근 수업 기록에서 불러온다.
-  const copyReference = () => { if (!recentLesson.data) return; setContent(row?.classGroup.subject === "수학" ? recentLesson.data.mathProgress?.freeText ?? recentLesson.data.content ?? "" : recentLesson.data.content ?? ""); toast.success(`${recentLesson.data.journalDate} 수업 내용을 불러왔습니다.`); };
+  const originalContent = activeRow?.journal?.mathProgress?.freeText ?? activeRow?.journal?.content ?? "";
+  const originalHomework = initialJournalHomework(activeRow?.classGroup.subject ?? "", activeRow?.journal ?? null, activeRow?.attendance?.status);
+  const hasUnsavedChanges = content !== originalContent || homework !== originalHomework || notes !== (activeRow?.journal?.notes ?? "") ||
+    JSON.stringify(mathEntries) !== JSON.stringify(activeRow?.journal?.mathProgress?.entries ?? []) ||
+    mathSessionKind !== (activeRow?.journal?.mathProgress?.sessionKind ?? "math");
+  // 과제와 비고는 날짜별 기록이므로 복사하지 않는다. 수학은 명시적으로 선택한 과정도 함께 이어받는다.
+  const copyReference = () => {
+    const reference = recentLesson.data;
+    if (!reference || !activeRow) return;
+    if (activeRow.classGroup.subject === "수학" && (content.trim() || mathEntries.length) &&
+        !window.confirm("현재 입력 중인 수업 내용과 과정 선택을 이전 일지로 바꿀까요?")) return;
+    if (activeRow.classGroup.subject !== "수학" || isLegacyMathJournal) {
+      setContent(reference.content ?? "");
+      toast.success(`${reference.journalDate} 수업 내용을 불러왔습니다.`);
+      return;
+    }
+    const previous = reference.mathProgress;
+    if (previous?.sessionKind === "math" && previous.entries.length) {
+      const validEntries = previous.entries.filter(entry => {
+        const [term, unit] = entry.key.split(":");
+        return mathUnitOptions(term!, Number(unit), journalDate).some(option => option.key === entry.key);
+      });
+      setContent(previous.freeText);
+      setMathEntries(validEntries.map(entry => ({ ...entry })));
+      setMathSessionKind("math");
+      if (validEntries.length !== previous.entries.length)
+        toast.warning("날짜가 바뀌어 사용할 수 없는 과정은 제외했습니다. 과정 선택을 확인해 주세요.");
+      else
+        toast.success(`${reference.journalDate} 수업 내용과 과정 ${validEntries.length}개를 가져왔습니다.`);
+      return;
+    }
+    const suggestion = suggestMathJournalCopy(reference.content ?? "", journalDate);
+    if (suggestion) {
+      const proposedItems = suggestion.entries.map(entry => `${mathItemLabel(entry.key, journalDate)} · ${entry.state === "complete" ? "완료" : entry.state === "skipped" ? "건너뜀" : "진행 중"}`).join("\n");
+      if (window.confirm(`이전 일지에서 아래 수학 과정을 찾았습니다. 이번 일지의 선택 항목으로 가져올까요?\n\n${proposedItems}\n\n확인 후 이번 수업에 맞게 수정할 수 있습니다.`)) {
+        setContent(suggestion.freeText);
+        setMathEntries(suggestion.entries);
+        setMathSessionKind("math");
+        toast.success("이전 수업 내용과 확인한 수학 과정을 가져왔습니다.");
+        return;
+      }
+    }
+    setContent(reference.content ?? "");
+    setMathEntries([]);
+    setMathSessionKind("math");
+    toast.warning("글만 복사했습니다. 수학 진도에 반영하려면 과정 항목을 선택해 주세요.");
+  };
   const isProcessing = save.isPending || insert.isPending || deleteAndPull.isPending;
-  const moveDate = (direction: -1 | 1) => { if (!isProcessing) setJournalDate(current => getAdjacentJournalDate(current, direction, includeWeekend)); };
+  const moveDate = (direction: -1 | 1) => {
+    if (isProcessing || isLoadingDate) return;
+    if (hasUnsavedChanges && !window.confirm("저장하지 않은 수업 내용이나 과정 선택이 있습니다. 날짜를 이동하면 입력 내용이 사라집니다. 이동할까요?")) return;
+    setJournalDate(current => getAdjacentJournalDate(current, direction, includeWeekend));
+  };
   const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => { if (event.touches.length !== 1 || event.target instanceof Element && event.target.closest("button, input, textarea, select, [contenteditable=true]")) { swipeStartRef.current = null; return; } const touch = event.touches[0]; swipeStartRef.current = { x: touch.clientX, y: touch.clientY }; };
   const handleTouchEnd = (event: React.TouchEvent<HTMLDivElement>) => { const start = swipeStartRef.current; swipeStartRef.current = null; if (!start || event.changedTouches.length !== 1) return; const touch = event.changedTouches[0]; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) < 56 || Math.abs(deltaY) > 56) return; moveDate(deltaX < 0 ? 1 : -1); };
-  const isLoadingDate = Boolean(row && journalDate !== editing?.journalDate && dailyWorkspace.isLoading);
   const canTempSave = Boolean(content.trim() || homework.trim() || notes.trim() || mathEntries.length);
-  const saveJournal = (isDraft: boolean, closeAfterSave: boolean) => { if (activeRow) { closeAfterSaveRef.current = closeAfterSave; const isMath = activeRow.classGroup.subject === "수학"; const mathProgress = isMath && !isLegacyMathJournal ? { version: 1 as const, sessionKind: mathSessionKind, freeText: content, entries: mathSessionKind === "math" ? mathEntries : [] } : undefined; save.mutate({ studentId: activeRow.student.id, classGroupId: activeRow.classGroup.id, journalDate, content, homework, notes, isDraft, mathProgress }); } };
+  const saveJournal = (isDraft: boolean, closeAfterSave: boolean) => {
+    if (!activeRow) return;
+    const isMath = activeRow.classGroup.subject === "수학";
+    const clearingBlockedMath = isMath && !canWriteLesson;
+    if (clearingBlockedMath && (content.trim() || mathEntries.length || activeRow.journal?.content.trim() || activeRow.journal?.mathProgress?.entries.length) &&
+        !window.confirm("결석·미등록·공휴일·휴강일로 변경되어 기존 수학 수업 내용과 과정 선택을 지우고 비고만 저장합니다. 계속할까요?")) return;
+    closeAfterSaveRef.current = closeAfterSave;
+    const savedContent = clearingBlockedMath ? "" : content;
+    const mathProgress = isMath && !isLegacyMathJournal ? {
+      version: 1 as const,
+      sessionKind: clearingBlockedMath ? "math" as const : mathSessionKind,
+      freeText: savedContent,
+      entries: clearingBlockedMath || mathSessionKind !== "math" ? [] : mathEntries,
+    } : undefined;
+    save.mutate({ studentId: activeRow.student.id, classGroupId: activeRow.classGroup.id, journalDate,
+      content: savedContent, homework: canWriteLesson ? homework : "", notes, isDraft, mathProgress });
+  };
   const deleteJournal = () => {
     if (!activeRow || isProcessing) return;
     if (!window.confirm("현재 날짜의 수업일지 내용을 삭제하고, 미래에 저장된 같은 학생·과목의 수업일지를 현재 날짜부터 순서대로 당길까요?\n\n확인을 누르면 현재 칸의 내용은 삭제되며 되돌릴 수 없습니다.")) return;
@@ -237,11 +317,15 @@ function JournalEditor({ editing, includeWeekend, onClose }: { editing: { row: E
   };
   const insertJournal = () => {
     if (!activeRow || isProcessing) return;
-    const hasUnsavedChanges = content !== (activeRow.journal?.content ?? "") || homework !== (activeRow.journal?.homework ?? "") || notes !== (activeRow.journal?.notes ?? "");
     const dateRule = includeWeekend ? "토·일을 포함해 다음 날짜" : "토·일을 건너뛰어 다음 평일";
     const unsavedWarning = hasUnsavedChanges ? "\n\n현재 입력 중인 저장 전 내용은 이동되지 않고 사라질 수 있습니다." : "";
     if (!window.confirm(`현재 날짜에 새 수업일지 자리를 추가할까요?\n현재와 이후에 저장된 같은 학생·과목의 일지는 ${dateRule}로 한 칸씩 이동합니다.${unsavedWarning}`)) return;
     insert.mutate({ studentId: activeRow.student.id, classGroupId: activeRow.classGroup.id, journalDate, includeWeekend });
   };
-  return <Dialog open={Boolean(editing)} onOpenChange={open => { if (!open) onClose(); }}><DialogContent className="journal-dialog journal-editor-dialog sm:max-w-[620px]" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}><DialogHeader className="journal-editor-header"><p className="eyebrow">{row?.classGroup.subject} · {journalDate} · {weekdayLabel(journalDate)}</p><DialogTitle>{row?.student.name} 학생 수업일지</DialogTitle><DialogDescription>{row?.student.grade} · {row?.classGroup.name} · {isLoadingDate ? "기록을 불러오는 중" : `출석 ${attendanceStatusLabels[activeRow?.attendance?.status ?? "not_entered"]}`}<span className="mt-1 block text-[11px] sm:hidden">좌우로 쓸어 전날·다음날 일지로 이동할 수 있습니다.</span></DialogDescription><div className="mt-3 flex items-center gap-1" aria-label="수업일지 날짜 이동"><Button type="button" variant="outline" size="sm" className="h-8 px-2.5" disabled={isProcessing} onClick={() => moveDate(-1)} aria-label="전날 수업일지"><ChevronLeft className="mr-0.5 h-4 w-4" />전날</Button><Button type="button" variant="outline" size="sm" className="h-8 px-2.5" disabled={isProcessing} onClick={() => moveDate(1)} aria-label="다음날 수업일지">다음날<ChevronRight className="ml-0.5 h-4 w-4" /></Button></div></DialogHeader><div className="journal-editor-body">{isLoadingDate ? <div className="space-y-4 py-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-20 w-full" /></div> : <>{!canWriteLesson && <div className="journal-write-block"><AlertCircle className="h-4 w-4" />결석·미등록일에는 수업 내용과 과제 대신 비고에 보강 계획을 입력할 수 있습니다.</div>}<div className="grid gap-5 py-3">{recentLesson.data && <div className="journal-reference"><div><b>최근 입력 수업 참고</b><p>{recentLesson.data.journalDate} · {recentLesson.data.content || recentLesson.data.homework || "작성된 기록"}</p></div><Button type="button" variant="outline" size="sm" disabled={!canWriteLesson} onClick={copyReference}>복사·붙여넣기</Button></div>}{row?.classGroup.subject === "수학" && <MathJournalSelection key={`${row.student.id}-${journalDate}`} date={journalDate} grade={row.student.grade} sessionKind={mathSessionKind} entries={mathEntries} legacy={isLegacyMathJournal} disabled={!canWriteLesson || isLegacyMathJournal} onSessionKindChange={setMathSessionKind} onEntriesChange={setMathEntries} />}<div className="grid gap-2"><Label htmlFor="lesson-content">{row?.classGroup.subject === "수학" ? "수업 내용 추가 설명" : "수업 내용"} <b className="text-[#B8891B]">{row?.classGroup.subject === "수학" ? "선택" : "필수"}</b></Label><Textarea autoFocus id="lesson-content" disabled={!canWriteLesson} value={content} onChange={event => setContent(event.target.value)} placeholder="오늘 진행한 단원과 학습 활동을 기록해 주세요." className="journal-lesson-content-input" /></div><div className="grid gap-2"><Label htmlFor="lesson-homework">과제 <span className="text-[#71817D]">선택</span></Label><select id="lesson-homework" aria-label="과제 수행도" disabled={!canWriteLesson} value={(HOMEWORK_STATUS_OPTIONS as readonly string[]).includes(homework) ? homework : ""} onChange={event => setHomework(event.target.value)} className="journal-select">{homework !== "" && !(HOMEWORK_STATUS_OPTIONS as readonly string[]).includes(homework) && <option value={homework}>{homework}</option>}<option value="">선택 안 함</option>{HOMEWORK_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>{homework && (HOMEWORK_STATUS_OPTIONS as readonly string[]).includes(homework) && <p className="text-[11px] text-[#8A7A58]">{homeworkStatusDescriptions[homework as HomeworkStatusOption]}</p>}</div><div className="grid gap-2"><Label htmlFor="lesson-notes">비고 <span className="text-[#71817D]">선택</span></Label><Textarea id="lesson-notes" disabled={!canWriteNotes} value={notes} onChange={event => setNotes(event.target.value)} placeholder={attendanceStatus === "absent" || attendanceStatus === "not_registered" ? "보강 예정일과 계획을 입력해 주세요." : "학습 태도, 상담 내용, 개별 안내 사항 등을 기록해 주세요."} className="min-h-20" /></div></div></>}</div><DialogFooter className="journal-editor-footer"><Button variant="outline" onClick={onClose} disabled={isProcessing}>취소</Button><Button type="button" variant="outline" className="border-[#D6A7A0] bg-[#FFF4F1] text-[#9B4B3F] hover:bg-[#FDE8E3]" disabled={isProcessing || !activeRow || !canWriteLesson || isLoadingDate} onClick={deleteJournal}><Trash2 className="mr-1.5 h-4 w-4" />삭제</Button><Button type="button" variant="outline" className="border-[#D9C28A] bg-[#FFF8DE] text-[#765E10] hover:bg-[#FFF2C9]" disabled={isProcessing || !activeRow || !canWriteLesson || isLoadingDate} onClick={insertJournal}><Plus className="mr-1.5 h-4 w-4" />추가하기</Button><Button variant="outline" disabled={isProcessing || !activeRow || !canWriteNotes || isLoadingDate || !canTempSave} onClick={() => saveJournal(true, true)}><Save className="mr-1.5 h-4 w-4" />임시 저장</Button><Button variant="outline" disabled={isProcessing || !activeRow || !canWriteNotes || isLoadingDate} onClick={() => saveJournal(false, false)}><Save className="mr-1.5 h-4 w-4" />저장</Button><Button className="journal-primary-button" disabled={isProcessing || !activeRow || !canWriteNotes || isLoadingDate} onClick={() => saveJournal(false, true)}><Save className="mr-1.5 h-4 w-4" />저장 후 닫기</Button></DialogFooter></DialogContent></Dialog>;
+  const requestClose = () => {
+    if (isProcessing) return;
+    if (!isLoadingDate && !loadError && hasUnsavedChanges && !window.confirm("저장하지 않은 수업 내용이나 과정 선택이 있습니다. 입력을 버리고 닫을까요?")) return;
+    onClose();
+  };
+  return <Dialog open={Boolean(editing)} onOpenChange={open => { if (!open) requestClose(); }}><DialogContent className="journal-dialog journal-editor-dialog sm:max-w-[620px]" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}><DialogHeader className="journal-editor-header"><p className="eyebrow">{row?.classGroup.subject} · {journalDate} · {weekdayLabel(journalDate)}</p><DialogTitle>{row?.student.name} 학생 수업일지</DialogTitle><DialogDescription>{row?.student.grade} · {row?.classGroup.name} · {isLoadingDate ? "기록을 불러오는 중" : loadError ? "일지 불러오기 실패" : `출석 ${attendanceStatusLabels[activeRow?.attendance?.status ?? "not_entered"]}`}<span className="mt-1 block text-[11px] sm:hidden">좌우로 쓸어 전날·다음날 일지로 이동할 수 있습니다.</span></DialogDescription><div className="mt-3 flex items-center gap-1" aria-label="수업일지 날짜 이동"><Button type="button" variant="outline" size="sm" className="h-8 px-2.5" disabled={isProcessing || isLoadingDate} onClick={() => moveDate(-1)} aria-label="전날 수업일지"><ChevronLeft className="mr-0.5 h-4 w-4" />전날</Button><Button type="button" variant="outline" size="sm" className="h-8 px-2.5" disabled={isProcessing || isLoadingDate} onClick={() => moveDate(1)} aria-label="다음날 수업일지">다음날<ChevronRight className="ml-0.5 h-4 w-4" /></Button></div></DialogHeader><div className="journal-editor-body">{isLoadingDate ? <div className="space-y-4 py-3"><Skeleton className="h-28 w-full" /><Skeleton className="h-24 w-full" /><Skeleton className="h-20 w-full" /></div> : loadError ? <div className="rounded-lg border border-[#EDC7BE] bg-[#FFF3EF] p-4 text-sm text-[#934B3D]">일지를 불러오지 못했습니다. 다시 시도해 주세요.<Button type="button" variant="outline" size="sm" className="mt-3 block" onClick={() => void dailyWorkspace.refetch()}>다시 시도</Button></div> : <>{!canWriteLesson && <div className="journal-write-block"><AlertCircle className="h-4 w-4" />결석·미등록일에는 수업 내용과 과제 대신 비고에 보강 계획을 입력할 수 있습니다.</div>}<div className="grid gap-5 py-3">{recentLesson.data && <div className="journal-reference"><div><b>{row?.classGroup.subject === "수학" ? "이전 수학 과정 참고" : "최근 입력 수업 참고"}</b><p>{recentLesson.data.journalDate} · {recentLesson.data.content || recentLesson.data.homework || "작성된 기록"}</p></div><Button type="button" variant="outline" size="sm" disabled={!canWriteLesson} onClick={copyReference}>{row?.classGroup.subject === "수학" ? "이전 수학 일지 가져오기" : "복사·붙여넣기"}</Button></div>}<div className="grid gap-2"><Label htmlFor="lesson-content">{"수업 내용"} <b className="text-[#B8891B]">{row?.classGroup.subject === "수학" ? "선택" : "필수"}</b></Label><Textarea autoFocus={row?.classGroup.subject !== "수학"} id="lesson-content" disabled={!canWriteLesson} value={content} onChange={event => setContent(event.target.value)} placeholder="오늘 진행한 단원과 학습 활동을 기록해 주세요." className="journal-lesson-content-input" /></div>{row?.classGroup.subject === "수학" && <MathJournalSelection key={`${row.student.id}-${journalDate}`} date={journalDate} grade={row.student.grade} sessionKind={mathSessionKind} entries={mathEntries} legacy={isLegacyMathJournal} disabled={!canWriteLesson || isLegacyMathJournal} onSessionKindChange={setMathSessionKind} onEntriesChange={setMathEntries} />}<div className="grid gap-2"><Label htmlFor="lesson-homework">과제 <span className="text-[#71817D]">선택</span></Label><select id="lesson-homework" aria-label="과제 수행도" disabled={!canWriteLesson} value={(HOMEWORK_STATUS_OPTIONS as readonly string[]).includes(homework) ? homework : ""} onChange={event => setHomework(event.target.value)} className="journal-select">{homework !== "" && !(HOMEWORK_STATUS_OPTIONS as readonly string[]).includes(homework) && <option value={homework}>{homework}</option>}<option value="">선택 안 함</option>{HOMEWORK_STATUS_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}</select>{homework && (HOMEWORK_STATUS_OPTIONS as readonly string[]).includes(homework) && <p className="text-[11px] text-[#8A7A58]">{homeworkStatusDescriptions[homework as HomeworkStatusOption]}</p>}</div><div className="grid gap-2"><Label htmlFor="lesson-notes">비고 <span className="text-[#71817D]">선택</span></Label><Textarea id="lesson-notes" disabled={!canWriteNotes} value={notes} onChange={event => setNotes(event.target.value)} placeholder={attendanceStatus === "absent" || attendanceStatus === "not_registered" ? "보강 예정일과 계획을 입력해 주세요." : "학습 태도, 상담 내용, 개별 안내 사항 등을 기록해 주세요."} className="min-h-20" /></div></div></>}</div><DialogFooter className="journal-editor-footer"><Button variant="outline" onClick={requestClose} disabled={isProcessing}>취소</Button><Button type="button" variant="outline" className="border-[#D6A7A0] bg-[#FFF4F1] text-[#9B4B3F] hover:bg-[#FDE8E3]" disabled={isProcessing || !activeRow || !canWriteLesson || isLoadingDate} onClick={deleteJournal}><Trash2 className="mr-1.5 h-4 w-4" />삭제</Button><Button type="button" variant="outline" className="border-[#D9C28A] bg-[#FFF8DE] text-[#765E10] hover:bg-[#FFF2C9]" disabled={isProcessing || !activeRow || !canWriteLesson || isLoadingDate} onClick={insertJournal}><Plus className="mr-1.5 h-4 w-4" />추가하기</Button><Button variant="outline" disabled={isProcessing || !activeRow || !canWriteNotes || isLoadingDate || !canTempSave} onClick={() => saveJournal(true, true)}><Save className="mr-1.5 h-4 w-4" />임시 저장</Button><Button variant="outline" disabled={isProcessing || !activeRow || !canWriteNotes || isLoadingDate} onClick={() => saveJournal(false, false)}><Save className="mr-1.5 h-4 w-4" />저장</Button><Button className="journal-primary-button" disabled={isProcessing || !activeRow || !canWriteNotes || isLoadingDate} onClick={() => saveJournal(false, true)}><Save className="mr-1.5 h-4 w-4" />저장 후 닫기</Button></DialogFooter></DialogContent></Dialog>;
 }

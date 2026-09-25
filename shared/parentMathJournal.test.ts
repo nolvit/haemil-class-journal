@@ -40,4 +40,21 @@ describe("parent math journal small-unit display", () => {
       content + "\n산포도"
     );
   });
+
+  it("shows previously saved selection rows on separate lines without rewriting legacy titles", () => {
+    const stored =
+      "[중1-2 / 기본 / 3단원] 3-1 다각형 · 진행 중\n" +
+      "[중1-2 / 기본 / 3단원] 3-2 삼각형의 내각과 외각 · 완료";
+    expect(parentMathJournalContent(stored, "수학", "2026-09-28")).toBe(
+      "[중1-2 / 기본 / 3단원]\n" +
+      "3-1 다각형 · 진행 중\n" +
+      "3-2 삼각형의 내각과 외각 · 완료"
+    );
+    expect(parentMathJournalContent(stored, "영어", "2026-09-28")).toBe(stored);
+    expect(parentMathJournalContent(stored, "수학", "2026-09-27")).toBe(
+      "[중1-2 / 기본 / 3단원]\n" +
+      "3-1 다각형 · 진행 중\n" +
+      "3-2 삼각형의 내각과 외각 · 완료"
+    );
+  });
 });

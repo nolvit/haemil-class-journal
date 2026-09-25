@@ -50,6 +50,30 @@ export const HOMEWORK_STATUS_OPTIONS = [
 
 export type HomeworkStatusOption = (typeof HOMEWORK_STATUS_OPTIONS)[number];
 
+/** 새 수학 일지만 양호로 시작한다. 저장된 빈 값도 사용자의 선택으로 보존한다. */
+export function initialJournalHomework(
+  subject: string,
+  existingJournal: {
+    homework: string | null;
+    content?: string | null;
+    notes?: string | null;
+    mathProgress?: unknown;
+    isDraft?: boolean;
+  } | null,
+  attendanceStatus: AttendanceStatus | null | undefined,
+) {
+  const savedHomework = existingJournal?.homework ?? "";
+  const writableMath = subject === "수학" && attendanceStatus !== "absent" &&
+    attendanceStatus !== "not_registered" && attendanceStatus !== "holiday" && attendanceStatus !== "closed";
+  if (!writableMath) return savedHomework;
+  if (!existingJournal) return "양호";
+  // Insertion leaves an empty journal row as a vacant slot. A saved math entry
+  // has a mathProgress payload, even if its intentionally chosen homework is blank.
+  const vacantInsertedSlot = existingJournal.content === "" && existingJournal.notes === "" &&
+    existingJournal.homework === "" && existingJournal.mathProgress === null && existingJournal.isDraft === false;
+  return vacantInsertedSlot ? "양호" : savedHomework;
+}
+
 export const homeworkStatusDescriptions: Record<HomeworkStatusOption, string> = {
   "양호": "대부분 정확함, 오답 소수",
   "보완 필요": "일부 오답 있음",

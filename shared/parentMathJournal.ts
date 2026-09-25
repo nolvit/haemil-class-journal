@@ -1,4 +1,5 @@
 import { mathCurriculumForDate } from "./mathCurriculum";
+import { normalizeMathJournalDisplayContent } from "./mathProgress";
 
 export const PARENT_MATH_TITLE_START_DATE = "2026-09-28";
 
@@ -19,10 +20,12 @@ export function parentMathJournalContent(
   subject: string,
   today = todayInKorea()
 ) {
-  if (!subject.includes("수학") || today < PARENT_MATH_TITLE_START_DATE)
+  if (!subject.includes("수학"))
     return content;
+  const normalized = normalizeMathJournalDisplayContent(content);
+  if (today < PARENT_MATH_TITLE_START_DATE) return normalized;
 
-  const lines = content.split(/\r?\n/);
+  const lines = normalized.split(/\r?\n/);
   const display: string[] = [];
 
   for (let index = 0; index < lines.length; index++) {

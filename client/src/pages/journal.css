@@ -96,6 +96,10 @@
 
   .journal-editor-body .journal-reference p {
     max-width: none;
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
     white-space: normal;
   }
 

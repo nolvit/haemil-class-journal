@@ -40,6 +40,7 @@ import {
   weeklySubjectComments,
 } from "../drizzle/schema";
 import { formatMathJournalContent, isEnglishFocusedLesson, type MathJournalPayload } from "../shared/mathProgress";
+import { isMathLessonCopyCandidate } from "./recentMathLesson";
 import { relocatedMathJournalPayloads } from "../shared/mathJournalMoves";
 import {
   getAttendanceSessionUnits,
@@ -2892,38 +2893,53 @@ export async function getMostRecentLesson(
 ) {
   await ensureMathJournalSchema();
   const db = await requireDb();
-  const rows = await db
-    .select({
-      journalDate: lessonJournals.journalDate,
-      content: lessonJournals.content,
-      homework: lessonJournals.homework,
-      notes: lessonJournals.notes,
-      isDraft: lessonJournals.isDraft,
-      mathProgressPayload: mathJournalProgress.payload,
-    })
-    .from(lessonJournals)
-    .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
-    .where(
-      and(
-        eq(lessonJournals.studentId, studentId),
-        eq(lessonJournals.classGroupId, classGroupId),
-        lt(lessonJournals.journalDate, journalDate),
-        or(eq(lessonJournals.isDraft, false), isNull(lessonJournals.isDraft)),
-        or(
-          ne(lessonJournals.content, ""),
-          ne(lessonJournals.homework, ""),
-          ne(lessonJournals.notes, "")
+  const [group] = await db.select({ subject: classGroups.subject }).from(classGroups)
+    .where(eq(classGroups.id, classGroupId)).limit(1);
+  const isMathGroup = group?.subject === "수학";
+  // The student/class/date unique index supports a descending date walk. Math
+  // may have arbitrarily many intervening English or empty-process records, so
+  // fetch bounded pages until an actual math lesson is found or history ends.
+  const pageSize = 40;
+  let beforeDate = journalDate;
+  while (true) {
+    const rows = await db
+      .select({
+        journalDate: lessonJournals.journalDate,
+        content: lessonJournals.content,
+        homework: lessonJournals.homework,
+        notes: lessonJournals.notes,
+        isDraft: lessonJournals.isDraft,
+        mathProgressPayload: mathJournalProgress.payload,
+      })
+      .from(lessonJournals)
+      .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
+      .where(
+        and(
+          eq(lessonJournals.studentId, studentId),
+          eq(lessonJournals.classGroupId, classGroupId),
+          lt(lessonJournals.journalDate, beforeDate),
+          or(eq(lessonJournals.isDraft, false), isNull(lessonJournals.isDraft)),
+          or(
+            ne(lessonJournals.content, ""),
+            ne(lessonJournals.homework, ""),
+            ne(lessonJournals.notes, "")
+          )
         )
       )
-    )
-    .orderBy(desc(lessonJournals.journalDate))
-    .limit(1);
-  return rows[0] ? {
-    ...rows[0],
-    mathProgress: rows[0].mathProgressPayload
-      ? JSON.parse(rows[0].mathProgressPayload) as MathJournalPayload
-      : null,
-  } : null;
+      .orderBy(desc(lessonJournals.journalDate))
+      .limit(isMathGroup ? pageSize : 1);
+    for (const row of rows) {
+      const lesson = {
+        ...row,
+        mathProgress: row.mathProgressPayload
+          ? JSON.parse(row.mathProgressPayload) as MathJournalPayload
+          : null,
+      };
+      if (!isMathGroup || isMathLessonCopyCandidate(lesson)) return lesson;
+    }
+    if (!isMathGroup || rows.length < pageSize) return null;
+    beforeDate = rows[rows.length - 1].journalDate;
+  }
 }
 
 export async function saveLessonJournal(input: {
