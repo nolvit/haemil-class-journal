@@ -1,7 +1,39 @@
 import { describe, expect, it } from "vitest";
-import { suggestMathJournalCopy } from "./mathJournalCopy";
+import { carryForwardMathJournalEntries, suggestMathJournalCopy } from "./mathJournalCopy";
+import { formatMathJournalContent, type MathJournalEntry } from "./mathProgress";
 
 const date = "2026-09-29";
+
+describe("math journal carry-forward", () => {
+  it("keeps only ongoing work when copying successive lessons", () => {
+    const monday: MathJournalEntry[] = [
+      { key: "중1-2:3:learn:3", state: "complete" },
+      { key: "중1-2:3:learn:4", state: "active" },
+    ];
+    const tuesday = carryForwardMathJournalEntries(monday, date);
+    expect(tuesday).toEqual([{ key: "중1-2:3:learn:4", state: "active" }]);
+
+    const afterTuesdayLesson: MathJournalEntry[] = [
+      { ...tuesday[0], state: "complete" },
+      { key: "중1-2:3:learn:5", state: "active" },
+    ];
+    const wednesday = carryForwardMathJournalEntries(afterTuesdayLesson, "2026-09-30");
+    expect(wednesday).toEqual([{ key: "중1-2:3:learn:5", state: "active" }]);
+    expect(formatMathJournalContent({ version: 1, sessionKind: "math", freeText: "", entries: wednesday }, "2026-09-30"))
+      .not.toMatch(/3-3|3-4/);
+    expect(carryForwardMathJournalEntries(wednesday, "2026-10-01")).toEqual(wednesday);
+  });
+
+  it("does not carry completed, skipped, duplicate or invalid items", () => {
+    expect(carryForwardMathJournalEntries([
+      { key: "중1-2:3:learn:3", state: "complete" },
+      { key: "중1-2:3:learn:4", state: "skipped" },
+      { key: "중1-2:3:learn:5", state: "active" },
+      { key: "중1-2:3:learn:5", state: "active" },
+      { key: "중1-2:3:learn:99", state: "active" },
+    ], date)).toEqual([{ key: "중1-2:3:learn:5", state: "active" }]);
+  });
+});
 
 describe("legacy math journal copy suggestions", () => {
   it("converts only the named small unit and preserves free prose", () => {

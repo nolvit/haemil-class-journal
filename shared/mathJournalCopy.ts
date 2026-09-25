@@ -5,6 +5,18 @@ type Header = { term: string; unit: number; small: number | null };
 type CopySuggestion = { entries: MathJournalEntry[]; freeText: string };
 type ItemMatch = { key: string; state: MathJournalEntry["state"]; scheduled: boolean };
 
+/** A new lesson continues only unfinished work; completed or skipped work stays on its original date. */
+export function carryForwardMathJournalEntries(entries: readonly MathJournalEntry[], date: string): MathJournalEntry[] {
+  const seen = new Set<string>();
+  return entries.filter(entry => {
+    if (entry.state !== "active" || seen.has(entry.key)) return false;
+    const [term, unit] = entry.key.split(":");
+    if (!mathUnitOptions(term!, Number(unit), date).some(option => option.key === entry.key)) return false;
+    seen.add(entry.key);
+    return true;
+  }).map(entry => ({ ...entry }));
+}
+
 const HEADER_LIKE = /^\s*\[\s*중\s*[123]\s*[-–−—]/;
 const HEADER = /^\s*\[\s*중\s*([123])\s*-\s*([12])\s*\/\s*(?:기본(?:\s*과정)?|1\s*단계)\s*\/\s*(\d+)\s*(?:-\s*(\d+))?\s*단원\s*\]\s*(.*)$/;
 const SCHEDULED = /(?:\s*[·:\-]\s*|\s*\(\s*|\s+)(?:예정|미실시|미완료|진행\s*전|평가\s*대기)\s*\)?\s*$/;

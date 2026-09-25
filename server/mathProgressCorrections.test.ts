@@ -25,14 +25,15 @@ it("transcribes the supplied first-semester curriculum without merging distinct 
   ]);
   expect(c.units[4].smalls[5]).toBe("반비례 관계의 그래프의 성질");
 });
-it("excludes current middle-3 students but retains the enrolled cohort after promotion in 2027", () => {
+it("includes current middle-3 students and the promoted cohort, but not high-school graduates", () => {
   const m2 = createProgressBaseline([row("2026-09-22", 1)], "중2");
   const m3 = createProgressBaseline([], "중3");
-  expect(isMathProgressEligible("중3", m3, "2026-09-22")).toBe(false);
-  expect(isMathProgressEligible("중3", m2, "2026-09-22")).toBe(false);
+  expect(isMathProgressEligible("중3", m3, "2026-09-22")).toBe(true);
+  expect(isMathProgressEligible("중3", m2, "2026-09-22")).toBe(true);
   expect(isMathProgressEligible("중3", m2, "2027-03-01")).toBe(true);
-  expect(isMathProgressEligible("중3", m3, "2027-03-01")).toBe(false);
+  expect(isMathProgressEligible("중3", m3, "2027-03-01")).toBe(true);
   expect(isMathProgressEligible("중2", m2, "2026-09-22")).toBe(true);
+  expect(isMathProgressEligible("고1", m3, "2027-03-01")).toBe(false);
 });
 it("sets Kim to middle-1 second semester through 3-2 learning", () => {
   const rows = [

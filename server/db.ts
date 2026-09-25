@@ -62,6 +62,7 @@ import {
   getJournalCompleteness,
   getJournalDeletionTargetDates,
   getJournalInsertionMoves,
+  getUnavailableJournalDates,
   getMonday,
   getNextBusinessDate,
   getPreviousWeekStart,
@@ -3085,11 +3086,21 @@ export async function insertLessonJournal(input: {
       date = getAdjacentJournalDate(date, 1, true)
     )
       calendarDates.push(date);
-    const calendarEvents = await getCalendarEventsForDates(calendarDates);
+    const [calendarEvents, attendances] = await Promise.all([
+      getCalendarEventsForDates(calendarDates),
+      tx.select({
+        journalDate: attendanceRecords.journalDate,
+        status: attendanceRecords.status,
+      }).from(attendanceRecords).where(and(
+        eq(attendanceRecords.studentId, input.studentId),
+        gte(attendanceRecords.journalDate, input.journalDate),
+        lte(attendanceRecords.journalDate, calendarDates.at(-1)!),
+      )),
+    ]);
     const moves = getJournalInsertionMoves(
       sourceRows.map(row => row.journalDate),
       input.includeWeekend,
-      new Set(calendarEvents.keys())
+      getUnavailableJournalDates(calendarEvents.keys(), attendances)
     );
 
     for (const move of moves) {

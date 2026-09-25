@@ -368,6 +368,25 @@ describe("2026-09-22 initial progress and grade accumulation", () => {
       }).terms.map(t => t.term)
     ).toEqual(["중2-2", "중3-1"]);
   });
+
+  it("shows current middle-3 students in the correct semester without inventing earlier work", () => {
+    const baseline = createProgressBaseline([], "중3");
+    const firstSemester = calculateMathProgress([], [], "2026-03-01", { baseline, grade: "중3" });
+    const secondSemester = calculateMathProgress([], [], "2026-09-25", { baseline, grade: "중3" });
+    expect(firstSemester.terms.map(term => term.term)).toEqual(["중3-1"]);
+    expect(secondSemester.terms.map(term => term.term)).toEqual(["중3-2"]);
+    expect(secondSemester.percent).toBe(0);
+    expect(secondSemester.terms[0].units[3].cells.filter(cell => cell.sector === "learn")).toHaveLength(2);
+    const recorded = calculateMathProgress([row("수학 수업", 1, {
+      journalDate: "2026-09-24",
+      mathProgress: { version: 1, sessionKind: "math", freeText: "수학 수업", entries: [
+        { key: "중3-2:1:learn:1", state: "complete" },
+      ] },
+    })], [], "2026-09-25", { baseline, grade: "중3" });
+    expect(recorded.terms.map(term => term.term)).toEqual(["중3-2"]);
+    expect(recorded.terms[0].units[0].cells[0].state).toBe("complete");
+    expect(recorded.unmatched).toEqual([]);
+  });
 });
 it("continues to reflect edits and new records on the baseline date itself", () => {
   const source = row("[중2-2 / 1단계 / 2-3단원]", 22, {

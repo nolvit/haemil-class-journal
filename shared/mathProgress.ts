@@ -436,17 +436,12 @@ function isCoveredByBaseline(row: ProgressJournal, baseline: ProgressBaseline) {
 }
 export function isMathProgressEligible(
   grade: string,
-  baseline: ProgressBaseline | undefined,
-  today: string
+  _baseline: ProgressBaseline | undefined,
+  _today: string
 ) {
-  const current = middleGrade(grade);
-  if (current === 4) return false;
-  if (current !== 3) return true;
-  return (
-    today >= "2027-01-01" &&
-    baseline?.initialGrade != null &&
-    baseline.initialGrade <= 2
-  );
+  // Both current middle-3 students and students promoted from middle-2 use
+  // the dated middle-3 curriculum. High-school graduates remain excluded.
+  return middleGrade(grade) !== 4;
 }
 export function calculateMathProgress(
   journals: ProgressJournal[],
@@ -502,10 +497,13 @@ export function calculateMathProgress(
     const gradeCourses = mathCurriculumForDate(today).filter(
       c => Number(c.term[1]) === currentGrade
     );
-    // The 2026 middle-2 baseline begins in semester 2; promoted students
-    // start middle-3 in semester 1 without an invented middle-3-2 history.
-    const startingCourse =
-      currentGrade === 3 ? gradeCourses[0] : gradeCourses.at(-1);
+    // Retain the promoted middle-2 cohort's middle-3 first-semester start.
+    // A student already in middle-3 starts in the actual school-year semester.
+    const alreadyMiddle3 = currentGrade === 3 && baseline.initialGrade === 3;
+    const secondSemester = Number(today.slice(5, 7)) >= 7;
+    const startingCourse = currentGrade === 3
+      ? (alreadyMiddle3 && secondSemester ? gradeCourses.at(-1) : gradeCourses[0])
+      : gradeCourses.at(-1);
     if (startingCourse) trackedTerms.add(startingCourse.term);
   }
   const curriculum = mathCurriculumForDate(today).filter(

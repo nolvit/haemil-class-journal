@@ -230,6 +230,18 @@ export function getJournalInsertionMoves(sourceDates: string[], includeWeekend: 
   return moves.reverse();
 }
 
+/** 달력 휴강과 학생별 출결 차단일을 같은 기준으로 수업일지 이동 대상에서 제외한다. */
+export function getUnavailableJournalDates(
+  calendarDates: Iterable<string>,
+  attendances: ReadonlyArray<{ journalDate: string; status: string }>,
+) {
+  const unavailable = new Set(calendarDates);
+  for (const attendance of attendances)
+    if (["absent", "not_registered", "holiday", "closed"].includes(attendance.status))
+      unavailable.add(attendance.journalDate);
+  return unavailable;
+}
+
 /** 미입력 전용 목록은 오늘과 과거에 실제 입력이 필요한 날짜만 대상으로 한다. */
 export function isJournalAttentionDue(journalDate: string, today: string, state: JournalCompleteness["state"]): boolean {
   return journalDate <= today && state === "attention";

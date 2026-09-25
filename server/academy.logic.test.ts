@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getUnavailableJournalDates } from "../shared/journalRules";
 import { attendanceStatusLabels, chooseJournalClassId, chooseRememberedGrade, findJournalTransferConflict, formatArrivalElapsed, getHistoricalLessonCount, formatArrivalTimeForDisplay, formatAttendanceProgressLabel, formatLessonDuration, getAdjacentJournalDate, getBusinessWeekDates, getJournalCompleteness, getJournalDeletionTargetDates, getJournalFocusDates, getJournalInsertionMoves, getMonday, getNextBusinessDate, getPreviousWeekStart, getNextScheduledClassDate, getUnenteredAttendanceDates, getWeeklyDates, isCalendarScheduleVisibleToParent, isDateVisibleToParent, isFinalJournalVisibleToParent, isJournalAttentionDue, isJournalScheduledForParent, isJournalWriteBlocked, normalizeAfternoonArrivalTime, selectableAttendanceStatusValues, shouldPullJournalForAttendance, shouldTransferJournalForAttendance } from "../shared/journalRules";
 import { getClosureDatesInRange, getClosureForDate, hasOverlappingClosureRange, matchesAutomaticCalendarStatus } from "../shared/closureRules";
 import { dashboardAttendanceHref, dashboardJournalHref, dashboardStudentJournalHref, shouldShowDashboardPendingList } from "../shared/dashboardNavigation";
@@ -169,6 +170,27 @@ describe("수업일지 완성 상태", () => {
       { sourceDate: "2026-09-22", targetDate: "2026-09-25" },
     ]);
   });
+
+  it("수업일지 추가하기는 학생의 결석·미등록·공휴일·휴강 출결도 건너뛴다", () => {
+    const unavailableDates = getUnavailableJournalDates(
+      ["2026-09-24", "2026-09-25"],
+      [
+        { journalDate: "2026-09-23", status: "closed" },
+        { journalDate: "2026-09-28", status: "present" },
+        { journalDate: "2026-09-29", status: "not_registered" },
+      ],
+    );
+    expect(unavailableDates.has("2026-09-28")).toBe(false);
+    expect(getJournalInsertionMoves(["2026-09-22", "2026-09-23"], false, unavailableDates)).toEqual([
+      { sourceDate: "2026-09-23", targetDate: "2026-09-30" },
+      { sourceDate: "2026-09-22", targetDate: "2026-09-28" },
+    ]);
+    expect(getUnavailableJournalDates([], [
+      { journalDate: "2026-10-01", status: "absent" },
+      { journalDate: "2026-10-02", status: "holiday" },
+    ])).toEqual(new Set(["2026-10-01", "2026-10-02"]));
+  });
+
 
   it("보호자에게는 미래 실제 출석을 공개하지 않고 미래 일정 안내만 공개한다", () => {
     expect(isDateVisibleToParent("2026-08-26", "2026-08-26")).toBe(true);
