@@ -323,7 +323,7 @@ describe("수업일지 완성 상태", () => {
       englishSpeakingUrl: "https://example.com/speaking",
       mathUnitEvaluationUrl: "https://example.com/math",
     };
-    expect(getSubjectLearningLinks("중등 수학", links).map(link => link.label)).toEqual(["수학 단원 평가"]);
+    expect(getSubjectLearningLinks("중등 수학", links).map(link => link.label)).toEqual(["수학(세부)"]);
     expect(getSubjectLearningLinks("중등 영어", links).map(link => link.label)).toEqual(["단어 암기 결과", "영어 말하기"]);
     expect(getSubjectLearningLinks("과학", links)).toEqual([]);
   });

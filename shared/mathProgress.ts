@@ -62,6 +62,15 @@ function parseHeaders(content: string) {
     ),
   }));
 }
+
+function isEnglishFocusedLesson(content: string) {
+  const text = content.normalize("NFKC");
+  return (
+    /(?:^|\n)\s*(?:-\s*)?영어\s*집중(?:\s*수업)?(?:\s|$)/.test(text) &&
+    !/\[\s*중\s*[123]/.test(text)
+  );
+}
+
 function validHeader(h: ReturnType<typeof parseHeaders>[number], date: string) {
   const c = mathCurriculumForDate(date).find(c => c.term === h.term),
     u = c?.units[h.unit - 1];
@@ -256,7 +265,8 @@ export function createProgressBaseline(
         (options.exactDate
           ? r.journalDate === options.exactDate
           : r.journalDate <= snapshotDate) &&
-        r.content?.trim()
+        r.content?.trim() &&
+        !isEnglishFocusedLesson(r.content)
     )
     .sort(
       (a, b) => b.journalDate.localeCompare(a.journalDate) || b.id - a.id
@@ -408,7 +418,11 @@ export function calculateMathProgress(
     text: string;
     reason: string;
   }[] = [];
-  if (baseline?.sourceId && !baseline.recognized)
+  if (
+    baseline?.sourceId &&
+    !baseline.recognized &&
+    !isEnglishFocusedLesson(baseline.sourceText ?? "")
+  )
     unmatched.push({
       id: baseline.sourceId,
       date: baseline.sourceDate!,
@@ -420,6 +434,7 @@ export function calculateMathProgress(
       row.isDraft ||
       row.journalDate > today ||
       !row.content?.trim() ||
+      isEnglishFocusedLesson(row.content) ||
       (baseline && isCoveredByBaseline(row, baseline))
     )
       continue;
@@ -591,13 +606,18 @@ function shiftDate(date: string, days: number) {
 }
 
 function countsAsLearningSession(row: ProgressJournal, today: string) {
-  if (row.isDraft || !row.content?.trim() || /재수강/.test(row.content))
+  if (
+    row.isDraft ||
+    !row.content?.trim() ||
+    /재수강/.test(row.content) ||
+    isEnglishFocusedLesson(row.content)
+  )
     return false;
   return parseHeaders(row.content).some(
     header =>
       header.basic &&
-      header.small !== null &&
-      validHeader(header, today) !== null
+      validHeader(header, today) !== null &&
+      (header.small !== null || Boolean(header.body.trim()))
   );
 }
 
@@ -652,9 +672,22 @@ export function calculateRecentLearningStats(
   const historicalRows = journals.filter(
     row => !row.isDraft && row.journalDate <= startDate && row.content?.trim()
   );
-  const historicalBaseline = createProgressBaseline(historicalRows, grade, {
+  let historicalBaseline = createProgressBaseline([], grade, {
     snapshotDate: startDate,
   });
+  // A math-group journal can legitimately record an English-only lesson.
+  // Keep the last recognizable math state instead of resetting the snapshot.
+  for (const row of [...historicalRows].sort(
+    (a, b) => b.journalDate.localeCompare(a.journalDate) || b.id - a.id
+  )) {
+    const candidate = createProgressBaseline([row], grade, {
+      snapshotDate: startDate,
+    });
+    if (candidate.recognized) {
+      historicalBaseline = candidate;
+      break;
+    }
+  }
   const historicalProgress = calculateMathProgress([], [], startDate, {
     baseline: historicalBaseline,
     grade,

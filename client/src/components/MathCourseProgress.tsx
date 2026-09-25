@@ -16,6 +16,17 @@ type MathProgressView = MathProgress & {
   };
 };
 
+export function learningPaceText(
+  recent: NonNullable<MathProgressView["recentLearning"]>
+) {
+  if (recent.paceArrow && recent.paceLabel)
+    return `${recent.paceArrow} ${recent.paceLabel}`;
+  if (recent.learningSessions < 5)
+    return `수학 수업일 ${recent.learningSessions}/5일`;
+  if (recent.deltaSteps === 0) return "진도 변화 없음";
+  return "비교 자료 부족";
+}
+
 function completionPeriod(date: string) {
   const [year, month, day] = date.split("-").map(Number);
   const period = day <= 10 ? "초" : day <= 20 ? "중순" : "말";
@@ -134,13 +145,15 @@ export function MathCourseDetails({
         {progress.recentLearning && (
           <div className="mt-3 rounded-lg bg-white px-3 py-2 text-xs">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="text-[#71817D]">최근 4주 학습 속도</span>
+              <span className="text-[#71817D]">최근 4주</span>
               <strong className="text-[#193D3C]">
-                +{progress.recentLearning.deltaPercent}%
-                {progress.recentLearning.paceArrow &&
-                progress.recentLearning.paceLabel
-                  ? ` ${progress.recentLearning.paceArrow} ${progress.recentLearning.paceLabel}`
-                  : " · 데이터 부족"}
+                +{progress.recentLearning.deltaPercent}%p
+              </strong>
+            </div>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-[#71817D]">학습 속도</span>
+              <strong className="text-[#193D3C]">
+                {learningPaceText(progress.recentLearning)}
               </strong>
             </div>
             <div className="mt-1 flex flex-wrap items-center justify-between gap-2">

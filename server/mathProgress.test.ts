@@ -211,6 +211,26 @@ describe("2026-09-22 initial progress and grade accumulation", () => {
     expect(p.percent).toBe(0);
     expect(p.unmatched[0].id).toBe(22);
   });
+  it("keeps an English-focused lesson without treating it as a math recognition error", () => {
+    const earlier = row("[중2-2 / 기본 / 2-3단원]", 1, {
+      journalDate: "2026-09-21",
+    });
+    const englishAtCutoff = row("영어 집중 수업", 2, {
+      journalDate: "2026-09-22",
+    });
+    const baseline = createProgressBaseline([earlier, englishAtCutoff], "중2");
+    expect(baseline.sourceId).toBe(1);
+    const progress = calculateMathProgress(
+      [
+        row("영어 집중 수업", 3, { journalDate: "2026-09-23" }),
+        row("수학 학습", 4, { journalDate: "2026-09-24" }),
+      ],
+      [],
+      "2026-09-24",
+      { baseline, grade: "중2" }
+    );
+    expect(progress.unmatched.map(entry => entry.id)).toEqual([4]);
+  });
   it("keeps all learning before challenge and all tests after challenge", () => {
     const p = calc([row("[중2-2 / 1단계 / 2단원]\n고난이도 실력문제 풀기")]);
     const u = unit(p);
@@ -326,6 +346,76 @@ describe("learning mastery and recent pace metrics", () => {
       { snapshotDate: "2026-10-23" }
     );
     expect(baseline.sourceDate).toBe("2026-10-20");
+  });
+
+  it("does not erase four-week math progress after an English-only lesson", () => {
+    const rows = [
+      row("[중2-2 / 1단계 / 2단원]\n고난이도 문제 풀기", 1, {
+        journalDate: "2026-08-27",
+      }),
+      row("영어 집중\n-Nelt 문제풀이", 2, {
+        journalDate: "2026-08-28",
+      }),
+      row("[중2-2 / 1단계 / 3단원]\n3-2 소단원 평가", 3, {
+        journalDate: "2026-09-22",
+      }),
+    ];
+    const currentProgress = calculateMathProgress([], [], "2026-09-25", {
+      baseline: createProgressBaseline([rows[2]], "중2", {
+        snapshotDate: "2026-09-25",
+      }),
+      grade: "중2",
+    });
+    const stats = calculateRecentLearningStats(
+      rows,
+      "중2",
+      currentProgress,
+      "2026-09-25"
+    );
+
+    expect(currentProgress.learningPercent).toBe(50);
+    expect(stats.deltaPercent).toBe(17);
+    expect(stats.deltaSteps).toBe(5);
+    expect(stats.learningSessions).toBe(1);
+  });
+
+  it("counts dated unit-level math lessons but not English or repeat-study lessons", () => {
+    const rows = [
+      row("[중2-2 / 1단계 / 1단원]\n이등변삼각형의 성질", 1, {
+        journalDate: "2026-09-01",
+      }),
+      row("[중2-2 / 1단계 / 1단원]\n직각삼각형의 합동 조건", 2, {
+        journalDate: "2026-09-04",
+      }),
+      row("[중2-2 / 1단계 / 1단원]\n삼각형의 외심", 3, {
+        journalDate: "2026-09-08",
+      }),
+      row("[중2-2 / 1단계 / 1단원]\n삼각형의 내심", 4, {
+        journalDate: "2026-09-11",
+      }),
+      row("[중2-2 / 1단계 / 2단원]\n2-1 소단원 평가", 5, {
+        journalDate: "2026-09-22",
+      }),
+      row("영어 집중 수업", 6, { journalDate: "2026-09-23" }),
+      row("[중2-2 / 1단계 / 2단원]\n재수강", 7, {
+        journalDate: "2026-09-24",
+      }),
+    ];
+    const currentProgress = calculateMathProgress([], [], "2026-09-25", {
+      baseline: createProgressBaseline([rows[4]], "중2", {
+        snapshotDate: "2026-09-25",
+      }),
+      grade: "중2",
+    });
+    const stats = calculateRecentLearningStats(
+      rows,
+      "중2",
+      currentProgress,
+      "2026-09-25"
+    );
+    expect(stats.learningSessions).toBe(5);
+    expect(stats.sufficientData).toBe(true);
+    expect(stats.stepsPerSession).toBeGreaterThan(0);
   });
 
   it("forecasts completion from remaining learning steps and scheduled sessions", () => {

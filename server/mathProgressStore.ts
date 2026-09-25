@@ -36,6 +36,28 @@ type StoredMathProgress = MathProgress & {
     "sourceId" | "sourceDate" | "sourceText" | "recognized" | "termCorrection"
   >;
 };
+
+function compareLearningPace(
+  progress: { recentLearning: RecentLearningStats },
+  cohort: Array<{ recentLearning: RecentLearningStats }>
+) {
+  const validPaces = cohort
+    .filter(candidate => candidate.recentLearning.sufficientData)
+    .map(candidate => candidate.recentLearning.stepsPerSession)
+    .filter((pace): pace is number => pace !== null);
+  const average = validPaces.length
+    ? validPaces.reduce((sum, pace) => sum + pace, 0) / validPaces.length
+    : null;
+  const pace = progress.recentLearning.stepsPerSession;
+  if (!progress.recentLearning.sufficientData || pace === null || average === null)
+    return { paceLabel: null, paceArrow: null };
+  if (average === 0 ? pace > 0 : pace >= average * 1.2)
+    return { paceLabel: "빠름" as const, paceArrow: "↑" as const };
+  if (average > 0 && pace <= average * 0.8)
+    return { paceLabel: "느림" as const, paceArrow: "↓" as const };
+  return { paceLabel: "보통" as const, paceArrow: "→" as const };
+}
+
 let schema: Promise<void> | undefined;
 
 function parseWeekdays(value: string | null | undefined) {
@@ -322,7 +344,7 @@ export async function studentProgress(studentId: number) {
   const signature = createHash("sha256")
     .update(
       JSON.stringify([
-        "v6-focused-learning",
+        "v8-math-lesson-sessions",
         progressKeys,
         today,
         student.grade,
@@ -400,7 +422,7 @@ export async function studentProgress(studentId: number) {
 }
 export async function allProgress() {
   const rows = await progressStudents();
-  const output = [];
+  const output: Array<(typeof rows)[number] & { progress: StoredMathProgress }> = [];
   // Bound database concurrency even for a large roster.
   for (let i = 0; i < rows.length; i += 5)
     output.push(
@@ -410,7 +432,22 @@ export async function allProgress() {
           .map(async s => ({ ...s, progress: await studentProgress(s.id) }))
       ))
     );
-  return output;
+  return output.map(student => {
+    const term = student.progress.terms.at(-1)?.term;
+    const cohort = output
+      .filter(candidate => candidate.progress.terms.at(-1)?.term === term)
+      .map(candidate => candidate.progress);
+    return {
+      ...student,
+      progress: {
+        ...student.progress,
+        recentLearning: {
+          ...student.progress.recentLearning,
+          ...compareLearningPace(student.progress, cohort),
+        },
+      },
+    };
+  });
 }
 export async function saveProgressOverride(
   input: {
@@ -488,39 +525,7 @@ export async function publicProgress(token: string, studentId?: number) {
       };
   }
 
-  const validPaces = cohort
-    .filter(candidate => candidate.recentLearning.sufficientData)
-    .map(candidate => candidate.recentLearning.stepsPerSession)
-    .filter((pace): pace is number => pace !== null);
-  const cohortAveragePerSession = validPaces.length
-    ? validPaces.reduce((sum, pace) => sum + pace, 0) / validPaces.length
-    : null;
-  const pace = progress.recentLearning.stepsPerSession;
-  let paceLabel: "빠름" | "보통" | "느림" | null = null;
-  let paceArrow: "↑" | "→" | "↓" | null = null;
-  if (
-    progress.recentLearning.sufficientData &&
-    pace !== null &&
-    cohortAveragePerSession !== null
-  ) {
-    if (
-      cohortAveragePerSession === 0
-        ? pace > 0
-        : pace >= cohortAveragePerSession * 1.2
-    ) {
-      paceLabel = "빠름";
-      paceArrow = "↑";
-    } else if (
-      cohortAveragePerSession > 0 &&
-      pace <= cohortAveragePerSession * 0.8
-    ) {
-      paceLabel = "느림";
-      paceArrow = "↓";
-    } else {
-      paceLabel = "보통";
-      paceArrow = "→";
-    }
-  }
+  const paceComparison = compareLearningPace(progress, cohort);
 
   // Raw journal text and staff correction notes are admin-only.
   return {
@@ -530,8 +535,7 @@ export async function publicProgress(token: string, studentId?: number) {
     ),
     recentLearning: {
       ...progress.recentLearning,
-      paceLabel,
-      paceArrow,
+      ...paceComparison,
     },
     sameCourseAverage,
     unmatched: [],

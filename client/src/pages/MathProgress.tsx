@@ -10,6 +10,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  learningPaceText,
   MathCourseDetails,
   ProgressMeter,
 } from "@/components/MathCourseProgress";
@@ -85,9 +86,10 @@ export default function MathProgress() {
                 <tr>
                   {[
                     "학생",
-                    "학습률 · 평가율",
                     "현재 및 누적 과정",
-                    "초기 기준",
+                    "학습률 · 평가율",
+                    "최근 4주",
+                    "학습 속도",
                     "확인할 기록",
                     "상세",
                   ].map(h => (
@@ -108,13 +110,6 @@ export default function MathProgress() {
                           {s.grade}
                         </span>
                       </td>
-                      <td className="min-w-36 p-3">
-                        <div className="mb-1 text-xs">
-                          학습 {s.progress.learningPercent}% · 평가{" "}
-                          {s.progress.masteryPercent}%
-                        </div>
-                        <ProgressMeter value={s.progress.learningPercent} />
-                      </td>
                       <td className="p-3">
                         {s.progress.terms.map(t => (
                           <div key={t.term} className="whitespace-nowrap">
@@ -122,12 +117,18 @@ export default function MathProgress() {
                           </div>
                         ))}
                       </td>
-                      <td className="p-3 text-xs">
-                        {s.progress.baseline.recognized
-                          ? `${s.progress.baseline.sourceDate} 적용`
-                          : s.progress.baseline.sourceId
-                            ? "일지 확인 필요"
-                            : "기준 일지 없음"}
+                      <td className="min-w-36 p-3">
+                        <div className="mb-1 text-xs">
+                          학습 {s.progress.learningPercent}% · 평가{" "}
+                          {s.progress.masteryPercent}%
+                        </div>
+                        <ProgressMeter value={s.progress.learningPercent} />
+                      </td>
+                      <td className="whitespace-nowrap p-3 font-semibold">
+                        +{s.progress.recentLearning.deltaPercent}%p
+                      </td>
+                      <td className="whitespace-nowrap p-3 text-xs">
+                        {learningPaceText(s.progress.recentLearning)}
                       </td>
                       <td className="p-3">{s.progress.unmatched.length}건</td>
                       <td className="p-3">
@@ -144,6 +145,11 @@ export default function MathProgress() {
               </tbody>
             </table>
           </div>
+          <p className="mt-2 text-xs text-stone-500">
+            과정 %는 학기별 대단원의 학습·실력문제·평가 단계를 합친 완료율입니다.
+            대단원마다 같은 비중으로 평균하며, 출석률이나 최근 4주 증가율은
+            아닙니다.
+          </p>
           {query.data?.length === 0 && (
             <p className="mt-4">수학 수강 학생이 없습니다.</p>
           )}
@@ -161,23 +167,6 @@ export default function MathProgress() {
           </DialogHeader>
           {student && (
             <>
-              <details className="rounded-xl border p-3 text-sm">
-                <summary className="cursor-pointer">
-                  9월 22일 초기 기준 일지{" "}
-                  {student.progress.baseline.recognized
-                    ? "· 적용"
-                    : "· 확인 필요"}
-                </summary>
-                <p className="mt-2 text-xs">
-                  {student.progress.baseline.sourceDate}
-                  {student.progress.baseline.termCorrection &&
-                    ` · 적용 과정 ${student.progress.baseline.termCorrection}`}
-                </p>
-                <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-xs">
-                  {student.progress.baseline.sourceText ??
-                    "기준일 이전의 일지가 없습니다."}
-                </pre>
-              </details>
               <MathCourseDetails
                 progress={student.progress}
                 edit={cell => (
