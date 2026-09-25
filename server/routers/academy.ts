@@ -1,4 +1,5 @@
 import * as mathProgress from '../mathProgressStore';
+import { schoolExamsRouter } from './schoolExams';
 import { formatMathJournalContent, progressKeys } from '../../shared/mathProgress';
 import { progressStates } from '../../shared/mathCurriculum';
 import { previewAlimtalkTest, sendAlimtalkTest } from "../alimtalkTest";
@@ -368,6 +369,7 @@ async function assertJournalEditable(
 }
 
 export const academyRouter = router({
+  schoolExams: schoolExamsRouter,
   mathProgress: router({
     list: adminProcedure.query(() => mathProgress.allProgress()),
     focused: adminProcedure.input(z.object({studentId:z.number().int().positive(),throughDate:isoDate})).query(({input})=>mathProgress.focusedLearningForStudent(input.studentId,input.throughDate)),

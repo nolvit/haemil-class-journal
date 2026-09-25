@@ -31,6 +31,7 @@ import {
   isMathProgressEligible,
   isMathProgressSession,
   progressKeys,
+  BASELINE_DATE,
   type MathJournalPayload,
 } from "../shared/mathProgress";
 import type { ProgressState } from "../shared/mathCurriculum";
@@ -241,6 +242,22 @@ async function readMathJournals(studentId: number) {
 }
 export async function focusedLearningForStudent(studentId: number, throughDate: string) {
   return calculateFocusedLearning(await readMathJournals(studentId), throughDate);
+}
+
+/** Frozen when a school score is recorded; never substitute today's progress. */
+export async function historicalMathSnapshot(studentId: number, grade: string, examDate: string) {
+  if (examDate < BASELINE_DATE) return null;
+  const baseline = await ensureBaseline(studentId, grade);
+  if (!baseline.recognized || (baseline.sourceDate && baseline.sourceDate > examDate)) return null;
+  const progress = calculateMathProgress(await readMathJournals(studentId), [], examDate, { baseline, grade });
+  if (!progress.terms.length) return null;
+  return {
+    asOfDate: examDate,
+    percent: progress.percent,
+    learningPercent: progress.learningPercent,
+    evaluationPercent: progress.masteryPercent,
+    terms: progress.terms.map(term => ({ term: term.term, percent: term.percent })),
+  };
 }
 async function ensureBaseline(
   studentId: number,

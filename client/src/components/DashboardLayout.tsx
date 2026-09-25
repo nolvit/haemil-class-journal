@@ -70,6 +70,7 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
         path: "/learning-links",
         adminOnly: true,
       },
+      { icon: UsersRound, label: "수학 과정 현황", path: "/math-progress", adminOnly: true },
     ],
   },
   {
@@ -77,17 +78,10 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
     items: [
       {
         icon: GraduationCap,
-        label: "아바타 제작",
-        path: "/avatar-rewards",
-        adminOnly: true,
-      },
-      {
-        icon: GraduationCap,
         label: "학생 관리",
         path: "/students",
         adminOnly: true,
       },
-      { icon: UsersRound, label: "수학 과정 현황", path: "/math-progress", adminOnly: true },
       { icon: UsersRound, label: "반 관리", path: "/classes", adminOnly: true },
       {
         icon: Banknote,
@@ -101,6 +95,18 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
         path: "/closures",
         adminOnly: true,
       },
+      {
+        icon: GraduationCap,
+        label: "해밀월드 관리",
+        path: "/avatar-rewards",
+        adminOnly: true,
+      },
+    ],
+  },
+  {
+    label: "학교시험·성적",
+    items: [
+      { icon: ClipboardCheck, label: "시험·성적 관리", path: "/school-exams", adminOnly: true },
     ],
   },
   {

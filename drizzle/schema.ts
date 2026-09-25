@@ -683,3 +683,51 @@ export const mathProgressCorrectionHistory = mysqlTable('math_progress_correctio
  previousPayload:text('previousPayload'), appliedPayload:text('appliedPayload').notNull(),
  createdAt:timestamp('createdAt').defaultNow().notNull(),
 });
+
+/** School exam records are independent of the journal and parent portal. */
+export const examSchools = mysqlTable("exam_schools", {
+  id: int("id").autoincrement().primaryKey(),
+  name: varchar("name", { length: 100 }).notNull(),
+}, table => ({ nameUnique: uniqueIndex("exam_schools_name_unique").on(table.name) }));
+
+export const schoolExams = mysqlTable("school_exams", {
+  id: int("id").autoincrement().primaryKey(),
+  schoolId: int("schoolId").notNull(),
+  grade: varchar("grade", { length: 80 }).notNull(),
+  academicYear: int("academicYear").notNull(),
+  semester: int("semester").notNull(),
+  examType: varchar("examType", { length: 30 }).notNull(),
+  title: varchar("title", { length: 100 }).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  schoolIndex: index("school_exams_school_index").on(table.schoolId, table.academicYear),
+  identityUnique: uniqueIndex("school_exams_identity_unique").on(
+    table.schoolId, table.grade, table.academicYear, table.semester, table.examType, table.title
+  ),
+}));
+
+export const schoolExamSubjects = mysqlTable("school_exam_subjects", {
+  id: int("id").autoincrement().primaryKey(),
+  examId: int("examId").notNull(),
+  subject: varchar("subject", { length: 80 }).notNull(),
+  examDate: date("examDate", { mode: "string" }).notNull(),
+  maxScore: double("maxScore").default(100).notNull(),
+  schoolAverage: double("schoolAverage"),
+  averageSource: varchar("averageSource", { length: 500 }),
+}, table => ({ examSubjectUnique: uniqueIndex("school_exam_subject_unique").on(table.examId, table.subject) }));
+
+export const studentExamResults = mysqlTable("student_exam_results", {
+  id: int("id").autoincrement().primaryKey(),
+  examSubjectId: int("examSubjectId").notNull(),
+  studentId: int("studentId").notNull(),
+  score: double("score").notNull(),
+  lessonCount: int("lessonCount"),
+  lessonCountStatus: varchar("lessonCountStatus", { length: 20 }).notNull(),
+  lessonCountNote: varchar("lessonCountNote", { length: 500 }),
+  mathSnapshot: text("mathSnapshot"),
+  recordedByUserId: int("recordedByUserId").notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  studentSubjectUnique: uniqueIndex("student_exam_result_unique").on(table.examSubjectId, table.studentId),
+  studentIndex: index("student_exam_results_student_index").on(table.studentId),
+}));
