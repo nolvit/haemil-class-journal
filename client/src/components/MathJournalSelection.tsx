@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { mathCurriculumForDate } from "@shared/mathCurriculum";
+import { nextMathJournalEntry } from "@shared/mathJournalCopy";
 import { getMathReviewSuggestions, type MathReviewSuggestion } from "@shared/mathJournalQuickEntry";
 import { mathItemLabel, mathUnitOptions, middleGrade, type MathJournalEntry, type MathJournalPayload } from "@shared/mathProgress";
 
@@ -9,6 +10,7 @@ type Props = {
   sessionKind: MathJournalPayload["sessionKind"];
   entries: MathJournalEntry[];
   previousEntries?: MathJournalEntry[];
+  autoStartedKey?: string | null;
   disabled?: boolean;
   legacy?: boolean;
   onSessionKindChange: (value: MathJournalPayload["sessionKind"]) => void;
@@ -16,7 +18,7 @@ type Props = {
   onReviewSuggestion?: (value: MathReviewSuggestion) => void;
 };
 
-export function MathJournalSelection({ date, grade, sessionKind, entries, previousEntries = [], disabled, legacy, onSessionKindChange, onEntriesChange, onReviewSuggestion }: Props) {
+export function MathJournalSelection({ date, grade, sessionKind, entries, previousEntries = [], autoStartedKey, disabled, legacy, onSessionKindChange, onEntriesChange, onReviewSuggestion }: Props) {
   const courses = useMemo(() => mathCurriculumForDate(date), [date]);
   const lastEntry = entries.at(-1);
   const gradeNumber = middleGrade(grade) ?? 2;
@@ -44,20 +46,11 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, previo
   const selected = new Map(entries.map(entry => [entry.key, entry.state]));
   const reviewSuggestions = getMathReviewSuggestions([...previousEntries, ...entries], date);
   const focusedEntry = entries.findLast(entry => entry.state === "active") ?? lastEntry;
-  const nextItem = useMemo(() => {
-    if (!focusedEntry || sessionKind !== "math") return null;
-    const [entryTerm, entryUnit] = focusedEntry.key.split(":");
-    const selectedCourse = courses.find(value => value.term === entryTerm);
-    if (!selectedCourse) return null;
-    const selectedKeys = new Set(entries.map(entry => entry.key));
-    for (let unit = Number(entryUnit); unit <= selectedCourse.units.length; unit++) {
-      const unitOptions = mathUnitOptions(entryTerm!, unit, date);
-      const start = unit === Number(entryUnit) ? unitOptions.findIndex(item => item.key === focusedEntry.key) + 1 : 0;
-      for (const item of unitOptions.slice(Math.max(0, start)))
-        if (!selectedKeys.has(item.key)) return item;
-    }
-    return null;
-  }, [courses, date, entries, focusedEntry, sessionKind]);
+  const nextItem = useMemo(() => focusedEntry && sessionKind === "math"
+    ? nextMathJournalEntry(entries, date, focusedEntry.key) : null, [date, entries, focusedEntry, sessionKind]);
+  const nextFromPrevious = useMemo(() => entries.length === 0 && previousEntries.at(-1)?.state === "complete" &&
+    !previousEntries.some(entry => entry.state === "active")
+    ? nextMathJournalEntry(previousEntries, date) : null, [date, entries.length, previousEntries]);
   const change = (key: string, state: MathJournalEntry["state"] | "") => {
     if (!state) { onEntriesChange(entries.filter(entry => entry.key !== key)); return; }
     onEntriesChange(entries.some(entry => entry.key === key)
@@ -68,7 +61,7 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, previo
     if (!focusedEntry || !nextItem) return;
     const updated = entries.map(entry => entry.key === focusedEntry.key && entry.state === "active"
       ? { ...entry, state: "complete" as const } : entry);
-    onEntriesChange([...updated, { key: nextItem.key, state: "active" }]);
+    onEntriesChange([...updated, nextItem]);
   };
 
   return <section className="rounded-xl border border-[#D5E3DA] bg-[#F4F8F3] px-3 py-2 text-sm">
@@ -84,6 +77,8 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, previo
         <button type="button" aria-expanded={expanded} disabled={disabled} onClick={() => setExpanded(value => !value)} className="rounded-lg border border-[#C5D4CC] bg-white px-2.5 py-1 text-xs font-semibold text-[#31564B] disabled:opacity-50">{expanded ? "선택 닫기" : "과정 변경"}</button>
       </div>
     </div>
+    {autoStartedKey && entries.length === 1 && entries[0]?.key === autoStartedKey && entries[0].state === "active" &&
+      <p className="mt-2 text-xs text-[#315D45]">전 수학 수업의 마지막 과정이 완료되어 다음 과정을 진행 중으로 준비했습니다. 아직 저장 전입니다.</p>}
     {sessionKind === "english" && entries.length > 0 && <p className="mt-2 text-xs text-[#765E10]">영어 집중으로 저장하면 선택한 수학 과정 {entries.length}개는 이번 일지의 진도에 반영되지 않습니다.</p>}
     {sessionKind === "math" && entries.length > 0 && <div className="mt-2 space-y-1" aria-label="이번 일지의 수학 과정 항목">
       {entries.map(entry => {
@@ -103,6 +98,9 @@ export function MathJournalSelection({ date, grade, sessionKind, entries, previo
     {!expanded && !disabled && sessionKind === "math" && focusedEntry && <div className="mt-2 flex flex-wrap gap-1.5">
       {focusedEntry.state === "active" && <button type="button" onClick={() => change(focusedEntry.key, "complete")} className="rounded-md border border-[#BBD3C4] bg-white px-2 py-1 text-xs text-[#315D45]">현재 항목 완료</button>}
       {nextItem && <button type="button" onClick={startNext} className="rounded-md border border-[#BBD3C4] bg-white px-2 py-1 text-xs text-[#315D45]">{focusedEntry.state === "active" ? "완료 후 다음 과정" : "다음 과정 시작"}</button>}
+    </div>}
+    {!expanded && !disabled && sessionKind === "math" && nextFromPrevious && <div className="mt-2">
+      <button type="button" onClick={() => onEntriesChange([nextFromPrevious])} className="rounded-md border border-[#BBD3C4] bg-white px-2 py-1 text-xs text-[#315D45]">이전 수업 다음 과정 시작</button>
     </div>}
     {!disabled && sessionKind === "math" && onReviewSuggestion && reviewSuggestions.length > 0 && <div className="mt-2 flex flex-wrap items-center gap-1.5" aria-label="재수강 추천 입력">
       <span className="text-[11px] text-[#61746E]">재수강 빠른 입력</span>

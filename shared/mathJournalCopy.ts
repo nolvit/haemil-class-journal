@@ -1,5 +1,5 @@
 import { mathCurriculumForDate } from "./mathCurriculum";
-import { mathUnitOptions, type MathJournalEntry } from "./mathProgress";
+import { mathUnitOptions, type MathJournalEntry, type MathJournalPayload } from "./mathProgress";
 
 type Header = { term: string; unit: number; small: number | null };
 type CopySuggestion = { entries: MathJournalEntry[]; freeText: string };
@@ -15,6 +15,33 @@ export function carryForwardMathJournalEntries(entries: readonly MathJournalEntr
     seen.add(entry.key);
     return true;
   }).map(entry => ({ ...entry }));
+}
+
+/** Find the next unselected step after the current step, without repeating completed work. */
+export function nextMathJournalEntry(entries: readonly MathJournalEntry[], date: string, fromKey = entries.at(-1)?.key): MathJournalEntry | null {
+  if (!fromKey) return null;
+  const [term, unitText] = fromKey.split(":");
+  const unitNumber = Number(unitText);
+  const course = mathCurriculumForDate(date).find(item => item.term === term);
+  if (!course || !Number.isInteger(unitNumber) || unitNumber < 1) return null;
+  const currentOptions = mathUnitOptions(term!, unitNumber, date);
+  const currentIndex = currentOptions.findIndex(item => item.key === fromKey);
+  if (currentIndex < 0) return null;
+  const selectedKeys = new Set(entries.map(entry => entry.key));
+  for (let unit = unitNumber; unit <= course.units.length; unit++) {
+    const options = unit === unitNumber ? currentOptions : mathUnitOptions(term!, unit, date);
+    for (const item of options.slice(unit === unitNumber ? currentIndex + 1 : 0)) {
+      if (!selectedKeys.has(item.key)) return { key: item.key, state: "active" };
+    }
+  }
+  return null;
+}
+
+/** Prefill only after the last saved math step was completed, never after English or unfinished work. */
+export function nextMathJournalEntryForEmptyJournal(previous: MathJournalPayload | null | undefined, date: string): MathJournalEntry | null {
+  if (previous?.sessionKind !== "math" || previous.entries.at(-1)?.state !== "complete" ||
+      previous.entries.some(entry => entry.state === "active")) return null;
+  return nextMathJournalEntry(previous.entries, date);
 }
 
 const HEADER_LIKE = /^\s*\[\s*중\s*[123]\s*[-–−—]/;

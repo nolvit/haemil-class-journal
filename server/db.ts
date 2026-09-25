@@ -71,6 +71,7 @@ import {
   isCalendarScheduleVisibleToParent,
   isDateVisibleToParent,
   isFinalJournalVisibleToParent,
+  isJournalHomeworkVisible,
   shouldPullJournalForAttendance,
   shouldTransferJournalForAttendance,
   type AttendanceStatus,
@@ -3400,9 +3401,10 @@ export async function getPublicStudentWeek(
   const businessDates = getBusinessWeekDates(requestedDate);
   const allWeekDates = getWeeklyDates(requestedDate, true);
   const weekStart = getMonday(requestedDate);
+  const now = new Date();
   const todayInKorea = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Seoul",
-  }).format(new Date());
+  }).format(now);
   const currentWeekStart = getMonday(todayInKorea);
   const groupRows = await db
     .select({
@@ -3518,9 +3520,22 @@ export async function getPublicStudentWeek(
     )
   );
   // 미래 수업 계획은 최종 저장했을 때만 예정으로 공개한다. 임시 저장은 날짜와 무관하게 보호자에게 숨긴다.
-  const visibleJournals = allJournals.filter(journal =>
-    isFinalJournalVisibleToParent(journal.isDraft)
-  );
+  const attendanceByDate = new Map(effectiveAttendances.map(attendance => [attendance.journalDate, attendance]));
+  const subjectByGroupId = new Map(groupRows.map(group => [group.id, group.subject]));
+  const visibleJournals = allJournals
+    .filter(journal => isFinalJournalVisibleToParent(journal.isDraft))
+    .map(journal => ({
+      ...journal,
+      homework: isJournalHomeworkVisible({
+        subject: subjectByGroupId.get(journal.classGroupId) ?? "",
+        content: journal.content,
+        homework: journal.homework,
+        journalDate: journal.journalDate,
+        attendanceStatus: attendanceByDate.get(journal.journalDate)?.status,
+        departureTime: attendanceByDate.get(journal.journalDate)?.departureTime,
+        now,
+      }) ? journal.homework : "",
+    }));
   const weekendDates = allWeekDates.slice(-2);
   const weekendActive =
     visibleAttendances.some(

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { carryForwardMathJournalEntries, suggestMathJournalCopy } from "./mathJournalCopy";
+import { carryForwardMathJournalEntries, nextMathJournalEntry, nextMathJournalEntryForEmptyJournal, suggestMathJournalCopy } from "./mathJournalCopy";
 import { formatMathJournalContent, type MathJournalEntry } from "./mathProgress";
 
 const date = "2026-09-29";
@@ -32,6 +32,41 @@ describe("math journal carry-forward", () => {
       { key: "중1-2:3:learn:5", state: "active" },
       { key: "중1-2:3:learn:99", state: "active" },
     ], date)).toEqual([{ key: "중1-2:3:learn:5", state: "active" }]);
+  });
+});
+
+describe("next lesson after a completed math step", () => {
+  const completed = { version: 1 as const, sessionKind: "math" as const, freeText: "", entries: [
+    { key: "중1-2:3:learn:3", state: "complete" as const },
+    { key: "중1-2:3:learn:4", state: "complete" as const },
+  ] };
+
+  it("prefills only the following step in progress, without repeating completed items", () => {
+    expect(nextMathJournalEntryForEmptyJournal(completed, "2026-09-30"))
+      .toEqual({ key: "중1-2:3:learn:5", state: "active" });
+    expect(nextMathJournalEntry(completed.entries, "2026-09-30", "중1-2:3:learn:4"))
+      .toEqual({ key: "중1-2:3:learn:5", state: "active" });
+  });
+
+  it("does not auto-advance unfinished, skipped-last, or English lessons", () => {
+    expect(nextMathJournalEntryForEmptyJournal({ ...completed, entries: [
+      { key: "중1-2:3:learn:3", state: "active" },
+      { key: "중1-2:3:learn:4", state: "complete" },
+    ] }, date)).toBeNull();
+    expect(nextMathJournalEntryForEmptyJournal({ ...completed, entries: [
+      { key: "중1-2:3:learn:4", state: "skipped" },
+    ] }, date)).toBeNull();
+    expect(nextMathJournalEntryForEmptyJournal({ ...completed, sessionKind: "english" }, date)).toBeNull();
+    expect(nextMathJournalEntryForEmptyJournal(null, date)).toBeNull();
+  });
+
+  it("moves to the next unit but stops rather than guessing a new term", () => {
+    const lastOfUnit = { ...completed, entries: [{ key: "중1-2:3:final2", state: "complete" as const }] };
+    expect(nextMathJournalEntryForEmptyJournal(lastOfUnit, date))
+      .toEqual({ key: "중1-2:4:learn:1", state: "active" });
+    expect(nextMathJournalEntryForEmptyJournal({ ...completed, entries: [
+      { key: "중1-2:5:final2", state: "complete" },
+    ] }, date)).toBeNull();
   });
 });
 

@@ -74,6 +74,39 @@ export function initialJournalHomework(
   return vacantInsertedSlot ? "양호" : savedHomework;
 }
 
+/** 하원 기록이 없는 출석 학생의 기본 과제 공개 시각 (한국 시간). */
+export const MATH_HOMEWORK_FALLBACK_HOUR_KST = 22;
+
+/**
+ * 빠른 입력용 수학 과제 기본값은 수업이 끝나기 전에는 평가처럼 공개하지 않는다.
+ * 다른 과목 및 교사가 직접 입력한 다른 과제 상태의 기존 표시 방식은 유지한다.
+ */
+export function isJournalHomeworkVisible({
+  subject, content, homework, journalDate, attendanceStatus, departureTime, isDraft = false, now = new Date(),
+}: {
+  subject: string;
+  content: string | null | undefined;
+  homework: string | null | undefined;
+  journalDate: string;
+  attendanceStatus: AttendanceStatus | null | undefined;
+  departureTime: string | null | undefined;
+  isDraft?: boolean;
+  now?: Date;
+}): boolean {
+  if (!homework?.trim()) return false;
+  if (subject !== "수학" || homework !== "양호") return true;
+  if (isDraft || !content?.trim()) return false;
+  if (attendanceStatus !== "present" && attendanceStatus !== "makeup" && attendanceStatus !== "makeup_double") return false;
+  const koreanDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Seoul" }).format(now);
+  if (journalDate > koreanDate) return false;
+  if (journalDate < koreanDate) return true;
+  if (departureTime?.trim()) return true;
+  const koreanHour = Number(new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", hour: "2-digit", hourCycle: "h23",
+  }).format(now));
+  return koreanHour >= MATH_HOMEWORK_FALLBACK_HOUR_KST;
+}
+
 export const homeworkStatusDescriptions: Record<HomeworkStatusOption, string> = {
   "양호": "대부분 정확함, 오답 소수",
   "보완 필요": "일부 오답 있음",

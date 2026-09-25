@@ -40,3 +40,30 @@ it("keeps English-focused entry and review suggestions visible while the full se
   expect(html).toContain('aria-label="영어 집중 수업 선택"');
   expect(html).toContain("2-3 소단원 재수강");
 });
+
+it("labels an automatically prepared next step as unsaved", () => {
+  const html = renderToStaticMarkup(createElement(MathJournalSelection, {
+    date: "2026-09-30",
+    grade: "중1",
+    sessionKind: "math",
+    entries: [{ key: "중1-2:3:learn:5", state: "active" }],
+    autoStartedKey: "중1-2:3:learn:5",
+    onSessionKindChange: () => {},
+    onEntriesChange: () => {},
+  }));
+  expect(html).toContain("다음 과정을 진행 중으로 준비했습니다. 아직 저장 전입니다.");
+});
+
+it("offers a next-step button when the current journal already has text but no selected step", () => {
+  const html = renderToStaticMarkup(createElement(MathJournalSelection, {
+    date: "2026-09-30",
+    grade: "중1",
+    sessionKind: "math",
+    entries: [],
+    previousEntries: [{ key: "중1-2:3:learn:4", state: "complete" }],
+    onSessionKindChange: () => {},
+    onEntriesChange: () => {},
+  }));
+  expect(html).toContain("이전 수업 다음 과정 시작");
+  expect(html).toContain('aria-expanded="false"');
+});

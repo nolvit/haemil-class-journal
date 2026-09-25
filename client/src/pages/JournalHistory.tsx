@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
 import { copyLessonContent } from "@/lib/copyLessonContent";
 import { useAttendanceLiveUpdates } from "@/hooks/useAttendanceLiveUpdates";
-import { attendanceStatusLabels, type AttendanceStatus } from "@shared/journalRules";
+import { attendanceStatusLabels, isJournalHomeworkVisible, type AttendanceStatus } from "@shared/journalRules";
 import { getSubjectLearningLinks } from "@shared/learningLinksRules";
 import {
   getJournalHistoryWeeks,
@@ -64,6 +64,7 @@ type WeekQuery = ReturnType<typeof useHistoryWeek>;
 
 function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   const [referenceDate, setReferenceDate] = useState(getKoreanJournalDate);
+  const [now, setNow] = useState(() => new Date());
   const weeks = useMemo(() => getJournalHistoryWeeks(referenceDate), [referenceDate]);
   // Exactly four unconditional hooks: no hook call inside a variable-length loop.
   const currentWeek = useHistoryWeek(weeks[0].weekStart, target.classGroupId, target.includeWeekend);
@@ -99,7 +100,10 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
     window.addEventListener("focus", onFocus);
     document.addEventListener("visibilitychange", onVisibilityChange);
     // The range advances at the Korean date boundary even if the window stays open.
-    const timer = window.setInterval(() => setReferenceDate(getKoreanJournalDate()), 60_000);
+    const timer = window.setInterval(() => {
+      setReferenceDate(getKoreanJournalDate());
+      setNow(new Date());
+    }, 60_000);
     return () => {
       window.removeEventListener("focus", onFocus);
       document.removeEventListener("visibilitychange", onVisibilityChange);
@@ -133,7 +137,7 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
         <table className="history-calendar">
           <caption className="history-sr-only">{title} · 월요일부터 {target.includeWeekend ? "일요일까지 7칸" : "금요일까지 5칸"}씩 4주. 3주 전부터 이번 주까지 날짜순으로 표시합니다.</caption>
           <thead><tr>{dayLabels.map((day, index) => <th key={day} scope="col" data-weekend={index > 4 || undefined}>{day}<span>요일</span></th>)}</tr></thead>
-          <tbody>{calendarRows.map(({ week, query }) => <HistoryWeekRow key={week.weekStart} week={week} query={query} target={target} referenceDate={referenceDate} includeWeekend={target.includeWeekend} />)}</tbody>
+          <tbody>{calendarRows.map(({ week, query }) => <HistoryWeekRow key={week.weekStart} week={week} query={query} target={target} referenceDate={referenceDate} now={now} includeWeekend={target.includeWeekend} />)}</tbody>
         </table>
       </div>
       <footer className="history-footer">{target.includeWeekend ? "주말 보강 포함" : "월요일~금요일 표시"} · 원래 수업일지의 입력 내용은 변경되지 않습니다. 긴 수업 내용도 생략 없이 표시합니다.</footer>
@@ -141,18 +145,28 @@ function JournalHistoryCalendar({ target }: { target: JournalHistoryTarget }) {
   );
 }
 
-function HistoryWeekRow({ week, query, target, referenceDate, includeWeekend }: { week: JournalHistoryWeek; query: WeekQuery; target: JournalHistoryTarget; referenceDate: string; includeWeekend: boolean }) {
+function HistoryWeekRow({ week, query, target, referenceDate, now, includeWeekend }: { week: JournalHistoryWeek; query: WeekQuery; target: JournalHistoryTarget; referenceDate: string; now: Date; includeWeekend: boolean }) {
   const days = selectJournalHistoryDays(week, query.data?.days ?? [], target.studentId, target.classGroupId).slice(0, includeWeekend ? 7 : 5);
   const weekEnd = week.dates[includeWeekend ? 6 : 4];
   if (query.isError) return <tr><td colSpan={includeWeekend ? 7 : 5} className="history-error"><div role="alert"><b>{week.label} · {week.weekStart} ~ {weekEnd}</b><p>기록을 불러오지 못했습니다. 빈 기록이 아닙니다.</p><button type="button" className="history-action" disabled={query.isFetching} onClick={() => void query.refetch()}>다시 불러오기</button></div></td></tr>;
-  return <tr data-week={week.label}>{days.map(({ journalDate, row }, index) => <HistoryDay key={journalDate} row={row} journalDate={journalDate} referenceDate={referenceDate} weekLabel={index === 0 ? week.label : undefined} loading={query.isLoading} />)}</tr>;
+  return <tr data-week={week.label}>{days.map(({ journalDate, row }, index) => <HistoryDay key={journalDate} row={row} journalDate={journalDate} referenceDate={referenceDate} now={now} weekLabel={index === 0 ? week.label : undefined} loading={query.isLoading} />)}</tr>;
 }
 
-function HistoryDay({ row, journalDate, referenceDate, weekLabel, loading }: { row?: HistoryRow; journalDate: string; referenceDate: string; weekLabel?: string; loading: boolean }) {
+function HistoryDay({ row, journalDate, referenceDate, now, weekLabel, loading }: { row?: HistoryRow; journalDate: string; referenceDate: string; now: Date; weekLabel?: string; loading: boolean }) {
   const status = row?.attendance?.status ?? "not_entered";
   const journal = loading ? null : row?.journal;
   const content = journal?.content ?? "";
   const isFuture = journalDate > referenceDate;
+  const visibleHomework = isJournalHomeworkVisible({
+    subject: row?.classGroup.subject ?? "",
+    content: journal?.content,
+    homework: journal?.homework,
+    journalDate,
+    attendanceStatus: status,
+    departureTime: row?.attendance?.departureTime,
+    isDraft: journal?.isDraft,
+    now,
+  });
   const contentId = `history-content-${journalDate}`;
   return <td className="history-day" data-today={journalDate === referenceDate || undefined} data-future={isFuture || undefined}>
     <article aria-label={`${journalDate} 수업일지`}>
@@ -164,7 +178,7 @@ function HistoryDay({ row, journalDate, referenceDate, weekLabel, loading }: { r
           {journal?.isDraft && <span className="history-status history-draft">임시 저장</span>}
         </div>
         <dl className="history-details"><div className="history-lesson"><dt>수업 내용</dt><dd id={contentId} className={content.trim() ? "" : "history-empty"}>{content.trim() ? content : "작성된 수업 내용이 없습니다."}</dd></div>
-          {journal?.homework?.trim() && <div className="history-homework"><dt>과제</dt><dd>{journal.homework}</dd></div>}
+          {visibleHomework && <div className="history-homework"><dt>과제</dt><dd>{journal?.homework}</dd></div>}
           {journal?.notes?.trim() && <div className="history-notes"><dt>비고</dt><dd>{journal.notes}</dd></div>}
         </dl>
       </>}
