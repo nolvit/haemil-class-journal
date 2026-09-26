@@ -46,6 +46,12 @@ async function accessToken(account: ServiceAccount) {
   return body.access_token;
 }
 
+async function visionAuthHeaders(): Promise<Record<string, string>> {
+  const apiKey = process.env.GOOGLE_VISION_API_KEY?.trim();
+  if (apiKey) return { "x-goog-api-key": apiKey };
+  return { Authorization: `Bearer ${await accessToken(serviceAccount())}` };
+}
+
 type VisionSymbol = { text?: string };
 type VisionParagraph = { words?: Array<{ symbols?: VisionSymbol[]; confidence?: number;
   boundingBox?: { vertices?: Array<{ x?: number; y?: number }> } }> };
@@ -53,9 +59,9 @@ type VisionResponse = { responses?: Array<{ error?: { message?: string };
   fullTextAnnotation?: { pages?: Array<{ blocks?: Array<{ paragraphs?: VisionParagraph[] }> }> } }> };
 
 export async function googleVisionWords(base64Image: string): Promise<VisionWord[]> {
-  const token = await accessToken(serviceAccount());
+  const authHeaders = await visionAuthHeaders();
   const response = await fetch("https://vision.googleapis.com/v1/images:annotate", {
-    method: "POST", headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+    method: "POST", headers: { ...authHeaders, "Content-Type": "application/json" },
     body: JSON.stringify({ requests: [{ image: { content: base64Image }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }] }] }),
     signal: AbortSignal.timeout(30_000),
   });
@@ -105,7 +111,7 @@ export async function recognizeMathAssignmentPage(input: { token: string; studen
   if (assignment.code !== input.code || !assignment.canSubmit || input.pageNumber > Math.ceil(assignment.items.length / 30))
     throw new TRPCError({ code: "FORBIDDEN", message: "답안지 과제 또는 페이지가 올바르지 않습니다." });
   // Obtain credentials before quota reservation; unknown Vision outcomes after reservation stay counted.
-  if (provider === googleVisionWords) await accessToken(serviceAccount());
+  if (provider === googleVisionWords) await visionAuthHeaders();
   const { bytes, mimeType } = parseImageDataUrl(input.imageDataUrl);
   const size = dimensions(bytes, mimeType);
   if (!size || size.width < 1 || size.height < 1 || size.width > 10000 || size.height > 10000)

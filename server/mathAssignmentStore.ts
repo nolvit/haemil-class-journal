@@ -438,7 +438,7 @@ export async function getMathOcrUsage() {
   const [rows] = await database().query<(RowDataPacket & { used: number; paidAllowance: number })[]>(
     "SELECT used,paidAllowance FROM math_ocr_monthly_usage WHERE billingAccountId=? AND month=?", [billing, month]);
   return { month, used: rows[0]?.used ?? 0, freeLimit: 1000, paidAllowance: rows[0]?.paidAllowance ?? 0,
-    configured: !!process.env.GOOGLE_VISION_SERVICE_ACCOUNT_JSON };
+    configured: !!(process.env.GOOGLE_VISION_API_KEY?.trim() || process.env.GOOGLE_VISION_SERVICE_ACCOUNT_JSON) };
 }
 export type MathOcrRegion = { ordinal: number; x: number; y: number; width: number; height: number };
 export async function beginMathOcrRequest(input: { token: string; studentId: number; assignmentId: string;

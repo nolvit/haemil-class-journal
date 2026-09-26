@@ -1,8 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import manifest from "../shared/autoGradeAllowlist.json";
 import { currentMathOcrMonth } from "./mathAssignmentStore";
 import { gradeAnswer } from "./mathAssignmentRules";
-import { mapVisionWordsToRegions } from "./mathAssignmentOcr";
+import { googleVisionWords, mapVisionWordsToRegions } from "./mathAssignmentOcr";
 
 const numeric = (answerKey: string, submittedAnswer: string, gradingRule: "value" | "ratio" | "exact" = "value", exactForm = false) =>
   gradeAnswer({ answerType: "numeric", answerKey, submittedAnswer, gradingRule, exactForm });
@@ -60,5 +60,26 @@ describe("numeric OCR region mapping", () => {
       { ordinal: 2, value: "4", confidence: "uncertain" },
       { ordinal: 3, value: "", confidence: "uncertain" },
     ]);
+  });
+});
+
+describe("Cloud Vision authentication", () => {
+  it("sends the restricted API key in a header without exposing it in the URL", async () => {
+    vi.stubEnv("GOOGLE_VISION_API_KEY", "test-vision-key");
+    vi.stubEnv("GOOGLE_VISION_SERVICE_ACCOUNT_JSON", "");
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit) => {
+      expect(String(url)).toBe("https://vision.googleapis.com/v1/images:annotate");
+      expect(init?.headers).toMatchObject({ "x-goog-api-key": "test-vision-key", "Content-Type": "application/json" });
+      expect(init?.headers).not.toHaveProperty("Authorization");
+      return new Response(JSON.stringify({ responses: [{}] }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      expect(await googleVisionWords("c2FtcGxl")).toEqual([]);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      vi.unstubAllEnvs();
+    }
   });
 });
