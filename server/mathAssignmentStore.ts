@@ -5,6 +5,7 @@ import { getPortalFamilyByToken } from "./db";
 import { gradeAnswer, isSupportedAnswerKey, normalizeChoice, type GradingRule } from "./mathAssignmentRules";
 import allowedManifest from "../shared/autoGradeAllowlist.json";
 import answerSheetSpec from "../client/src/lib/answer-sheet-spec.json";
+import { deleteMathbankAssignmentCopy } from "./mathbankAssignmentDelete";
 
 export const mathAssignmentRowsPerPage = answerSheetSpec.rows.max;
 
@@ -322,6 +323,36 @@ export async function getAdminMathAssignment(assignmentId: string) {
     items: items.map(item => ({ ordinal: item.ordinal, questionId: item.questionId, answerType: item.answerType,
       answerKey: item.answerKey, gradingRule: item.gradingRule, exactForm: !!item.exactForm })),
     attempts: attempts.map(publicAttempt) } };
+}
+
+export async function deleteMathAssignment(assignmentId: string) {
+  await ensureMathAssignmentSchema();
+  const [existing] = await database().query<AssignmentRow[]>(
+    "SELECT id FROM math_assignments WHERE id=?", [assignmentId]);
+  if (!existing[0]) badRequest("과제를 찾을 수 없습니다.");
+  // Never start the local deletion unless Mathbank confirms its printed copy is gone.
+  // A retry is safe if Mathbank succeeded and this database later fails.
+  await deleteMathbankAssignmentCopy(assignmentId);
+  const connection = await database().getConnection();
+  try {
+    await connection.beginTransaction();
+    const [rows] = await connection.query<AssignmentRow[]>(
+      "SELECT id FROM math_assignments WHERE id=? FOR UPDATE", [assignmentId]);
+    if (!rows[0]) badRequest("과제를 찾을 수 없습니다.");
+
+    // These tables have no foreign keys. Remove every assignment-owned record in
+    // one transaction so neither submitted answers nor stored photos survive.
+    await connection.query(`DELETE FROM math_assignment_photos WHERE attemptId IN
+      (SELECT id FROM math_assignment_attempts WHERE assignmentId=?)`, [assignmentId]);
+    await connection.query("DELETE FROM math_assignment_attempts WHERE assignmentId=?", [assignmentId]);
+    await connection.query("DELETE FROM math_assignment_items WHERE assignmentId=?", [assignmentId]);
+    await connection.query("DELETE FROM math_ocr_requests WHERE assignmentId=?", [assignmentId]);
+    await connection.query("DELETE FROM math_assignment_audit WHERE assignmentId=?", [assignmentId]);
+    await connection.query("DELETE FROM math_assignments WHERE id=?", [assignmentId]);
+    await connection.commit();
+    return { success: true };
+  } catch (error) { await connection.rollback(); throw error; }
+  finally { connection.release(); }
 }
 
 async function audit(connection: PoolConnection, assignmentId: string, actorUserId: number, action: string, detail: object) {

@@ -34,7 +34,8 @@
 | `DATABASE_URL`                                             | 배포 환경에서 주입     | 데이터베이스 연결            |
 | `JWT_SECRET`                                               | 배포 환경에서 주입     | 세션 서명                    |
 | `MATHBANK_ROSTER_TOKEN`                                    | Railway 비밀 환경 변수 | 문제은행의 최소 학생 명부 조회 인증 |
-| `MATHBANK_ASSIGNMENT_WRITE_TOKEN`                         | 양쪽 서비스의 Railway 비밀 환경 변수 | 자동채점 과제 발행 전용 인증. 명부 조회 토큰과 다른 32자 이상의 값 |
+| `MATHBANK_ASSIGNMENT_WRITE_TOKEN`                         | 양쪽 서비스의 Railway 비밀 환경 변수 | 자동채점 과제 발행·삭제 인증. 명부 조회 토큰과 다른 32자 이상의 값 |
+| `MATHBANK_ASSIGNMENT_DELETE_URL`                          | 수업일지 Railway 환경 변수 | 문제은행 인쇄 과제 삭제 기본 주소 (`https://mathbank.haemiledu.kr/api/auto-grade/assignments`) |
 | `GOOGLE_VISION_SERVICE_ACCOUNT_JSON`                       | 수업일지 Railway 비밀 환경 변수 | Google Cloud Vision 서비스 계정 JSON. 브라우저로 전달하지 않음 |
 | `GOOGLE_VISION_API_KEY`                                     | 수업일지 Railway 비밀 환경 변수 | Cloud Vision API로 제한한 서버 전용 키. JSON 키 생성이 차단된 프로젝트에서 사용 |
 | `GOOGLE_VISION_BILLING_ACCOUNT_ID`                          | 수업일지 Railway 환경 변수 | OCR 월별 사용량을 청구 계정별로 기록하는 키 |
@@ -60,6 +61,8 @@
 ## 인쇄 답안지 자동채점
 
 문제은행에는 `CLASS_JOURNAL_ASSIGNMENT_API_URL`을 수업일지의 `https://<수업일지 도메인>/api/integrations/mathbank/assignments`로 설정한다. 양쪽 서비스에 동일한 `MATHBANK_ASSIGNMENT_WRITE_TOKEN`을 설정하되, 명부 조회용 토큰과는 별도로 발급한다. 관리자가 자동채점용 학생 바구니를 명시적으로 발행해야 보호자 페이지에 과제가 나타난다. 자동채점용 선택 화면은 중2 2학기의 고정 1,484문항만 사용하며 일반 인쇄와 쌍둥이 검토의 선택 범위는 유지된다.
+
+관리자 과제 삭제는 수업일지 서버가 먼저 `MATHBANK_ASSIGNMENT_DELETE_URL/<과제 ID>`에 같은 발행용 토큰으로 `DELETE`를 요청한다. 문제은행에서 삭제 완료 또는 이미 없음을 확인한 뒤에만 수업일지 DB의 과제·문항·제출·사진·OCR 요청을 한 트랜잭션으로 지운다. 문제은행 호출이 실패하거나 설정이 빠졌다면 수업일지 과제는 유지된다. 문제은행 삭제 뒤 수업일지 DB 작업이 실패한 경우 관리자에서 다시 삭제할 수 있도록 문제은행 삭제는 멱등으로 동작해야 한다.
 
 OCR을 쓰려면 전용 Google Cloud 청구 계정과 프로젝트를 준비하고 Cloud Vision API를 활성화한 뒤 Cloud Vision API로 제한한 키를 `GOOGLE_VISION_API_KEY`에 등록한다. 서버는 키를 URL에 넣지 않고 `x-goog-api-key` 헤더로 보낸다. 서비스 계정 JSON을 사용할 수 있는 환경에서는 기존 `GOOGLE_VISION_SERVICE_ACCOUNT_JSON`도 지원하며, 두 값이 모두 있으면 API 키가 우선한다. `GOOGLE_VISION_BILLING_ACCOUNT_ID`에는 그 프로젝트가 연결된 청구 계정 ID를 넣는다. Google Cloud의 월 1,000 무료 단위는 **문항 수가 아니라 OCR을 적용한 이미지 단위**이며, 다른 프로젝트가 같은 청구 계정을 쓰면 사용량을 합산한다. 앱은 기본 1,000회에서 OCR 호출을 중지하고 관리자가 해당 월의 추가 허용 건수를 지정한 경우에만 유료 호출을 재개한다. 별도의 Google Cloud 예산 알림도 설정해 앱 기록과 청구 기록을 대조한다. 인증 정보가 없거나 OCR 한도에 닿아도 보호자 페이지의 직접 답 입력·제출은 사용할 수 있어야 한다.
 문제은행과 수업일지는 같은 `answer-sheet-spec.json` v3을 사용한다. 답안지는 20행씩 두 열로 쪽당 40문항이며 수치 답 칸은 56×9mm이다. 보호자는 카메라 또는 갤러리에서 종이 답안지 사진을 선택하고, 수업일지는 같은 쪽당 문항 수로 사진과 OCR 영역을 검사한다. 기존 v1 30문항 답안지는 새 양식으로 다시 인쇄한다. 60문항 과제를 각 쪽 1회씩 인식하면 OCR 이미지 2건을 사용한다.

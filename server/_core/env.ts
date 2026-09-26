@@ -4,6 +4,7 @@ export const ENV = {
   databaseUrl: process.env.DATABASE_URL ?? "",
   mathbankRosterToken: process.env.MATHBANK_ROSTER_TOKEN ?? "",
   mathbankAssignmentWriteToken: process.env.MATHBANK_ASSIGNMENT_WRITE_TOKEN ?? "",
+  mathbankAssignmentDeleteUrl: process.env.MATHBANK_ASSIGNMENT_DELETE_URL ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",

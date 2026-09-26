@@ -60,11 +60,12 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
     { enabled: Boolean(token && studentId), refetchInterval: 30_000 }
   );
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selectedInList = selectedId !== null && Boolean(list.data?.assignments.some(item => item.id === selectedId));
   const contextRef = useRef("");
   contextRef.current = `${token}:${studentId}:${selectedId ?? ""}`;
   const detail = trpc.academy.assignments.publicDetail.useQuery(
     { token, studentId, assignmentId: selectedId ?? "" },
-    { enabled: selectedId !== null, refetchInterval: 30_000 }
+    { enabled: selectedInList, refetchInterval: 30_000 }
   );
   const [answers, setAnswers] = useState<Record<number, string>>({});
   const [photos, setPhotos] = useState<Record<number, string>>({});
@@ -103,6 +104,10 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
     setLatestResult(null);
   }, [studentId, token]);
   useEffect(() => {
+    if (selectedId && list.data && !list.data.assignments.some(item => item.id === selectedId))
+      setSelectedId(null);
+  }, [list.data, selectedId]);
+  useEffect(() => {
     setAnswers({});
     setPhotos({});
     setPendingPhoto(null);
@@ -118,7 +123,7 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
     }
   }, [detail.data?.canSubmit, detail.data?.attempts, latestResult]);
 
-  const assignment = detail.data;
+  const assignment = selectedInList && !detail.error ? detail.data : undefined;
   const pageCount = Math.ceil((assignment?.items.length ?? 0) / answerSheetGeometry.rowsPerPage);
 
   async function loadPhoto(file: File) {
@@ -224,8 +229,8 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
           </button>)}
         </div>
 
-        {selectedId && detail.isLoading && <p className="mt-4 text-sm text-[#71817D]">답안을 불러오는 중입니다.</p>}
-        {detail.error && <p className="mt-4 text-sm text-red-700">{detail.error.message}</p>}
+        {selectedInList && detail.isLoading && <p className="mt-4 text-sm text-[#71817D]">답안을 불러오는 중입니다.</p>}
+        {selectedInList && detail.error && <p className="mt-4 text-sm text-red-700">{detail.error.message}</p>}
         {assignment && <div className="mt-6 border-t border-[#E5E3DC] pt-5">
           <h3 className="font-semibold text-[#193D3C]">{assignment.title}</h3>
           <p className="mt-1 text-xs text-[#71817D]">과제 코드 {assignment.code} · 총 {assignment.items.length}문항</p>

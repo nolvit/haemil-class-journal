@@ -5,7 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
-import { ClipboardCheck, RefreshCw } from "lucide-react";
+import { ClipboardCheck, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { RestrictedPage } from "./Students";
@@ -50,6 +50,16 @@ export default function AssignmentAdmin() {
   });
   const reopen = trpc.academy.assignments.reopen.useMutation({
     onSuccess: () => { refresh(); toast.success("다음 제출 시도 1회를 허용했습니다."); },
+    onError: error => toast.error(error.message),
+  });
+  const deleteAssignment = trpc.academy.assignments.delete.useMutation({
+    onSuccess: (_data, variables) => {
+      setSelectedId(selected => selected === variables.assignmentId ? null : selected);
+      setPhotoTarget(null);
+      void utils.academy.assignments.adminList.invalidate();
+      void utils.academy.assignments.publicList.invalidate();
+      toast.success("과제와 제출 기록을 영구 삭제했습니다.");
+    },
     onError: error => toast.error(error.message),
   });
   const correctKey = trpc.academy.assignments.correctKey.useMutation({
@@ -131,9 +141,13 @@ export default function AssignmentAdmin() {
             {current && <>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div><h2 className="text-lg font-semibold text-[#193D3C]">{current.title}</h2><p className="text-xs text-[#71817D]">{current.studentName} · {current.code}</p></div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <Button size="sm" variant="outline" disabled={close.isPending || current.status === "closed"} onClick={() => close.mutate({assignmentId: current.id})}>과제 닫기</Button>
                   <Button size="sm" disabled={reopen.isPending} onClick={() => reopen.mutate({assignmentId: current.id})}>다음 응시 허용</Button>
+                  <Button size="sm" variant="destructive" disabled={deleteAssignment.isPending || close.isPending || reopen.isPending || correctKey.isPending || regrade.isPending} onClick={() => {
+                    if (window.confirm(`${current.studentName} · ${current.title} (${current.code}) 과제를 영구 삭제할까요?\n\n문항, 제출·채점 이력, 답안지 사진, OCR 기록이 DB에서 삭제되고 보호자 페이지에서도 사라집니다. 복구할 수 없습니다.`))
+                      deleteAssignment.mutate({ assignmentId: current.id });
+                  }}><Trash2 className="mr-1.5 h-4 w-4" />과제 삭제</Button>
                 </div>
               </div>
               <div className="mt-5 space-y-2">

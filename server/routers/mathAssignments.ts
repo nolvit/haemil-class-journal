@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { adminProcedure, publicProcedure, router } from "../_core/trpc";
 import {
-  changeMathAssignmentStatus, correctMathAssignmentKey, getAdminMathAssignment,
+  changeMathAssignmentStatus, correctMathAssignmentKey, deleteMathAssignment, getAdminMathAssignment,
   getAdminMathAssignmentPhoto, getMathOcrUsage, getPublicMathAssignment,
   listAdminMathAssignments, listPublicMathAssignments, regradeMathAssignment,
   setMathOcrPaidAllowance, submitMathAssignment, currentMathOcrMonth,
@@ -35,6 +35,8 @@ export const mathAssignmentsRouter = router({
   })).mutation(({ input }) => submitMathAssignment(input)),
   adminList: adminProcedure.query(() => listAdminMathAssignments()),
   adminDetail: adminProcedure.input(z.object({ assignmentId })).query(({ input }) => getAdminMathAssignment(input.assignmentId)),
+  delete: adminProcedure.input(z.object({ assignmentId })).mutation(({ input }) =>
+    deleteMathAssignment(input.assignmentId)),
   adminPhoto: adminProcedure.input(z.object({ attemptId: z.string().uuid(), pageNumber: z.number().int().min(1).max(maxAnswerSheetPages) }))
     .query(({ input, ctx }) => { ctx.res.setHeader("Cache-Control", "private, no-store");
       return getAdminMathAssignmentPhoto(input.attemptId, input.pageNumber); }),
