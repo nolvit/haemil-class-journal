@@ -11,6 +11,12 @@ const examDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value =>
 export const schoolExamsRouter = router({
   list: adminProcedure.query(() => store.listSchoolExams()),
   students: adminProcedure.query(() => store.listExamStudents()),
+  deleteExam: adminProcedure.input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => store.deleteSchoolExam(input.id)),
+  deleteSubject: adminProcedure.input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => store.deleteExamSubject(input.id)),
+  deleteResult: adminProcedure.input(z.object({ id: z.number().int().positive() }))
+    .mutation(({ input }) => store.deleteStudentExamResult(input.id)),
   createExam: adminProcedure.input(z.object({
     schoolName: z.string().trim().min(1).max(100),
     grade: z.string().trim().min(1).max(80),

@@ -18,4 +18,10 @@ it("blocks non-admin access to all school exam data and writes", async () => {
   await expect(caller.academy.schoolExams.saveResult({
     examSubjectId: 1, studentId: 1, score: 90,
   })).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(caller.academy.schoolExams.deleteExam({ id: 1 }))
+    .rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(caller.academy.schoolExams.deleteSubject({ id: 1 }))
+    .rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(caller.academy.schoolExams.deleteResult({ id: 1 }))
+    .rejects.toMatchObject({ code: "FORBIDDEN" });
 });

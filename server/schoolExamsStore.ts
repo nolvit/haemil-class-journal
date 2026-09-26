@@ -1,9 +1,10 @@
-import { and, asc, eq, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import {
   attendanceRecords, classGroups, examSchools, lessonJournals, mathJournalProgress,
   schoolExams, schoolExamSubjects, studentExamResults, students,
 } from "../drizzle/schema";
 import { countLessonsBeforeExam, examComparison, type ExamLessonEvidence } from "../shared/schoolExamRules";
+import { sameGrade, sameSchool } from "../shared/schoolExamIdentity";
 import type { MathJournalPayload } from "../shared/mathProgress";
 import { getDb } from "./db";
 import { historicalMathSnapshot } from "./mathProgressStore";
@@ -67,6 +68,17 @@ export async function createSchoolExam(input: {
     eq(schoolExams.examType, input.examType), eq(schoolExams.title, input.title)
   ));
   if (matches[0]) return matches[0];
+  // Earlier versions used "중간고사 2학기" as the default title. Reuse it rather
+  // than creating a second exam when the simplified default is submitted again.
+  if (input.title === input.examType) {
+    const [legacy] = await db.select().from(schoolExams).where(and(
+      eq(schoolExams.schoolId, school.id), eq(schoolExams.grade, input.grade),
+      eq(schoolExams.academicYear, input.academicYear), eq(schoolExams.semester, input.semester),
+      eq(schoolExams.examType, input.examType),
+      eq(schoolExams.title, `${input.examType} ${input.semester}학기`)
+    ));
+    if (legacy) return legacy;
+  }
   await db.insert(schoolExams).values({ ...input, schoolId: school.id })
     .onDuplicateKeyUpdate({ set: { title: input.title } });
   const [created] = await db.select().from(schoolExams).where(and(
@@ -136,9 +148,8 @@ export async function saveStudentExamResult(input: {
   const [school] = await db.select({ name: examSchools.name }).from(examSchools)
     .where(eq(examSchools.id, exam.schoolId));
   const schoolMismatch = Boolean(student.schoolHint && school &&
-    student.schoolHint.replace(/\s/g, "") !== school.name.replace(/\s/g, ""));
-  const gradeCode = (value: string) => value.replace(/초등|중등|고등/g, match => match[0]).replace(/\s/g, "");
-  const gradeMismatch = gradeCode(student.grade) !== gradeCode(exam.grade);
+    !sameSchool(student.schoolHint, school.name));
+  const gradeMismatch = !sameGrade(student.grade, exam.grade);
   if ((schoolMismatch || gradeMismatch) && !input.confirmIdentityMismatch)
     throw new Error("현재 학생의 학교·학년과 시험 정보가 다릅니다. 과거 기록인지 확인해 주세요.");
   if (input.score > subject.maxScore) throw new Error("점수가 만점을 초과합니다.");
@@ -176,4 +187,47 @@ export async function saveStudentExamResult(input: {
   };
   await db.insert(studentExamResults).values(values).onDuplicateKeyUpdate({ set: values });
   return { success: true };
+}
+
+/** Only school-exam records are removed; the academy student and journal remain intact. */
+export async function deleteSchoolExam(id: number) {
+  const db = await database();
+  return db.transaction(async tx => {
+    const [exam] = await tx.select({ id: schoolExams.id }).from(schoolExams)
+      .where(eq(schoolExams.id, id)).limit(1);
+    if (!exam) throw new Error("삭제할 시험을 찾을 수 없습니다.");
+    const subjects = await tx.select({ id: schoolExamSubjects.id }).from(schoolExamSubjects)
+      .where(eq(schoolExamSubjects.examId, id));
+    if (subjects.length) {
+      await tx.delete(studentExamResults).where(inArray(
+        studentExamResults.examSubjectId, subjects.map(subject => subject.id)
+      ));
+    }
+    await tx.delete(schoolExamSubjects).where(eq(schoolExamSubjects.examId, id));
+    await tx.delete(schoolExams).where(eq(schoolExams.id, id));
+    return { success: true };
+  });
+}
+
+export async function deleteExamSubject(id: number) {
+  const db = await database();
+  return db.transaction(async tx => {
+    const [subject] = await tx.select({ id: schoolExamSubjects.id }).from(schoolExamSubjects)
+      .where(eq(schoolExamSubjects.id, id)).limit(1);
+    if (!subject) throw new Error("삭제할 시험 과목을 찾을 수 없습니다.");
+    await tx.delete(studentExamResults).where(eq(studentExamResults.examSubjectId, id));
+    await tx.delete(schoolExamSubjects).where(eq(schoolExamSubjects.id, id));
+    return { success: true };
+  });
+}
+
+export async function deleteStudentExamResult(id: number) {
+  const db = await database();
+  return db.transaction(async tx => {
+    const [result] = await tx.select({ id: studentExamResults.id }).from(studentExamResults)
+      .where(eq(studentExamResults.id, id)).limit(1);
+    if (!result) throw new Error("삭제할 학생 성적을 찾을 수 없습니다.");
+    await tx.delete(studentExamResults).where(eq(studentExamResults.id, id));
+    return { success: true };
+  });
 }
