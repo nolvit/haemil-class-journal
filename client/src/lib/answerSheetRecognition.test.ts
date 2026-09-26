@@ -42,7 +42,14 @@ class FakeCanvas {
       },
       getImageData() { return { data: canvas.pixels() } as ImageData; },
       createImageData(width: number, height: number) { return { width, height, data: new Uint8ClampedArray(width * height * 4) } as ImageData; },
-      putImageData() {},
+      putImageData(image: ImageData, left: number, top: number) {
+        const target = canvas.pixels();
+        for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
+          const sourceOffset = (y * image.width + x) * 4;
+          const targetOffset = ((top + y) * canvas.width + left + x) * 4;
+          target.set(image.data.subarray(sourceOffset, sourceOffset + 4), targetOffset);
+        }
+      },
       fillRect() {},
       set fillStyle(_value: string) {},
     } as unknown as CanvasRenderingContext2D;
@@ -73,8 +80,13 @@ function makeSheet() {
   fillBubble(2, 2);
   fillBubble(2, 4);
   fillBubble(21, 5);
-  globalThis.document = { createElement: () => new FakeCanvas() } as unknown as Document;
-  return { canvas, coordinate };
+  const created: FakeCanvas[] = [];
+  globalThis.document = { createElement: () => {
+    const element = new FakeCanvas();
+    created.push(element);
+    return element;
+  } } as unknown as Document;
+  return { canvas, coordinate, created };
 }
 
 describe("printed answer sheet geometry", () => {
@@ -131,12 +143,38 @@ describe("printed answer sheet geometry", () => {
     expect(classifyChoiceMeans([230, 50, 233, 55, 229])).toEqual({ value: "", uncertain: true });
   });
 
+  it("keeps handwriting above and below the printed numeric box", () => {
+    const { canvas, coordinate, created } = makeSheet();
+    const column = answerSheetGeometry.columns[0]!;
+    const centerX = column.numericX + answerSheetGeometry.numericBox.width / 2;
+    const rowY = answerSheetGeometry.firstRowY + 2 * answerSheetGeometry.rowGap;
+    for (const offsetY of [-50, 60]) {
+      const point = coordinate(centerX, rowY + offsetY);
+      for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) canvas.paint(point.x + dx, point.y + dy);
+    }
+    const result = recognizeAnswerSheet(
+      { canvas: canvas as unknown as HTMLCanvasElement, imageDataUrl: "", width: canvas.width, height: canvas.height },
+      [{ ordinal: 3, answerType: "numeric" }],
+      answerSheetGeometry.markers.map(marker => coordinate(marker.x, marker.y))
+    );
+    const mosaic = created.at(-1)!;
+    const region = result.regions[0]!;
+    const hasInk = (fromY: number, toY: number) => {
+      const pixels = mosaic.pixels();
+      for (let y = region.y + fromY; y < region.y + toY; y++) for (let x = region.x; x < region.x + region.width; x++)
+        if (pixels[(y * mosaic.width + x) * 4]! < 100) return true;
+      return false;
+    };
+    expect(hasInk(0, 20)).toBe(true);
+    expect(hasInk(region.height - 20, region.height)).toBe(true);
+  });
+
   it("removes column-wide stripes while preserving handwriting", () => {
     const width = 8, height = 10;
     const pixels = new Uint8ClampedArray(width * height * 4);
     for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
       const offset = (y * width + x) * 4;
-      const gray = y === 4 || y === 5 ? 10 : x % 2 ? 225 : 75;
+      const gray = (y === 4 || y === 5) && (x === 2 || x === 3) ? 10 : x % 2 ? 225 : 75;
       pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = gray;
       pixels[offset + 3] = 255;
     }
@@ -144,7 +182,23 @@ describe("printed answer sheet geometry", () => {
     const grayAt = (x: number, y: number) => clean[(y * width + x) * 4]!;
     expect(grayAt(0, 1)).toBe(255);
     expect(grayAt(1, 1)).toBe(255);
-    expect(grayAt(0, 4)).toBeLessThan(80);
-    expect(grayAt(1, 4)).toBe(0);
+    expect(grayAt(2, 4)).toBeLessThan(80);
+    expect(grayAt(3, 4)).toBe(0);
+  });
+
+  it("removes printed horizontal rules while preserving a crossing pen stroke", () => {
+    const width = 100, height = 40;
+    const pixels = new Uint8ClampedArray(width * height * 4);
+    for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) {
+      const offset = (y * width + x) * 4;
+      const gray = x >= 45 && x <= 49 && y >= 5 && y <= 25 ? 20 : y === 12 || y === 13 ? 180 : 245;
+      pixels[offset] = pixels[offset + 1] = pixels[offset + 2] = gray;
+      pixels[offset + 3] = 255;
+    }
+    const clean = normalizeNumericPixels(pixels, width, height);
+    const grayAt = (x: number, y: number) => clean[(y * width + x) * 4]!;
+    expect(grayAt(10, 12)).toBe(255);
+    expect(grayAt(47, 12)).toBe(0);
+    expect(grayAt(47, 25)).toBeLessThan(80);
   });
 });

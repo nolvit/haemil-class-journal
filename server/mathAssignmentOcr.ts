@@ -6,6 +6,7 @@ import {
   getPublicMathAssignment,
   mathAssignmentRowsPerPage,
 } from "./mathAssignmentStore";
+import { isSupportedAnswerKey } from "./mathAssignmentRules";
 
 type VisionWord = { text: string; confidence: number; x: number; y: number };
 type VisionProvider = (base64Image: string) => Promise<VisionWord[]>;
@@ -63,7 +64,8 @@ export async function googleVisionWords(base64Image: string): Promise<VisionWord
   const authHeaders = await visionAuthHeaders();
   const response = await fetch("https://vision.googleapis.com/v1/images:annotate", {
     method: "POST", headers: { ...authHeaders, "Content-Type": "application/json" },
-    body: JSON.stringify({ requests: [{ image: { content: base64Image }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }] }] }),
+    body: JSON.stringify({ requests: [{ image: { content: base64Image }, features: [{ type: "DOCUMENT_TEXT_DETECTION" }],
+      imageContext: { languageHints: ["en-t-i0-handwrit"] } }] }),
     signal: AbortSignal.timeout(30_000),
   });
   if (!response.ok) throw new Error(`Google Vision ${response.status}`);
@@ -101,8 +103,10 @@ export function mapVisionWordsToRegions(words: VisionWord[], regions: MathOcrReg
   return regions.map(region => {
     const inside = words.filter(word => word.x >= region.x && word.x <= region.x + region.width &&
       word.y >= region.y && word.y <= region.y + region.height).sort((a, b) => a.x - b.x);
-    return { ordinal: region.ordinal, value: inside.map(word => word.text).join(""),
-      confidence: inside.length && inside.every(word => word.confidence >= 0.8) ? "high" as const : "uncertain" as const };
+    const candidate = inside.map(word => word.text).join("").normalize("NFKC").replace(/\s+/g, "");
+    const supported = isSupportedAnswerKey("numeric", candidate, "value") || isSupportedAnswerKey("numeric", candidate, "ratio");
+    return { ordinal: region.ordinal, value: supported ? candidate : "",
+      confidence: supported && inside.every(word => word.confidence >= 0.8) ? "high" as const : "uncertain" as const };
   });
 }
 

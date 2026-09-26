@@ -177,8 +177,10 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
             regions: scanned.regions,
           });
           for (const answer of recognized.answers) {
-            pageAnswers[answer.ordinal] = answer.value;
-            if (answer.confidence === "uncertain") warnings.push(`${answer.ordinal}번 숫자 인식이 불확실합니다. 직접 확인해 주세요.`);
+            if (answer.confidence === "high") pageAnswers[answer.ordinal] = answer.value;
+            else warnings.push(answer.value
+              ? `${answer.ordinal}번 숫자 인식 후보 ${answer.value}을(를) 확인하고 직접 입력해 주세요.`
+              : `${answer.ordinal}번 숫자 인식이 불확실합니다. 직접 확인해 주세요.`);
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : "숫자 답 인식에 실패했습니다.";

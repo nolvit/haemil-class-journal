@@ -50,15 +50,19 @@ describe("numeric OCR region mapping", () => {
       { text: "/2", x: 22, y: 11, confidence: 0.95 },
       { text: "cm", x: 35, y: 10, confidence: 0.99 },
       { text: "4", x: 10, y: 110, confidence: 0.5 },
+      { text: "नै", x: 10, y: 200, confidence: 0.95 },
+      { text: "b", x: 10, y: 290, confidence: 0.96 },
     ], [
       { ordinal: 1, x: 0, y: 0, width: 80, height: 40 },
       { ordinal: 2, x: 0, y: 90, width: 80, height: 40 },
       { ordinal: 3, x: 0, y: 180, width: 80, height: 40 },
+      { ordinal: 4, x: 0, y: 270, width: 80, height: 40 },
     ]);
     expect(answers).toEqual([
       { ordinal: 1, value: "1/2cm", confidence: "high" },
       { ordinal: 2, value: "4", confidence: "uncertain" },
       { ordinal: 3, value: "", confidence: "uncertain" },
+      { ordinal: 4, value: "", confidence: "uncertain" },
     ]);
   });
 });
@@ -71,6 +75,9 @@ describe("Cloud Vision authentication", () => {
       expect(String(url)).toBe("https://vision.googleapis.com/v1/images:annotate");
       expect(init?.headers).toMatchObject({ "x-goog-api-key": "test-vision-key", "Content-Type": "application/json" });
       expect(init?.headers).not.toHaveProperty("Authorization");
+      const body = JSON.parse(String(init?.body)) as { requests: Array<{ features: Array<{ type: string }>; imageContext?: { languageHints?: string[] } }> };
+      expect(body.requests[0]?.features).toEqual([{ type: "DOCUMENT_TEXT_DETECTION" }]);
+      expect(body.requests[0]?.imageContext?.languageHints).toEqual(["en-t-i0-handwrit"]);
       return new Response(JSON.stringify({ responses: [{}] }), { status: 200 });
     });
     vi.stubGlobal("fetch", fetchMock);

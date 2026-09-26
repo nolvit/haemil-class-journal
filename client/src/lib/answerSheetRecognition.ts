@@ -191,7 +191,7 @@ export function classifyChoiceMeans(means: number[]): { value: string; uncertain
   return { value: "", uncertain: true };
 }
 
-/** Remove column-wide dark bands before sending a compact handwriting crop to Vision. */
+/** Remove column-wide dark bands and the printed answer-box rules before sending handwriting to Vision. */
 export function normalizeNumericPixels(source: Uint8ClampedArray, width: number, height: number) {
   const output = new Uint8ClampedArray(source.length);
   const histogram = new Uint16Array(256);
@@ -207,11 +207,38 @@ export function normalizeNumericPixels(source: Uint8ClampedArray, width: number,
     }
     for (let y = 0; y < height; y++) {
       const index = y * width + x;
-      const shade = 255 - Math.min(255, Math.max(0, background - grayscale(source, index) - 10) * 3.5);
+      // Keep only dark pen strokes. Thin gray print rules are removed here;
+      // the column baseline also prevents a screen-moire band becoming ink.
+      const shade = grayscale(source, index) < Math.min(150, background - 40) ? 0 : 255;
       const offset = index * 4;
       output[offset] = output[offset + 1] = output[offset + 2] = shade;
       output[offset + 3] = 255;
     }
+  }
+  // The box's top/bottom rules run across nearly the entire crop. Vision can
+  // treat those lines as text and miss the short handwritten answer entirely.
+  // Restore only strokes that visibly continue above and below a rule.
+  const ruleRows = new Uint8Array(height);
+  for (let y = 0; y < height; y++) {
+    let darkCount = 0;
+    for (let x = 0; x < width; x++) if (output[(y * width + x) * 4]! < 245) darkCount++;
+    if (darkCount > width * 0.45) ruleRows[y] = 1;
+  }
+  for (let start = 0; start < height;) {
+    if (!ruleRows[start]) { start++; continue; }
+    let end = start;
+    while (end + 1 < height && ruleRows[end + 1]) end++;
+    for (let x = 0; x < width; x++) {
+      const crossesRule = start > 0 && end + 1 < height &&
+        output[((start - 1) * width + x) * 4]! < 130 &&
+        output[((end + 1) * width + x) * 4]! < 130;
+      const shade = crossesRule ? 0 : 255;
+      for (let y = start; y <= end; y++) {
+        const offset = (y * width + x) * 4;
+        output[offset] = output[offset + 1] = output[offset + 2] = shade;
+      }
+    }
+    start = end + 1;
   }
   return output;
 }
@@ -226,7 +253,9 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
   const warnings: string[] = [];
   const numericItems = pageItems.filter(item => item.answerType === "numeric");
   const cropWidth = 560;
-  const cropHeight = 90;
+  // Writing often touches or extends below the 9 mm printed box. The old
+  // 74-unit inner crop cut off digit strokes on the photographed sheet.
+  const cropHeight = answerSheetGeometry.numericBox.height + 40;
   const gap = 20;
   const mosaic = document.createElement("canvas");
   mosaic.width = cropWidth + gap * 2;
@@ -265,7 +294,7 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
     const output = mosaicContext.createImageData(cropWidth, cropHeight);
     for (let py = 0; py < cropHeight; py++) for (let px = 0; px < cropWidth; px++) {
       const u = column.numericX + 12 + (px / cropWidth) * (box.width - 24);
-      const v = rowY + box.yOffset + 8 + (py / cropHeight) * (box.height - 16);
+      const v = rowY + box.yOffset - 15 + (py / cropHeight) * cropHeight;
       const source = mapPoint(h, u, v);
       const sx = Math.round(source.x);
       const sy = Math.round(source.y);
