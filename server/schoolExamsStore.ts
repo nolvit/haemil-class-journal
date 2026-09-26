@@ -54,10 +54,12 @@ export async function listSchoolExams() {
   }));
 }
 
-export async function createSchoolExam(input: {
+type SchoolExamDetails = {
   schoolName: string; grade: string; academicYear: number; semester: number;
   examType: string; title: string;
-}) {
+};
+
+export async function createSchoolExam(input: SchoolExamDetails) {
   const db = await database();
   const name = input.schoolName.trim().replace(/\s+/g, " ");
   await db.insert(examSchools).values({ name }).onDuplicateKeyUpdate({ set: { name } });
@@ -87,6 +89,37 @@ export async function createSchoolExam(input: {
     eq(schoolExams.examType, input.examType), eq(schoolExams.title, input.title)
   ));
   return created;
+}
+
+/** Update the selected exam in place, preserving its subjects and student results. */
+export async function updateSchoolExam(input: SchoolExamDetails & { id: number }) {
+  const db = await database();
+  const name = input.schoolName.trim().replace(/\s+/g, " ");
+  return db.transaction(async tx => {
+    const [current] = await tx.select({ id: schoolExams.id }).from(schoolExams)
+      .where(eq(schoolExams.id, input.id)).limit(1);
+    if (!current) throw new Error("수정할 시험을 찾을 수 없습니다.");
+    await tx.insert(examSchools).values({ name }).onDuplicateKeyUpdate({ set: { name } });
+    const [school] = await tx.select({ id: examSchools.id }).from(examSchools)
+      .where(eq(examSchools.name, name)).limit(1);
+    if (!school) throw new Error("학교를 찾을 수 없습니다.");
+    const matches = await tx.select({ id: schoolExams.id }).from(schoolExams).where(and(
+      eq(schoolExams.schoolId, school.id), eq(schoolExams.grade, input.grade),
+      eq(schoolExams.academicYear, input.academicYear), eq(schoolExams.semester, input.semester),
+      eq(schoolExams.examType, input.examType), eq(schoolExams.title, input.title)
+    ));
+    if (matches.some(exam => exam.id !== input.id))
+      throw new Error("같은 학교·학년·학기·시험명으로 등록된 시험이 이미 있습니다.");
+    await tx.update(schoolExams).set({
+      schoolId: school.id,
+      grade: input.grade,
+      academicYear: input.academicYear,
+      semester: input.semester,
+      examType: input.examType,
+      title: input.title,
+    }).where(eq(schoolExams.id, input.id));
+    return { id: input.id };
+  });
 }
 
 export async function saveExamSubject(input: {

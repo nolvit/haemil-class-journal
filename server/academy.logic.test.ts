@@ -207,12 +207,15 @@ describe("수업일지 완성 상태", () => {
   });
 
   it("보호자 수업 예정 표시는 당일 등원 전까지 유지한다", () => {
-    expect(isJournalScheduledForParent("2026-09-05", "2026-09-04", undefined, null)).toBe(true);
-    expect(isJournalScheduledForParent("2026-09-05", "2026-09-04", "holiday", null)).toBe(false);
-    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "not_entered", null)).toBe(true);
-    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "present", "15:20")).toBe(false);
-    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "absent", null)).toBe(false);
-    expect(isJournalScheduledForParent("2026-09-03", "2026-09-04", "not_entered", null)).toBe(false);
+    expect(isJournalScheduledForParent("2026-09-05", "2026-09-04", undefined, null, "수학 과정 예정")).toBe(true);
+    expect(isJournalScheduledForParent("2026-09-05", "2026-09-04", "holiday", null, "수학 과정 예정")).toBe(false);
+    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "not_entered", null, "수학 과정 예정")).toBe(true);
+    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "present", "15:20", "수학 과정 예정")).toBe(false);
+    expect(isJournalScheduledForParent("2026-09-04", "2026-09-04", "absent", null, "수학 과정 예정")).toBe(false);
+    expect(isJournalScheduledForParent("2026-09-03", "2026-09-04", "not_entered", null, "수학 과정 예정")).toBe(false);
+    expect(isJournalScheduledForParent("2026-09-29", "2026-09-26", undefined, null, "")).toBe(false);
+    expect(isJournalScheduledForParent("2026-09-30", "2026-09-26", undefined, null, null)).toBe(false);
+    expect(isJournalScheduledForParent("2026-10-01", "2026-09-26", undefined, null, "  ")).toBe(false);
   });
 
   it("평일 일괄 입력은 미입력인 날짜만 출석 처리 대상으로 고른다", () => {

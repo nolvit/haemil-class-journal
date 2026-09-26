@@ -563,13 +563,14 @@ export async function setRewardMaster(studentId: number, url: string) {
 export async function rewardAdminList() {
   await ensureRewardSchema();
   const [result] = await database().query<RowDataPacket[]>(
-    `SELECT s.id,s.name,s.grade,a.masterUrl,COALESCE(SUM(o.status='submitted'),0) AS newOrders,COALESCE(SUM(o.status='ready'),0) AS readyOrders FROM students s LEFT JOIN reward_accounts a ON a.studentId=s.id LEFT JOIN avatar_orders o ON o.studentId=s.id WHERE s.active=1 GROUP BY s.id,s.name,s.grade,a.masterUrl ORDER BY newOrders DESC,s.name`
+    `SELECT s.id,s.name,s.grade,a.masterUrl,COALESCE(a.balance,0) AS balance,COALESCE(SUM(o.status='submitted'),0) AS newOrders,COALESCE(SUM(o.status='ready'),0) AS readyOrders FROM students s LEFT JOIN reward_accounts a ON a.studentId=s.id LEFT JOIN avatar_orders o ON o.studentId=s.id WHERE s.active=1 GROUP BY s.id,s.name,s.grade,a.masterUrl,a.balance ORDER BY newOrders DESC,s.name`
   );
   return result as {
     id: number;
     name: string;
     grade: string;
     masterUrl: string | null;
+    balance: number;
     newOrders: number;
     readyOrders: number;
   }[];

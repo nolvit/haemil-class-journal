@@ -333,13 +333,15 @@ export function isFinalJournalVisibleToParent(isDraft: boolean | null | undefine
   return !isDraft;
 }
 
-/** 미래 수업과 당일 등원 전 수업은 보호자 화면에서 예정으로 표시한다. */
+/** 실제 내용이 저장된 미래 수업과 당일 등원 전 수업만 예정으로 표시한다. */
 export function isJournalScheduledForParent(
   journalDate: string,
   today: string,
   attendanceStatus: AttendanceStatus | null | undefined,
   arrivalTime: string | null | undefined,
+  content: string | null | undefined,
 ): boolean {
+  if (!content?.trim()) return false;
   const attendanceUnconfirmed =
     !arrivalTime && (!attendanceStatus || attendanceStatus === "not_entered");
   return journalDate >= today && attendanceUnconfirmed;

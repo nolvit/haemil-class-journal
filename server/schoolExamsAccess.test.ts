@@ -15,6 +15,10 @@ it("blocks non-admin access to all school exam data and writes", async () => {
   const caller = appRouter.createCaller(context);
   await expect(caller.academy.schoolExams.list()).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(caller.academy.schoolExams.students()).rejects.toMatchObject({ code: "FORBIDDEN" });
+  await expect(caller.academy.schoolExams.updateExam({
+    id: 1, schoolName: "원일중", grade: "중2", academicYear: 2026,
+    semester: 2, examType: "중간고사", title: "중간고사",
+  })).rejects.toMatchObject({ code: "FORBIDDEN" });
   await expect(caller.academy.schoolExams.saveResult({
     examSubjectId: 1, studentId: 1, score: 90,
   })).rejects.toMatchObject({ code: "FORBIDDEN" });

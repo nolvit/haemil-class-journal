@@ -582,6 +582,51 @@
 .bulk-point-adjustment {
   margin-bottom: 22px;
 }
+.student-points-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.student-points-heading span {
+  color: #64736b;
+  font-size: 12px;
+}
+.student-points-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 8px;
+}
+.student-points-grid button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #d8e2db;
+  border-radius: 10px;
+  background: #f8faf7;
+  text-align: left;
+}
+.student-points-grid button[aria-pressed="true"] {
+  border-color: #39756a;
+  background: #e9f4ef;
+}
+.student-points-grid button > span {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+.student-points-grid small {
+  color: #64736b;
+  white-space: nowrap;
+}
+.student-points-grid button > b {
+  color: #205c50;
+  white-space: nowrap;
+}
 .reward-admin .avatar-gift-admin {
   margin-bottom: 22px;
   border-color: #d6bd70;

@@ -722,7 +722,7 @@ export default function AvatarAdmin() {
           </summary>
           <OfficialCharacterManager />
         </details>
-        <details open>
+        <details>
           <summary>
             <b>상점 관리</b>
             <span>상품 등록·수정·삭제</span>
@@ -743,6 +743,27 @@ export default function AvatarAdmin() {
         <h2>학생별 제작·포인트 관리</h2>
       </div>
       {list.error && <p role="alert">{list.error.message}</p>}
+      {list.isLoading && <p>학생 포인트를 불러오는 중입니다.</p>}
+      {list.data && (
+        <section className="student-points-overview" aria-label="학생 포인트 현황">
+          <div className="student-points-heading">
+            <h2>학생 포인트 현황</h2>
+            <span>{list.data.length}명 · 15초마다 갱신</span>
+          </div>
+          {list.data.length ? (
+            <div className="student-points-grid">
+              {[...list.data].sort((a, b) => a.grade.localeCompare(b.grade, "ko", { numeric: true }) ||
+                a.name.localeCompare(b.name, "ko")).map(student => (
+                <button key={student.id} type="button" aria-pressed={studentId === student.id}
+                  onClick={() => { setStudentId(student.id); setImages([]); setMaster(null); }}>
+                  <span><strong>{student.name}</strong><small>{student.grade}</small></span>
+                  <b>{Number(student.balance).toLocaleString()}P</b>
+                </button>
+              ))}
+            </div>
+          ) : <p>등록된 학생이 없습니다.</p>}
+        </section>
+      )}
       {list.data && (
         <BulkPointAdjustment students={list.data} onSaved={refresh} />
       )}

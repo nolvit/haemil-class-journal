@@ -20,6 +20,7 @@ export default function SchoolExams() {
   const students = trpc.academy.schoolExams.students.useQuery(undefined, { enabled: user?.role === "admin" });
   const [selectedExamId, setSelectedExamId] = useState<number>();
   const [selectedSubjectId, setSelectedSubjectId] = useState<number>();
+  const [editingExamId, setEditingExamId] = useState<number>();
   const [schoolName, setSchoolName] = useState("");
   const [grade, setGrade] = useState("");
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear());
@@ -47,6 +48,11 @@ export default function SchoolExams() {
   const clearSubjectForm = () => {
     setSubjectName(""); setExamDate(todayInKorea()); setMaxScore("100");
     setSchoolAverage(""); setAverageSource(""); clearResultForm();
+  };
+  const clearExamForm = () => {
+    setEditingExamId(undefined); setSchoolName(""); setGrade("");
+    setAcademicYear(new Date().getFullYear()); setSemester(1);
+    setExamType("중간고사"); setExamTitle("");
   };
 
   useEffect(() => {
@@ -78,6 +84,13 @@ export default function SchoolExams() {
     },
     onError: error => toast.error(error.message),
   });
+  const updateExam = trpc.academy.schoolExams.updateExam.useMutation({
+    onSuccess: async item => {
+      setSelectedExamId(item.id);
+      await refresh(); toast.success("학교시험 정보를 수정했습니다.");
+    },
+    onError: error => toast.error(error.message),
+  });
   const saveSubject = trpc.academy.schoolExams.saveSubject.useMutation({
     onSuccess: async id => {
       setSelectedSubjectId(id); await refresh(); toast.success("시험 과목을 저장했습니다.");
@@ -101,6 +114,7 @@ export default function SchoolExams() {
       const nextId = exams.data?.find(exam => exam.id !== variables.id)?.id;
       await refresh();
       setSelectedExamId(current => current === variables.id ? nextId : current);
+      if (editingExamId === variables.id) clearExamForm();
       setSelectedSubjectId(undefined);
       setInlineScores({});
       clearSubjectForm();
@@ -134,13 +148,28 @@ export default function SchoolExams() {
     },
     onError: error => toast.error(error.message),
   });
-  const recordMutationPending = createExam.isPending || saveSubject.isPending || saveResult.isPending ||
+  const recordMutationPending = createExam.isPending || updateExam.isPending || saveSubject.isPending || saveResult.isPending ||
     deleteExam.isPending || deleteSubject.isPending || deleteResult.isPending;
 
   const submitExam = (event: FormEvent) => {
     event.preventDefault();
-    createExam.mutate({ schoolName, grade, academicYear, semester, examType,
-      title: examTitle.trim() || examType });
+    const details = { schoolName, grade, academicYear, semester, examType,
+      title: examTitle.trim() || examType };
+    if (editingExamId !== undefined) {
+      const previous = exams.data?.find(exam => exam.id === editingExamId);
+      if (!previous) { toast.error("수정할 시험을 찾을 수 없습니다. 목록을 새로고침해 주세요."); return; }
+      const resultCount = previous.subjects.reduce((count, subject) => count + subject.results.length, 0);
+      if (resultCount > 0 && (previous.schoolName !== schoolName.trim() || previous.grade !== grade.trim()) &&
+        !window.confirm(`이 시험에는 학생 성적 ${resultCount}건이 있습니다. 학교 또는 학년을 변경해도 기존 성적은 유지됩니다. 계속할까요?`)) return;
+      updateExam.mutate({ id: editingExamId, ...details });
+    } else createExam.mutate(details);
+  };
+  const editExam = (exam: NonNullable<typeof exams.data>[number]) => {
+    setSelectedExamId(exam.id); setSelectedSubjectId(undefined); setSubjectName("");
+    setEditingExamId(exam.id); setSchoolName(exam.schoolName); setGrade(exam.grade);
+    setAcademicYear(exam.academicYear); setSemester(exam.semester as 1 | 2);
+    setExamType(exam.examType as typeof examType); setExamTitle(exam.title);
+    document.getElementById("school-exam-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const submitSubject = (event: FormEvent) => {
     event.preventDefault();
@@ -201,8 +230,9 @@ export default function SchoolExams() {
       <p>전 과목 학교시험 결과와 시험 전 수업 횟수를 기록합니다. 이 자료는 관리자에게만 표시됩니다.</p>
     </header>
 
-    <section className={card}>
-      <h2 className="mb-3 text-lg font-semibold">학교시험 등록</h2>
+    <section id="school-exam-form" className={card}>
+      <h2 className="mb-3 text-lg font-semibold">학교시험 {editingExamId === undefined ? "등록" : "수정"}</h2>
+      {editingExamId !== undefined && <p className="mb-3 text-sm text-stone-500">선택한 시험의 기본 정보를 수정합니다. 과목과 학생 성적은 그대로 유지됩니다.</p>}
       <form onSubmit={submitExam} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <label className={field}>학교명<Input required list="school-name-options" value={schoolName} onChange={e => setSchoolName(e.target.value)} placeholder="예: 원일중학교" /></label>
         <datalist id="school-name-options">{Array.from(new Set([
@@ -214,7 +244,10 @@ export default function SchoolExams() {
         <label className={field}>학기<select className="journal-select" value={semester} onChange={e => setSemester(Number(e.target.value) as 1 | 2)}><option value="1">1학기</option><option value="2">2학기</option></select></label>
         <label className={field}>시험 종류<select className="journal-select" value={examType} onChange={e => setExamType(e.target.value as typeof examType)}><option>중간고사</option><option>기말고사</option><option>기타</option></select></label>
         <label className={field}>시험명<Input value={examTitle} onChange={e => setExamTitle(e.target.value)} placeholder="비우면 시험 종류로 입력" /></label>
-        <div className="sm:col-span-2 lg:col-span-3"><Button disabled={recordMutationPending}>시험 등록</Button></div>
+        <div className="flex flex-wrap gap-2 sm:col-span-2 lg:col-span-3">
+          <Button disabled={recordMutationPending}>{editingExamId === undefined ? "시험 등록" : "수정 저장"}</Button>
+          {editingExamId !== undefined && <Button type="button" variant="outline" disabled={recordMutationPending} onClick={clearExamForm}>수정 취소 · 새 시험 등록</Button>}
+        </div>
       </form>
     </section>
 
@@ -224,7 +257,7 @@ export default function SchoolExams() {
         {exams.data?.length ? <div className="flex flex-wrap gap-2">{exams.data.map(exam =>
           <div key={exam.id} className="flex items-center gap-1">
             <Button type="button" variant={selectedExamId === exam.id ? "default" : "outline"}
-              onClick={() => { setSelectedExamId(exam.id); setSelectedSubjectId(undefined); setSubjectName(""); }}>
+              onClick={() => editExam(exam)}>
               {schoolExamLabel(exam)}
             </Button>
             <Button type="button" variant="outline" className="text-[#A05242]" disabled={recordMutationPending}

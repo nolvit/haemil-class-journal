@@ -7,6 +7,14 @@ const examDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(value =>
   new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value,
   "올바른 시험일을 입력해 주세요."
 );
+const examDetails = z.object({
+  schoolName: z.string().trim().min(1).max(100),
+  grade: z.string().trim().min(1).max(80),
+  academicYear: z.number().int().min(2000).max(2100),
+  semester: z.union([z.literal(1), z.literal(2)]),
+  examType: z.enum(["중간고사", "기말고사", "기타"]),
+  title: z.string().trim().min(1).max(100),
+});
 
 export const schoolExamsRouter = router({
   list: adminProcedure.query(() => store.listSchoolExams()),
@@ -17,14 +25,10 @@ export const schoolExamsRouter = router({
     .mutation(({ input }) => store.deleteExamSubject(input.id)),
   deleteResult: adminProcedure.input(z.object({ id: z.number().int().positive() }))
     .mutation(({ input }) => store.deleteStudentExamResult(input.id)),
-  createExam: adminProcedure.input(z.object({
-    schoolName: z.string().trim().min(1).max(100),
-    grade: z.string().trim().min(1).max(80),
-    academicYear: z.number().int().min(2000).max(2100),
-    semester: z.union([z.literal(1), z.literal(2)]),
-    examType: z.enum(["중간고사", "기말고사", "기타"]),
-    title: z.string().trim().min(1).max(100),
-  })).mutation(({ input }) => store.createSchoolExam(input)),
+  createExam: adminProcedure.input(examDetails)
+    .mutation(({ input }) => store.createSchoolExam(input)),
+  updateExam: adminProcedure.input(examDetails.extend({ id: z.number().int().positive() }))
+    .mutation(({ input }) => store.updateSchoolExam(input)),
   saveSubject: adminProcedure.input(z.object({
     examId: z.number().int().positive(),
     subject: z.string().trim().min(1).max(80),

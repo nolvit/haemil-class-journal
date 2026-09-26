@@ -60,12 +60,10 @@ export default function Home() {
   });
   const stats = data?.stats;
   const attendancePendingStudents = data?.attendancePendingStudents ?? [];
+  const journalAttentionItems = data?.journalAttentionItems ?? [];
   const mathExamTargets = data?.mathExamTargets ?? [];
-  const mathExamSummary = mathExamTargets.length
-    ? `${mathExamTargets.slice(0, 3).map(target => target.studentName).join(", ")}${mathExamTargets.length > 3 ? ` 외 ${mathExamTargets.length - 3}명` : ""}`
-    : "오늘 예정된 평가가 없습니다.";
   const showAttendancePendingList = shouldShowDashboardPendingList(attendancePendingStudents.length);
-  const showMathExamList = mathExamTargets.length > 0;
+  const showJournalPendingList = shouldShowDashboardPendingList(journalAttentionItems.length);
   const students = data?.students ?? [];
   const grades = useMemo(() => Array.from(new Set(students.map(student => student.grade))).sort((a, b) => gradeOrder(a) - gradeOrder(b) || a.localeCompare(b, "ko")), [students]);
   const visibleStudents = useMemo(() => students.filter(student => {
@@ -150,11 +148,11 @@ export default function Home() {
       <div className="journal-date-control dashboard-date-control"><div className="dashboard-date-label"><CalendarDays className="h-3.5 w-3.5" /><label htmlFor="dashboard-date">업무 날짜</label></div><div className="journal-date-nav"><Button variant="outline" size="icon" onClick={() => setJournalDate(shiftDate(journalDate, -1))} aria-label="전날"><ChevronLeft className="h-4 w-4" /></Button><Input id="dashboard-date" type="date" value={journalDate} onChange={event => setJournalDate(event.target.value)} /><Button variant="outline" size="icon" onClick={() => setJournalDate(shiftDate(journalDate, 1))} aria-label="다음 날"><ChevronRight className="h-4 w-4" /></Button></div><Button variant="ghost" size="sm" className="dashboard-today-button" onClick={() => setJournalDate(todayInKorea())}>오늘</Button></div>
     </section>
 
-    <section className={`dashboard-workboard ${showAttendancePendingList || showMathExamList ? "has-pending" : ""}`} aria-label="오늘의 운영 업무판">
+    <section className={`dashboard-workboard ${showAttendancePendingList || showJournalPendingList ? "has-pending" : ""}`} aria-label="오늘의 운영 업무판">
       <div className="dashboard-workboard-main">
-        <section className="dashboard-action-grid" aria-label="오늘의 주요 업무">
+        <section className="dashboard-action-grid" aria-label="오늘의 입력 업무">
           <button className="dashboard-action-card" onClick={() => setLocation(`/attendance?date=${journalDate}`)}><span className="journal-step-index">01</span><span><b>출석 입력</b><small>등원 시간과 상태를 입력합니다.</small></span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">등원 전 {stats?.attendancePending ?? 0}명</Badge><ArrowRight className="h-4 w-4" /></button>
-          <button className="dashboard-action-card" onClick={() => setLocation(`/journal?date=${journalDate}`)}><span className="journal-step-index">02</span><span><b>수학 시험 대상</b><small>{mathExamSummary}</small></span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">{mathExamTargets.length}명</Badge><ArrowRight className="h-4 w-4" /></button>
+          <button className="dashboard-action-card" onClick={() => setLocation(`/journal?date=${journalDate}`)}><span className="journal-step-index">02</span><span><b>수업일지 작성</b><small>수업 내용과 과제를 기록합니다.</small></span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">입력 전 {stats?.needsAttention ?? 0}건</Badge><ArrowRight className="h-4 w-4" /></button>
         </section>
         <section className="dashboard-summary-grid" aria-label="오늘의 운영 요약">
           <StatCard compact icon={Users} label="등록 학생" value={selectedGrade || arrivalFilter ? visibleStudents.length : stats?.enrolledStudents} suffix="명" loading={isLoading} tone="teal">
@@ -173,29 +171,33 @@ export default function Home() {
               </div>
             </div>
           </StatCard>
-          <StatCard compact icon={BookOpenCheck} label="일지 작성" value={stats ? `${stats.journalsComplete} / ${stats.journalsTotal}` : undefined} loading={isLoading} tone="ink" />
+          <StatCard compact icon={BookOpenCheck} label="오늘 수학 시험 대상" value={mathExamTargets.length} suffix="명" loading={isLoading} tone="ink">
+            {!isLoading && (mathExamTargets.length ? <div className="mt-3 grid max-h-40 gap-1.5 overflow-y-auto pr-1" aria-label="수학 시험 대상 학생 명단">
+              {mathExamTargets.map(target => <button type="button" className="rounded-lg border border-[#E3DCCB] bg-[#FFFEFA] px-2.5 py-2 text-left transition-colors hover:bg-[#F5F2E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardJournalHref(target.sourceDate, target.studentId, target.classGroupId))} key={target.studentId} aria-label={`${target.studentName} 학생의 ${target.sourceDate} 수학 평가 일지로 이동`}>
+                <span className="flex flex-wrap items-center gap-1 text-xs font-semibold text-[#234E52]">{target.studentName}<small className="font-normal text-[#71817D]">{target.studentGrade}</small>{target.fromYesterday && <small className="rounded bg-[#FFF1B7] px-1 py-0.5 text-[10px] text-[#765E10]">전날 과정 기준</small>}</span>
+                <small className="mt-0.5 block text-[11px] leading-snug text-[#526460]">{target.exams.join(" · ")}</small>
+              </button>)}
+            </div> : <p className="mt-3 text-xs text-[#71817D]">오늘 예정된 평가가 없습니다.</p>)}
+          </StatCard>
         </section>
       </div>
-      {(showAttendancePendingList || showMathExamList) && <aside className="dashboard-pending-stack" aria-label="오늘 확인 대상 목록">
+      {(showAttendancePendingList || showJournalPendingList) && <aside className="dashboard-pending-stack" aria-label="입력 대기 대상 목록">
         <Card className="journal-surface dashboard-pending-card"><CardContent className="p-4">
           <div className="flex items-center justify-between gap-3">
-            <div><p className="eyebrow">TODAY'S TASKS</p><h2 className="mt-1 font-serif text-xl text-[#173D3C]">오늘 확인 대상</h2></div>
+            <div><p className="eyebrow">PENDING TASKS</p><h2 className="mt-1 font-serif text-xl text-[#173D3C]">입력 대기 대상</h2></div>
             <div className="flex shrink-0 gap-1.5">
               {showAttendancePendingList && <Badge className="bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">출석 {attendancePendingStudents.length}명</Badge>}
-              {showMathExamList && <Badge className="bg-[#F2EEE3] text-[#69746F] hover:bg-[#F2EEE3]">수학 시험 {mathExamTargets.length}명</Badge>}
+              {showJournalPendingList && <Badge className="bg-[#F2EEE3] text-[#69746F] hover:bg-[#F2EEE3]">일지 {journalAttentionItems.length}건</Badge>}
             </div>
           </div>
           {showAttendancePendingList && <section className="dashboard-pending-section">
             <p>출석 입력</p>
             <div className="mt-2 flex flex-wrap gap-2">{attendancePendingStudents.map(student => <button type="button" className="rounded-lg bg-[#FFF9E8] px-2.5 py-1.5 text-sm font-medium text-[#765E10] transition-colors hover:bg-[#FFF1C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardAttendanceHref(journalDate, student.id))} key={student.id} aria-label={`${student.name} 학생의 ${journalDate} 출석 입력으로 이동`}>{student.name}<small className="ml-1 text-xs font-normal text-[#907A40]">{student.grade}</small></button>)}</div>
           </section>}
-          {showAttendancePendingList && showMathExamList && <div className="dashboard-pending-divider" />}
-          {showMathExamList && <section className="dashboard-pending-section">
-            <p>수학 시험 대상</p>
-            <div className="mt-2 grid gap-2">{mathExamTargets.map(target => <button type="button" className="rounded-lg border border-[#E3DCCB] bg-[#FFFEFA] px-3 py-2 text-left transition-colors hover:bg-[#F5F2E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardJournalHref(target.sourceDate, target.studentId, target.classGroupId))} key={target.studentId} aria-label={`${target.studentName} 학생의 ${target.sourceDate} 수학 평가 일지로 이동`}>
-              <span className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-[#234E52]">{target.studentName}<small className="font-normal text-[#71817D]">{target.studentGrade}</small>{target.fromYesterday && <span className="rounded bg-[#FFF1B7] px-1.5 py-0.5 text-[10px] text-[#765E10]">전날 과정 기준 · 오늘 영어 집중</span>}</span>
-              <small className="mt-1 block text-xs text-[#526460]">{target.exams.join(" · ")}</small>
-            </button>)}</div>
+          {showAttendancePendingList && showJournalPendingList && <div className="dashboard-pending-divider" />}
+          {showJournalPendingList && <section className="dashboard-pending-section">
+            <p>수업일지 작성</p>
+            <div className="mt-2 flex flex-wrap gap-2">{journalAttentionItems.map(item => <button type="button" className="rounded-lg bg-[#FFF9E8] px-2.5 py-1.5 text-left text-sm font-medium text-[#765E10] transition-colors hover:bg-[#FFF1C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardJournalHref(journalDate, item.studentId, item.classGroupId))} key={`${item.studentId}-${item.classGroupId}`} aria-label={`${item.studentName} 학생 ${item.subject}의 ${journalDate} 수업일지 입력으로 이동`}>{item.studentName}<small className="ml-1 text-xs font-normal text-[#907A40]">{item.subject}</small></button>)}</div>
           </section>}
         </CardContent></Card>
       </aside>}

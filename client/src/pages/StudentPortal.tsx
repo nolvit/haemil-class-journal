@@ -684,7 +684,8 @@ export default function StudentPortal() {
                       date,
                       todayInKorea(),
                       attendance?.status,
-                      attendance?.arrivalTime
+                      attendance?.arrivalTime,
+                      journal?.content
                     );
                     const status = attendance?.status ?? "";
                     const statusMessage = [
@@ -815,7 +816,8 @@ export default function StudentPortal() {
                       date,
                       todayInKorea(),
                       attendance?.status,
-                      attendance?.arrivalTime
+                      attendance?.arrivalTime,
+                      journal?.content
                     );
                     const status = attendance?.status ?? "";
                     const statusMessage = [
