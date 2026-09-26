@@ -26,6 +26,7 @@ import {
   settleRewardAttendance,
 } from "../avatarRewardStore";
 import { registerAttendanceLiveUpdates } from "../attendanceLiveUpdates";
+import { createMathbankRosterRouter } from "../mathbankRoster";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -166,6 +167,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerOAuthRoutes(app);
   registerAttendanceLiveUpdates(app);
+  app.use("/api/integrations/mathbank", createMathbankRosterRouter());
   // tRPC API
   app.use(
     "/api/trpc",
