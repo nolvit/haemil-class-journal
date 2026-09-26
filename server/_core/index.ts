@@ -27,6 +27,8 @@ import {
 } from "../avatarRewardStore";
 import { registerAttendanceLiveUpdates } from "../attendanceLiveUpdates";
 import { createMathbankRosterRouter } from "../mathbankRoster";
+import { createMathAssignmentIntegrationRouter } from "../mathAssignmentIntegration";
+import { cleanupExpiredMathAssignmentPhotos, ensureMathAssignmentSchema } from "../mathAssignmentStore";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -74,6 +76,9 @@ async function startServer() {
   await ensureLearningLinksSchema();
   await ensureMathJournalSchema();
   await ensureRewardSchema();
+  await ensureMathAssignmentSchema();
+  void cleanupExpiredMathAssignmentPhotos().catch(error => console.error("Expired math answer photo cleanup failed", error instanceof Error ? error.name : "unknown"));
+  setInterval(() => void cleanupExpiredMathAssignmentPhotos().catch(error => console.error("Expired math answer photo cleanup failed", error instanceof Error ? error.name : "unknown")), 60 * 60 * 1000).unref();
   let rewardSettlementRunning = false;
   const settleRewards = async () => {
     if (rewardSettlementRunning) return;
@@ -168,6 +173,7 @@ async function startServer() {
   registerOAuthRoutes(app);
   registerAttendanceLiveUpdates(app);
   app.use("/api/integrations/mathbank", createMathbankRosterRouter());
+  app.use("/api/integrations/mathbank", createMathAssignmentIntegrationRouter());
   // tRPC API
   app.use(
     "/api/trpc",

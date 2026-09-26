@@ -1,4 +1,5 @@
 import ParentMathProgress from "@/components/MathCourseProgress";
+import ParentAssignments from "@/components/ParentAssignments";
 import PortalQuickMenu, { type PortalQuickMenuItem } from "@/components/PortalQuickMenu";
 import { Badge } from "@/components/ui/badge";
 import { AvatarRewards } from "@/avatarRewards/AvatarRewards";
@@ -530,6 +531,7 @@ export default function StudentPortal() {
           <GraduationCap className="portal-hero-icon" />
         </section>
         <ParentMathProgress token={token} studentId={data.student.id} />
+        <ParentAssignments token={token} studentId={data.student.id} />
         <section className="portal-week-nav">
           <Button
             variant="outline"

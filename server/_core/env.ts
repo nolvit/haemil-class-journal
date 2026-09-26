@@ -3,6 +3,7 @@ export const ENV = {
   cookieSecret: process.env.JWT_SECRET ?? "",
   databaseUrl: process.env.DATABASE_URL ?? "",
   mathbankRosterToken: process.env.MATHBANK_ROSTER_TOKEN ?? "",
+  mathbankAssignmentWriteToken: process.env.MATHBANK_ASSIGNMENT_WRITE_TOKEN ?? "",
   oAuthServerUrl: process.env.OAUTH_SERVER_URL ?? "",
   ownerOpenId: process.env.OWNER_OPEN_ID ?? "",
   isProduction: process.env.NODE_ENV === "production",

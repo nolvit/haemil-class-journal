@@ -107,6 +107,7 @@ const menuGroups: Array<{ label: string; items: MenuItem[] }> = [
     label: "학교시험·성적",
     items: [
       { icon: ClipboardCheck, label: "시험·성적 관리", path: "/school-exams", adminOnly: true },
+      { icon: ClipboardCheck, label: "자동채점 과제", path: "/assignments", adminOnly: true },
     ],
   },
   {

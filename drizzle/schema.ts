@@ -1,9 +1,11 @@
 import {
   boolean,
+  customType,
   date,
   double,
   index,
   int,
+  mediumtext,
   mysqlEnum,
   mysqlTable,
   primaryKey,
@@ -730,4 +732,115 @@ export const studentExamResults = mysqlTable("student_exam_results", {
 }, table => ({
   studentSubjectUnique: uniqueIndex("student_exam_result_unique").on(table.examSubjectId, table.studentId),
   studentIndex: index("student_exam_results_student_index").on(table.studentId),
+}));
+
+const privatePhotoBlob = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => "longblob",
+});
+
+/** Printed mathbank assignment snapshots stay independent of course progress. */
+export const mathAssignments = mysqlTable("math_assignments", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  code: varchar("code", { length: 20 }).notNull().unique(),
+  sourceBasketId: varchar("sourceBasketId", { length: 128 }).notNull(),
+  studentId: int("studentId").notNull(),
+  idempotencyKey: varchar("idempotencyKey", { length: 128 }).notNull().unique(),
+  requestHash: varchar("requestHash", { length: 64 }).notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  status: mysqlEnum("status", ["open", "closed"]).default("open").notNull(),
+  retryGrants: int("retryGrants").default(0).notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  studentIndex: index("math_assignments_student_index").on(table.studentId, table.createdAt),
+}));
+
+export const mathAssignmentItems = mysqlTable("math_assignment_items", {
+  assignmentId: varchar("assignmentId", { length: 36 }).notNull(),
+  ordinal: int("ordinal").notNull(),
+  questionId: varchar("questionId", { length: 128 }).notNull(),
+  answerType: mysqlEnum("answerType", ["choice", "numeric"]).notNull(),
+  answerKey: varchar("answerKey", { length: 255 }).notNull(),
+  gradingRule: mysqlEnum("gradingRule", ["value", "ratio", "exact"]).notNull(),
+  exactForm: boolean("exactForm").default(false).notNull(),
+  questionLabel: varchar("questionLabel", { length: 200 }),
+}, table => ({
+  key: primaryKey({ columns: [table.assignmentId, table.ordinal] }),
+  questionUnique: uniqueIndex("math_assignment_items_question_unique").on(table.assignmentId, table.questionId),
+}));
+
+export const mathAssignmentAttempts = mysqlTable("math_assignment_attempts", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  assignmentId: varchar("assignmentId", { length: 36 }).notNull(),
+  attemptNumber: int("attemptNumber").notNull(),
+  answers: mediumtext("answers").notNull(),
+  results: mediumtext("results").notNull(),
+  photoPages: text("photoPages").notNull(),
+  score: int("score").notNull(),
+  total: int("total").notNull(),
+  submittedAt: timestamp("submittedAt").defaultNow().notNull(),
+}, table => ({
+  numberUnique: uniqueIndex("math_assignment_attempts_number_unique").on(table.assignmentId, table.attemptNumber),
+}));
+
+/** No public URL exists for student answer-sheet photos. */
+export const mathAssignmentPhotos = mysqlTable("math_assignment_photos", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  attemptId: varchar("attemptId", { length: 36 }).notNull(),
+  pageNumber: int("pageNumber").notNull(),
+  mimeType: varchar("mimeType", { length: 20 }).notNull(),
+  image: privatePhotoBlob("image").notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+}, table => ({
+  attemptPageUnique: uniqueIndex("math_assignment_photos_page_unique").on(table.attemptId, table.pageNumber),
+  expiryIndex: index("math_assignment_photos_expiry_index").on(table.expiresAt),
+}));
+
+export const mathAssignmentAudit = mysqlTable("math_assignment_audit", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  assignmentId: varchar("assignmentId", { length: 36 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  action: varchar("action", { length: 40 }).notNull(),
+  detail: text("detail").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  assignmentIndex: index("math_assignment_audit_assignment_index").on(table.assignmentId, table.createdAt),
+}));
+
+export const mathOcrMonthlyUsage = mysqlTable("math_ocr_monthly_usage", {
+  billingAccountId: varchar("billingAccountId", { length: 128 }).notNull(),
+  month: varchar("month", { length: 7 }).notNull(),
+  used: int("used").default(0).notNull(),
+  paidAllowance: int("paidAllowance").default(0).notNull(),
+  updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+}, table => ({
+  key: primaryKey({ columns: [table.billingAccountId, table.month] }),
+}));
+
+export const mathOcrRequests = mysqlTable("math_ocr_requests", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  assignmentId: varchar("assignmentId", { length: 36 }).notNull(),
+  studentId: int("studentId").notNull(),
+  attemptNumber: int("attemptNumber").notNull(),
+  pageNumber: int("pageNumber").notNull(),
+  imageHash: varchar("imageHash", { length: 64 }).notNull(),
+  status: mysqlEnum("status", ["pending", "complete", "failed"]).notNull(),
+  response: text("response"),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+  expiresAt: timestamp("expiresAt").notNull(),
+}, table => ({
+  imageUnique: uniqueIndex("math_ocr_requests_image_unique").on(table.assignmentId, table.attemptNumber, table.pageNumber, table.imageHash),
+  rateIndex: index("math_ocr_requests_rate_index").on(table.studentId, table.createdAt),
+}));
+
+export const mathOcrAllowanceAudit = mysqlTable("math_ocr_allowance_audit", {
+  id: varchar("id", { length: 36 }).primaryKey(),
+  billingAccountId: varchar("billingAccountId", { length: 128 }).notNull(),
+  month: varchar("month", { length: 7 }).notNull(),
+  actorUserId: int("actorUserId").notNull(),
+  previousAllowance: int("previousAllowance").notNull(),
+  nextAllowance: int("nextAllowance").notNull(),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+}, table => ({
+  monthIndex: index("math_ocr_allowance_audit_month_index").on(table.billingAccountId, table.month, table.createdAt),
 }));

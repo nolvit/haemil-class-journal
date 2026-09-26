@@ -1,5 +1,6 @@
 import * as mathProgress from '../mathProgressStore';
 import { schoolExamsRouter } from './schoolExams';
+import { mathAssignmentsRouter } from './mathAssignments';
 import { formatMathJournalContent, progressKeys } from '../../shared/mathProgress';
 import { progressStates } from '../../shared/mathCurriculum';
 import { previewAlimtalkTest, sendAlimtalkTest } from "../alimtalkTest";
@@ -369,6 +370,7 @@ async function assertJournalEditable(
 }
 
 export const academyRouter = router({
+  assignments: mathAssignmentsRouter,
   schoolExams: schoolExamsRouter,
   mathProgress: router({
     list: adminProcedure.query(() => mathProgress.allProgress()),

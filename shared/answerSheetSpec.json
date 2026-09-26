@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "units": "0.1mm",
+  "page": {"width": 2100, "height": 2970, "orientation": "portrait"},
+  "fiducials": {"size": 60, "centers": [[100, 100], [2000, 100], [2000, 2870], [100, 2870]]},
+  "rows": {"max": 30, "firstCenterY": 410, "pitchY": 78},
+  "choice": {"centersX": [780, 960, 1140, 1320, 1500], "radius": 28},
+  "numeric": {"x": 580, "centerOffsetY": -35, "width": 1310, "height": 70},
+  "identity": {"method": "visible assignment code and page number; uploader chooses page"}
+}
