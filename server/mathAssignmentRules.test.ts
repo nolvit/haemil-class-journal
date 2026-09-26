@@ -23,18 +23,29 @@ describe("math answer grading", () => {
     expect(numeric("1/3", "0.333333")).toBe(false);
     expect(numeric("1/2", "1/0")).toBe(false);
   });
-  it("requires an identical unit while accepting equivalent numbers", () => {
+  it("ignores units on both sides and grades the numeric value", () => {
     expect(numeric("1/2cm²", "0.5cm2")).toBe(true);
-    expect(numeric("1/2cm", "0.5m")).toBe(false);
+    expect(numeric("1/2cm", "0.5")).toBe(true);
+    expect(numeric("1/2cm", "0.5m")).toBe(true);
+    expect(numeric("5kg", "5")).toBe(true);
+    expect(numeric("90°", "90")).toBe(true);
+    expect(numeric("5m/s", "5원")).toBe(true);
+    expect(numeric("5cm", "6")).toBe(false);
+    expect(numeric("5cm", "5/0")).toBe(false);
+    expect(numeric("5cm", "5e3")).toBe(false);
   });
   it("compares two- and three-term ratios", () => {
     expect(numeric("1:2", "2:4", "ratio")).toBe(true);
     expect(numeric("1:2:3", "2:4:6", "ratio")).toBe(true);
     expect(numeric("1:2:3", "2:4:5", "ratio")).toBe(false);
     expect(numeric("1:2", "2:4:6", "ratio")).toBe(false);
+    expect(numeric("1:2개", "2:4", "ratio")).toBe(true);
   });
   it("honors exact-form conditions and normalizes choice symbols", () => {
     expect(numeric("1/2", "2/4", "exact", true)).toBe(false);
+    expect(numeric("1/2cm", "1/2", "exact", true)).toBe(true);
+    expect(numeric("1/2cm", "1/2m", "exact", true)).toBe(true);
+    expect(numeric("1/2cm", "2/4", "exact", true)).toBe(false);
     expect(gradeAnswer({ answerType: "choice", answerKey: "①", submittedAnswer: "1", gradingRule: "exact", exactForm: false })).toBe(true);
   });
   it("uses a conservative Pacific monthly quota boundary", () => {

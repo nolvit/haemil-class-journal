@@ -152,7 +152,7 @@ export default function AssignmentAdmin() {
               </div>
               <div className="mt-5 space-y-2">
                 <h3 className="font-semibold text-[#315B57]">정답 키</h3>
-                <p className="text-xs text-[#71817D]">정답·채점 방식을 수정하면 기존 제출도 즉시 다시 채점됩니다. 사유를 남겨 주세요.</p>
+                <p className="text-xs text-[#71817D]">수치 답은 단위를 제외하고 채점합니다. 정답·채점 방식을 수정하면 기존 제출도 즉시 다시 채점됩니다. 사유를 남겨 주세요.</p>
                 <label className="block text-xs text-[#53645F]">수정 사유
                   <Input value={reason} onChange={event => setReason(event.target.value)} placeholder="예: 인쇄 정답 오기 수정" className="mt-1 bg-white" />
                 </label>
@@ -164,9 +164,9 @@ export default function AssignmentAdmin() {
                       <Input aria-label={`${item.ordinal}번 정답`} value={keyEdits[item.ordinal] ?? item.answerKey} onChange={event => setKeyEdits(previous => ({...previous, [item.ordinal]: event.target.value}))} className="h-8 min-w-24 flex-1 bg-white" />
                       {item.answerType === "numeric" && <>
                         <select aria-label={`${item.ordinal}번 채점 방식`} className="rounded-md border border-[#D8D8D0] bg-white px-2 py-1 text-xs" value={gradingEdits[item.ordinal] ?? item.gradingRule} onChange={event => setGradingEdits(previous => ({...previous, [item.ordinal]: event.target.value as "value" | "ratio" | "exact"}))}>
-                          <option value="value">수치 동치</option><option value="ratio">비율 동치</option><option value="exact">문자 그대로</option>
+                          <option value="value">수치 동치</option><option value="ratio">비율 동치</option><option value="exact">표기 그대로(단위 제외)</option>
                         </select>
-                        <label className="flex items-center gap-1 text-xs text-[#53645F]"><input type="checkbox" checked={exactFormEdits[item.ordinal] ?? item.exactForm} onChange={event => setExactFormEdits(previous => ({...previous, [item.ordinal]: event.target.checked}))} />정확한 표기 필수</label>
+                        <label className="flex items-center gap-1 text-xs text-[#53645F]"><input type="checkbox" checked={exactFormEdits[item.ordinal] ?? item.exactForm} onChange={event => setExactFormEdits(previous => ({...previous, [item.ordinal]: event.target.checked}))} />정확한 수치 표기 필수</label>
                       </>}
                       <Button size="sm" variant="outline" disabled={correctKey.isPending || !reason.trim() || ((keyEdits[item.ordinal] ?? item.answerKey) === item.answerKey && (gradingEdits[item.ordinal] ?? item.gradingRule) === item.gradingRule && (exactFormEdits[item.ordinal] ?? item.exactForm) === item.exactForm)} onClick={() => correctKey.mutate({assignmentId: current.id, ordinal: item.ordinal, answerKey: keyEdits[item.ordinal] ?? item.answerKey, gradingRule: gradingEdits[item.ordinal] ?? item.gradingRule, exactForm: exactFormEdits[item.ordinal] ?? item.exactForm, reason: reason.trim()})}>저장</Button>
                     </div>

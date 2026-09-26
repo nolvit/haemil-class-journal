@@ -50,6 +50,6 @@ describe("parent assignment entry", () => {
     expect(html).toContain("1번 ②");
     expect(html).toContain("2번 수치 답");
     expect(html).toContain("1/2");
-    expect(html).toContain("예: -2, 1/2, 3:4, 5 cm");
+    expect(html).toContain("숫자만 입력 (예: 1/2, 5)");
   });
 });

@@ -39,7 +39,7 @@ export function AnswerEntryGrid({
       {item.answerType === "choice" ? <div className="mt-2 flex flex-wrap gap-1">
         {choiceLabels.map((label, index) => <button key={label} type="button" aria-label={`${item.ordinal}번 ${label}`} aria-pressed={answers[item.ordinal] === String(index + 1)} className={`h-9 w-9 rounded-full border text-sm ${answers[item.ordinal] === String(index + 1) ? "border-[#315B57] bg-[#315B57] text-white" : "border-[#D5DCD7] bg-white text-[#315B57]"}`} onClick={() => onChange(item.ordinal, String(index + 1))}>{label}</button>)}
         <Button size="sm" variant="ghost" onClick={() => onChange(item.ordinal, "")}>비움</Button>
-      </div> : <Input type="text" inputMode="text" autoComplete="off" aria-label={`${item.ordinal}번 수치 답`} placeholder="예: -2, 1/2, 3:4, 5 cm" value={answers[item.ordinal] ?? ""} onChange={event => onChange(item.ordinal, event.target.value)} className="mt-2 bg-white" />}
+      </div> : <Input type="text" inputMode="text" autoComplete="off" aria-label={`${item.ordinal}번 수치 답`} placeholder="숫자만 입력 (예: 1/2, 5)" value={answers[item.ordinal] ?? ""} onChange={event => onChange(item.ordinal, event.target.value)} className="mt-2 bg-white" />}
     </div>)}
   </div>;
 }

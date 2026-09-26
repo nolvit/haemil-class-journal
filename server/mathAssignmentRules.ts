@@ -31,14 +31,17 @@ function fraction(raw: string): Fraction | null {
   return { numerator: numerator / divisor, denominator: denominator / divisor };
 }
 
-function numericWithUnit(raw: string): { value: Fraction; unit: string } | null {
+function isUnitSuffix(value: string) {
+  return !value || (!/^[eE]\d+$/.test(value) && /^[\p{L}%°℃℉][\p{L}\p{N}%°℃℉/^·*]*$/u.test(value));
+}
+
+function numericWithUnit(raw: string): { value: Fraction; numericText: string } | null {
   const value = normalizedText(raw);
   for (let end = value.length; end > 0; end--) {
     const number = fraction(value.slice(0, end));
     if (number) {
       const unit = value.slice(end);
-      return /^(?:|cm|cm2|cm3|°|m|개|km|배|분|원|명|팀|가지)$/.test(unit)
-        ? { value: number, unit } : null;
+      return isUnitSuffix(unit) ? { value: number, numericText: value.slice(0, end) } : null;
     }
   }
   return null;
@@ -52,9 +55,18 @@ function ratio(raw: string): Fraction[] | null {
     ? values as Fraction[] : null;
 }
 
+function ratioWithoutUnit(raw: string): Fraction[] | null {
+  const value = normalizedText(raw);
+  for (let end = value.length; end > 0; end--) {
+    const parts = ratio(value.slice(0, end));
+    if (parts) return isUnitSuffix(value.slice(end)) ? parts : null;
+  }
+  return null;
+}
+
 export function isSupportedAnswerKey(answerType: "choice" | "numeric", key: string, rule: GradingRule): boolean {
   if (answerType === "choice") return rule === "exact" && /^[1-5]$/.test(normalizeChoice(key) ?? "");
-  if (rule === "ratio") return ratio(key) !== null;
+  if (rule === "ratio") return ratioWithoutUnit(key) !== null;
   return numericWithUnit(key) !== null;
 }
 
@@ -78,9 +90,12 @@ export function gradeAnswer(input: {
   }
   const key = normalizedText(input.answerKey);
   const submitted = normalizedText(input.submittedAnswer);
-  if (input.exactForm || input.gradingRule === "exact") return key === submitted;
+  if (input.exactForm || input.gradingRule === "exact") {
+    const a = numericWithUnit(key); const b = numericWithUnit(submitted);
+    return !!a && !!b && a.numericText === b.numericText;
+  }
   if (input.gradingRule === "ratio") {
-    const a = ratio(key); const b = ratio(submitted);
+    const a = ratioWithoutUnit(key); const b = ratioWithoutUnit(submitted);
     if (!a || !b || a.length !== b.length) return false;
     const pivot = a.findIndex(part => part.numerator !== 0n);
     if (pivot < 0 || b[pivot].numerator === 0n) return false;
@@ -90,5 +105,5 @@ export function gradeAnswer(input: {
     );
   }
   const a = numericWithUnit(key); const b = numericWithUnit(submitted);
-  return !!a && !!b && a.unit === b.unit && a.value.numerator === b.value.numerator && a.value.denominator === b.value.denominator;
+  return !!a && !!b && a.value.numerator === b.value.numerator && a.value.denominator === b.value.denominator;
 }
