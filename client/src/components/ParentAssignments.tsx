@@ -53,7 +53,7 @@ function formatSubmittedAt(value: string | Date) {
 }
 
 /** Printed problems stay on paper; the parent page shows only answer numbers. */
-export default function ParentAssignments({ token, studentId }: { token: string; studentId: number }) {
+export default function ParentAssignments({ token, studentId, showEmptyState = false }: { token: string; studentId: number; showEmptyState?: boolean }) {
   const utils = trpc.useUtils();
   const list = trpc.academy.assignments.publicList.useQuery(
     { token, studentId },
@@ -209,9 +209,11 @@ export default function ParentAssignments({ token, studentId }: { token: string;
 
   if (list.isLoading) return <Card className="portal-card mt-4"><CardContent className="p-5 text-sm text-[#71817D]">인쇄 과제를 확인하는 중입니다.</CardContent></Card>;
   if (list.error) return <Card className="portal-card mt-4"><CardContent className="p-5 text-sm text-red-700">과제를 불러오지 못했습니다: {list.error.message}</CardContent></Card>;
-  if (!list.data?.assignments.length) return null;
+  if (!list.data?.assignments.length) return showEmptyState
+    ? <Card className="portal-card mt-4"><CardContent className="p-5 text-sm text-[#71817D]">발행된 수학 과제가 없습니다.</CardContent></Card>
+    : null;
 
-  return <section className="mt-5" aria-label="인쇄 과제 답안 제출" data-swipe-disabled>
+  return <section className="mt-5" aria-label="인쇄 과제 답안 제출">
     <Card className="portal-card">
       <CardContent className="p-4 sm:p-6">
         <div className="flex items-start gap-3"><ClipboardCheck className="mt-1 h-5 w-5 text-[#315B57]" /><div><h2 className="text-lg font-semibold text-[#193D3C]">인쇄 과제 답안</h2><p className="text-sm text-[#71817D]">문제는 받은 인쇄물에서 보고, 이곳에는 답만 제출합니다.</p></div></div>

@@ -1,5 +1,4 @@
 import ParentMathProgress from "@/components/MathCourseProgress";
-import ParentAssignments from "@/components/ParentAssignments";
 import PortalQuickMenu, { type PortalQuickMenuItem } from "@/components/PortalQuickMenu";
 import { Badge } from "@/components/ui/badge";
 import { AvatarRewards } from "@/avatarRewards/AvatarRewards";
@@ -64,6 +63,10 @@ function isIsoDate(value: string | null) {
 function initialPortalDate() {
   const requested = new URLSearchParams(window.location.search).get("date");
   return isIsoDate(requested) ? requested! : todayInKorea();
+}
+function initialPortalStudentId() {
+  const requested = Number(new URLSearchParams(window.location.search).get("studentId"));
+  return Number.isSafeInteger(requested) && requested > 0 ? requested : undefined;
 }
 function dayLabel(value: string) {
   const date = new Date(`${value}T00:00:00Z`);
@@ -208,7 +211,7 @@ export default function StudentPortal() {
   const token = params?.token ?? "";
   const [journalDate, setJournalDate] = useState(initialPortalDate);
   const [includeWeekend, setIncludeWeekend] = useState(false);
-  const [selectedStudentId, setSelectedStudentId] = useState<number>();
+  const [selectedStudentId, setSelectedStudentId] = useState(initialPortalStudentId);
   const [expandedImage, setExpandedImage] = useState<{
     url: string;
     alt: string;
@@ -246,6 +249,10 @@ export default function StudentPortal() {
   const { data, isLoading, error } = trpc.academy.publicStudent.useQuery(
     input,
     { enabled: Boolean(token), refetchInterval: 15_000 }
+  );
+  const assignmentList = trpc.academy.assignments.publicList.useQuery(
+    { token, studentId: data?.student.id ?? 0 },
+    { enabled: Boolean(token && data?.student.id), refetchInterval: 30_000 }
   );
   const recordView = trpc.academy.portalView.record.useMutation();
   useEffect(() => {
@@ -311,6 +318,10 @@ export default function StudentPortal() {
   const isMiddleSchoolStudent = /^중[1-3](?:\D|$)/.test(
     data.student.grade.trim()
   );
+  const issuedAssignments = assignmentList.data?.assignments ?? [];
+  const completedAssignmentCount = issuedAssignments.filter(
+    assignment => assignment.attemptCount > 0
+  ).length;
   const quickMenuItems: PortalQuickMenuItem[] = [
     {
       key: "vocabulary",
@@ -350,6 +361,15 @@ export default function StudentPortal() {
             icon: GraduationCap,
           },
         ]
+      : []),
+    ...(issuedAssignments.length > 0
+      ? [{
+          key: "math-assignments",
+          label: "수학(과제)",
+          ariaLabel: `수학 과제 ${completedAssignmentCount} / ${issuedAssignments.length} 완료, ${issuedAssignments.length - completedAssignmentCount}건 남음. 새 창에서 열기`,
+          href: `/p/${encodeURIComponent(token)}/assignments?studentId=${data.student.id}`,
+          progress: { completed: completedAssignmentCount, total: issuedAssignments.length },
+        }]
       : []),
   ];
   const weekdayDates = data.dates.filter(date => {
@@ -531,7 +551,6 @@ export default function StudentPortal() {
           <GraduationCap className="portal-hero-icon" />
         </section>
         <ParentMathProgress token={token} studentId={data.student.id} />
-        <ParentAssignments token={token} studentId={data.student.id} />
         <section className="portal-week-nav">
           <Button
             variant="outline"

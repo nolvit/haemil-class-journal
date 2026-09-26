@@ -20,6 +20,7 @@ const ParentLinks = lazy(() => import("@/pages/ParentLinks"));
 const AssignmentAdmin = lazy(() => import("@/pages/AssignmentAdmin"));
 const NotificationLogs = lazy(() => import("@/pages/NotificationLogs"));
 const StudentPortal = lazy(() => import("@/pages/StudentPortal"));
+const ParentAssignmentsPage = lazy(() => import("@/pages/ParentAssignmentsPage"));
 const Students = lazy(() => import("@/pages/Students"));
 const TuitionStandards = lazy(() => import("@/pages/TuitionStandards"));
 const CheckIn = lazy(() => import("@/pages/CheckIn"));
@@ -45,6 +46,7 @@ function Router() {
   return (
     <Suspense fallback={<RouteLoading />}>
       <Switch>
+        <Route path="/p/:token/assignments" component={ParentAssignmentsPage} />
         <Route path="/p/:token" component={StudentPortal} />
         <Route path="/check-in" component={CheckIn} />
         <Route path="/math-progress" component={() => <StaffPage><MathProgress /></StaffPage>} />
