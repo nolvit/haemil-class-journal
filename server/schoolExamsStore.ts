@@ -5,6 +5,7 @@ import {
 } from "../drizzle/schema";
 import { countLessonsBeforeExam, examComparison, type ExamLessonEvidence } from "../shared/schoolExamRules";
 import { sameGrade, sameSchool } from "../shared/schoolExamIdentity";
+import { compareSchoolExamNames } from "../shared/schoolExamCalendar";
 import type { MathJournalPayload } from "../shared/mathProgress";
 import { getDb } from "./db";
 import { historicalMathSnapshot } from "./mathProgressStore";
@@ -39,7 +40,7 @@ export async function listSchoolExams() {
   ]);
   const schoolById = new Map(schools.map(row => [row.id, row.name]));
   const studentById = new Map(people.map(row => [row.id, row.name]));
-  return exams.sort((a, b) => b.academicYear - a.academicYear || b.id - a.id).map(exam => ({
+  return exams.map(exam => ({
     ...exam,
     schoolName: schoolById.get(exam.schoolId) ?? "학교 미확인",
     subjects: subjects.filter(item => item.examId === exam.id).map(item => {
@@ -51,7 +52,7 @@ export async function listSchoolExams() {
       return { ...item, results: studentResults,
         comparison: examComparison(studentResults.map(row => row.score), item.schoolAverage) };
     }),
-  }));
+  })).sort(compareSchoolExamNames);
 }
 
 type SchoolExamDetails = {

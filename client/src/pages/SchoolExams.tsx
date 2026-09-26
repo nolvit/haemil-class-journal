@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { matchingExamStudents, sameGrade, sameSchool, schoolExamLabel } from "@shared/schoolExamIdentity";
+import { compareSchoolExamNames, schoolExamMonthCells, shiftSchoolExamMonth } from "@shared/schoolExamCalendar";
 
 const todayInKorea = () => new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Seoul" });
 const subjects = ["국어", "영어", "수학", "사회", "과학", "역사", "도덕", "기술·가정", "정보", "기타"];
@@ -21,6 +22,8 @@ export default function SchoolExams() {
   const [selectedExamId, setSelectedExamId] = useState<number>();
   const [selectedSubjectId, setSelectedSubjectId] = useState<number>();
   const [editingExamId, setEditingExamId] = useState<number>();
+  const [calendarSchool, setCalendarSchool] = useState("");
+  const [calendarMonth, setCalendarMonth] = useState<string>();
   const [schoolName, setSchoolName] = useState("");
   const [grade, setGrade] = useState("");
   const [academicYear, setAcademicYear] = useState(new Date().getFullYear());
@@ -54,9 +57,21 @@ export default function SchoolExams() {
     setAcademicYear(new Date().getFullYear()); setSemester(1);
     setExamType("중간고사"); setExamTitle("");
   };
+  const examsByName = [...(exams.data ?? [])].sort(compareSchoolExamNames);
+  const calendarSchools = Array.from(new Set(examsByName.map(exam => exam.schoolName)))
+    .sort((a, b) => a.localeCompare(b, "ko"));
+  const selectedCalendarSchool = calendarSchools.includes(calendarSchool) ? calendarSchool : "";
+  const calendarEntries = examsByName.flatMap(exam => exam.subjects.map(subject => ({ exam, subject })))
+    .filter(entry => !selectedCalendarSchool || entry.exam.schoolName === selectedCalendarSchool)
+    .sort((a, b) => a.subject.examDate.localeCompare(b.subject.examDate) || compareSchoolExamNames(a.exam, b.exam));
+  const today = todayInKorea();
+  const defaultCalendarMonth = (calendarEntries.find(entry => entry.subject.examDate >= today) ??
+    calendarEntries.at(-1))?.subject.examDate.slice(0, 7) ?? today.slice(0, 7);
+  const visibleCalendarMonth = calendarMonth ?? defaultCalendarMonth;
+  const calendarCells = schoolExamMonthCells(visibleCalendarMonth);
 
   useEffect(() => {
-    if (selectedExamId === undefined && exams.data?.length) setSelectedExamId(exams.data[0].id);
+    if (selectedExamId === undefined && exams.data?.length) setSelectedExamId([...exams.data].sort(compareSchoolExamNames)[0].id);
   }, [exams.data, selectedExamId]);
   useEffect(() => {
     setAdvancedOpen(false);
@@ -164,12 +179,19 @@ export default function SchoolExams() {
       updateExam.mutate({ id: editingExamId, ...details });
     } else createExam.mutate(details);
   };
-  const editExam = (exam: NonNullable<typeof exams.data>[number]) => {
+  const editExam = (exam: NonNullable<typeof exams.data>[number], scrollToForm = true) => {
     setSelectedExamId(exam.id); setSelectedSubjectId(undefined); setSubjectName("");
     setEditingExamId(exam.id); setSchoolName(exam.schoolName); setGrade(exam.grade);
     setAcademicYear(exam.academicYear); setSemester(exam.semester as 1 | 2);
     setExamType(exam.examType as typeof examType); setExamTitle(exam.title);
-    document.getElementById("school-exam-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (scrollToForm) document.getElementById("school-exam-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+  const editSubject = (exam: NonNullable<typeof exams.data>[number], item: typeof exam.subjects[number]) => {
+    editExam(exam, false);
+    setSelectedSubjectId(item.id); setSubjectName(item.subject); setExamDate(item.examDate);
+    setMaxScore(String(item.maxScore)); setSchoolAverage(item.schoolAverage === null ? "" : String(item.schoolAverage));
+    setAverageSource(item.averageSource ?? ""); clearResultForm();
+    document.getElementById("school-exam-subject-form")?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const submitSubject = (event: FormEvent) => {
     event.preventDefault();
@@ -254,7 +276,7 @@ export default function SchoolExams() {
     {exams.isLoading ? <p>시험 기록을 불러오는 중입니다.</p> : exams.error ? <p role="alert">{exams.error.message}</p> : <>
       <section className={card}>
         <h2 className="mb-3 text-lg font-semibold">등록된 시험</h2>
-        {exams.data?.length ? <div className="flex flex-wrap gap-2">{exams.data.map(exam =>
+        {examsByName.length ? <div className="flex flex-wrap gap-2">{examsByName.map(exam =>
           <div key={exam.id} className="flex items-center gap-1">
             <Button type="button" variant={selectedExamId === exam.id ? "default" : "outline"}
               onClick={() => editExam(exam)}>
@@ -264,8 +286,48 @@ export default function SchoolExams() {
               aria-label={`${exam.title} 시험 삭제`} onClick={() => confirmDeleteExam(exam)}>삭제</Button>
           </div>)}</div> : <p className="text-sm text-stone-500">등록된 시험이 없습니다.</p>}
       </section>
+      <section className={card} aria-label="학교시험 달력">
+        <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold">학교시험 달력</h2>
+            <p className="mt-1 text-sm text-stone-500">등록된 과목의 시험일을 학교별로 확인합니다. 과목을 누르면 날짜를 수정할 수 있습니다.</p>
+          </div>
+          <label className={field}>학교
+            <select className="journal-select min-w-36" value={selectedCalendarSchool} onChange={event => {
+              setCalendarSchool(event.target.value); setCalendarMonth(undefined);
+            }}>
+              <option value="">전체 학교</option>
+              {calendarSchools.map(name => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <Button type="button" variant="outline" size="sm" aria-label="이전 달" onClick={() => setCalendarMonth(shiftSchoolExamMonth(visibleCalendarMonth, -1))}>이전 달</Button>
+          <h3 className="font-semibold text-[#234E52]">{visibleCalendarMonth.replace("-", "년 ")}월</h3>
+          <Button type="button" variant="outline" size="sm" aria-label="다음 달" onClick={() => setCalendarMonth(shiftSchoolExamMonth(visibleCalendarMonth, 1))}>다음 달</Button>
+        </div>
+        <div className="grid grid-cols-7 gap-1 text-center text-xs text-stone-500 sm:gap-2">
+          {["일", "월", "화", "수", "목", "금", "토"].map(day => <div key={day} className="py-1 font-semibold">{day}</div>)}
+          {calendarCells.map((date, index) => <div key={date ?? `blank-${index}`}
+            className={`min-h-20 rounded-lg border p-1 text-left sm:min-h-28 sm:p-2 ${date ? "border-[#E4E0D6] bg-[#FFFEFB]" : "border-transparent"}`}>
+            {date && <>
+              <span className={`text-xs ${date === today ? "font-bold text-[#0F7467]" : "text-stone-600"}`}>{Number(date.slice(-2))}</span>
+              <div className="mt-1 space-y-1">
+                {calendarEntries.filter(entry => entry.subject.examDate === date).map(({ exam, subject }) =>
+                  <button key={subject.id} type="button" className="block w-full rounded bg-[#EAF4EF] px-1 py-1 text-left text-[10px] leading-tight text-[#20584F] hover:bg-[#D7E9DE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#39756A] sm:text-xs"
+                    aria-label={`${date} · ${schoolExamLabel(exam)} · ${subject.subject}`}
+                    title={`${schoolExamLabel(exam)} · ${subject.subject}`} onClick={() => editSubject(exam, subject)}>
+                    <span className="block truncate font-semibold">{exam.schoolName}</span>
+                    <span className="block">{exam.grade} {subject.subject}</span>
+                  </button>)}
+              </div>
+            </>}
+          </div>)}
+        </div>
+        {!calendarEntries.length && <p className="mt-3 text-sm text-stone-500">표시할 시험 과목이 없습니다.</p>}
+      </section>
       {selectedExam && <>
-        <section className={card}>
+        <section id="school-exam-subject-form" className={card}>
           <h2 className="mb-1 text-lg font-semibold">시험 과목·학교 평균</h2>
           <p className="mb-4 text-sm text-stone-500">학교 평균은 확인된 값과 출처를 함께 입력합니다. 성적 등록 후 시험일·만점은 고정됩니다.</p>
           <form onSubmit={submitSubject} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -280,9 +342,7 @@ export default function SchoolExams() {
           <div className="mt-5 flex flex-wrap gap-2">{selectedExam.subjects.map(item =>
             <div key={item.id} className="flex items-center gap-1">
               <Button type="button" variant={selectedSubjectId === item.id ? "default" : "outline"}
-                onClick={() => { setSelectedSubjectId(item.id); setSubjectName(item.subject); setExamDate(item.examDate);
-                  setMaxScore(String(item.maxScore)); setSchoolAverage(item.schoolAverage === null ? "" : String(item.schoolAverage));
-                  setAverageSource(item.averageSource ?? ""); setStudentId(""); setScore(""); setManualLessonCount(""); setLessonCountNote(""); setRecalculateLessonCount(false); }}>
+                onClick={() => editSubject(selectedExam, item)}>
                 {item.subject} · {item.examDate}
               </Button>
               <Button type="button" variant="outline" className="text-[#A05242]" disabled={recordMutationPending}
