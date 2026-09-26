@@ -8,8 +8,10 @@ export const answerSheetGeometry = {
   firstRowY: sheetSpec.rows.firstCenterY,
   rowGap: sheetSpec.rows.pitchY,
   rowsPerPage: sheetSpec.rows.max,
-  choiceXs: sheetSpec.choice.centersX,
-  numericBox: { x: sheetSpec.numeric.x, width: sheetSpec.numeric.width, yOffset: sheetSpec.numeric.centerOffsetY, height: sheetSpec.numeric.height },
+  rowsPerColumn: sheetSpec.rows.perColumn,
+  columns: sheetSpec.columns.map(column => ({ choiceXs: column.choiceXs, numericX: column.numericX })),
+  choiceRadius: sheetSpec.choice.radius,
+  numericBox: { width: sheetSpec.numeric.width, yOffset: sheetSpec.numeric.centerOffsetY, height: sheetSpec.numeric.height },
 };
 
 export type MarkerPoint = { x: number; y: number };
@@ -173,6 +175,47 @@ function sampleGray(pixels: Uint8ClampedArray, width: number, height: number, po
   return grayscale(pixels, y * width + x);
 }
 
+/** Compare the five bubbles on the same row so a dark photo or screen moire does not mark every bubble. */
+export function classifyChoiceMeans(means: number[]): { value: string; uncertain: boolean } {
+  if (means.length !== 5 || means.some(value => !Number.isFinite(value))) return { value: "", uncertain: true };
+  const sorted = means.map((value, index) => ({ value, index })).sort((a, b) => a.value - b.value);
+  const strongest = sorted[0]!;
+  const second = sorted[1]!;
+  const baseline = sorted[2]!.value;
+  const strength = baseline - strongest.value;
+  const secondStrength = baseline - second.value;
+  if (strength < 12) return { value: "", uncertain: false };
+  if (strength >= 16 && second.value - strongest.value >= 12 &&
+      !(secondStrength >= 16 && secondStrength >= strength * 0.5))
+    return { value: String(strongest.index + 1), uncertain: false };
+  return { value: "", uncertain: true };
+}
+
+/** Remove column-wide dark bands before sending a compact handwriting crop to Vision. */
+export function normalizeNumericPixels(source: Uint8ClampedArray, width: number, height: number) {
+  const output = new Uint8ClampedArray(source.length);
+  const histogram = new Uint16Array(256);
+  for (let x = 0; x < width; x++) {
+    histogram.fill(0);
+    for (let y = 0; y < height; y++) histogram[Math.round(grayscale(source, y * width + x))]++;
+    const target = Math.ceil(height * 0.85);
+    let seen = 0;
+    let background = 255;
+    for (let level = 0; level < 256; level++) {
+      seen += histogram[level]!;
+      if (seen >= target) { background = level; break; }
+    }
+    for (let y = 0; y < height; y++) {
+      const index = y * width + x;
+      const shade = 255 - Math.min(255, Math.max(0, background - grayscale(source, index) - 10) * 3.5);
+      const offset = index * 4;
+      output[offset] = output[offset + 1] = output[offset + 2] = shade;
+      output[offset + 3] = 255;
+    }
+  }
+  return output;
+}
+
 /** The page number is selected by the user and never guessed from OCR text. */
 export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetItem[], markers: MarkerPoint[]): RecognizedSheet {
   const h = sheetHomography(markers);
@@ -182,9 +225,9 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
   const answers: SheetAnswer[] = [];
   const warnings: string[] = [];
   const numericItems = pageItems.filter(item => item.answerType === "numeric");
-  const cropWidth = 1000;
-  const cropHeight = 64;
-  const gap = 16;
+  const cropWidth = 560;
+  const cropHeight = 90;
+  const gap = 20;
   const mosaic = document.createElement("canvas");
   mosaic.width = cropWidth + gap * 2;
   mosaic.height = numericItems.length * (cropHeight + gap) + gap;
@@ -195,34 +238,34 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
   const regions: NumericRegion[] = [];
 
   for (const item of pageItems) {
-    const rowIndex = (item.ordinal - 1) % answerSheetGeometry.rowsPerPage;
+    const pageIndex = (item.ordinal - 1) % answerSheetGeometry.rowsPerPage;
+    const column = answerSheetGeometry.columns[Math.floor(pageIndex / answerSheetGeometry.rowsPerColumn)];
+    if (!column) throw new Error("답안지 열 위치가 올바르지 않습니다.");
+    const rowIndex = pageIndex % answerSheetGeometry.rowsPerColumn;
     const rowY = answerSheetGeometry.firstRowY + rowIndex * answerSheetGeometry.rowGap;
     if (item.answerType === "choice") {
-      const darkness = answerSheetGeometry.choiceXs.map(x => {
+      const sampleRadius = Math.round(answerSheetGeometry.choiceRadius * 0.56);
+      const means = column.choiceXs.map(x => {
         let count = 0;
-        let dark = 0;
-        for (let dy = -17; dy <= 17; dy += 3) for (let dx = -17; dx <= 17; dx += 3) {
-          if (dx * dx + dy * dy > 17 * 17) continue;
+        let total = 0;
+        for (let dy = -sampleRadius; dy <= sampleRadius; dy += 3) for (let dx = -sampleRadius; dx <= sampleRadius; dx += 3) {
+          if (dx * dx + dy * dy > sampleRadius * sampleRadius) continue;
           count++;
-          if (sampleGray(pixels, prepared.width, prepared.height, mapPoint(h, x + dx, rowY + dy)) < 180) dark++;
+          total += sampleGray(pixels, prepared.width, prepared.height, mapPoint(h, x + dx, rowY + dy));
         }
-        return dark / count;
+        return total / count;
       });
-      const sorted = darkness.map((value, index) => ({ value, index })).sort((a, b) => b.value - a.value);
-      const first = sorted[0]!;
-      const second = sorted[1]!;
-      const uncertain = first.value > 0.14 && (first.value < 0.36 || second.value > 0.24 || first.value - second.value < 0.17);
-      const value = first.value >= 0.36 && second.value < 0.24 && first.value - second.value >= 0.17 ? String(first.index + 1) : "";
-      answers.push({ ordinal: item.ordinal, value, uncertain });
-      if (uncertain) warnings.push(`${item.ordinal}번 마킹이 흐리거나 겹쳐 보입니다. 답을 직접 확인해 주세요.`);
+      const result = classifyChoiceMeans(means);
+      answers.push({ ordinal: item.ordinal, ...result });
+      if (result.uncertain) warnings.push(`${item.ordinal}번 마킹이 흐리거나 겹쳐 보입니다. 답을 직접 확인해 주세요.`);
       continue;
     }
     const index = numericItems.findIndex(candidate => candidate.ordinal === item.ordinal);
     const box = answerSheetGeometry.numericBox;
     const output = mosaicContext.createImageData(cropWidth, cropHeight);
     for (let py = 0; py < cropHeight; py++) for (let px = 0; px < cropWidth; px++) {
-      const u = box.x + 10 + (px / cropWidth) * (box.width - 20);
-      const v = rowY + box.yOffset + 5 + (py / cropHeight) * (box.height - 10);
+      const u = column.numericX + 12 + (px / cropWidth) * (box.width - 24);
+      const v = rowY + box.yOffset + 8 + (py / cropHeight) * (box.height - 16);
       const source = mapPoint(h, u, v);
       const sx = Math.round(source.x);
       const sy = Math.round(source.y);
@@ -238,8 +281,9 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
       output.data[dest + 3] = 255;
     }
     const y = gap + index * (cropHeight + gap);
+    output.data.set(normalizeNumericPixels(output.data, cropWidth, cropHeight));
     mosaicContext.putImageData(output, gap, y);
     regions.push({ ordinal: item.ordinal, x: gap, y, width: cropWidth, height: cropHeight });
   }
-  return { answers, numericImageDataUrl: numericItems.length ? mosaic.toDataURL("image/jpeg", 0.9) : null, regions, warnings, markers };
+  return { answers, numericImageDataUrl: numericItems.length ? mosaic.toDataURL("image/png") : null, regions, warnings, markers };
 }

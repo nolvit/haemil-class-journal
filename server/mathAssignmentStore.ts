@@ -4,6 +4,9 @@ import { TRPCError } from "@trpc/server";
 import { getPortalFamilyByToken } from "./db";
 import { gradeAnswer, isSupportedAnswerKey, normalizeChoice, type GradingRule } from "./mathAssignmentRules";
 import allowedManifest from "../shared/autoGradeAllowlist.json";
+import answerSheetSpec from "../client/src/lib/answer-sheet-spec.json";
+
+export const mathAssignmentRowsPerPage = answerSheetSpec.rows.max;
 
 const allowedIds = new Set<string>(allowedManifest.questionIds);
 if (allowedManifest.version !== 1 || allowedIds.size !== 1484 || allowedManifest.questionIds.length !== 1484)
@@ -271,10 +274,10 @@ export async function submitMathAssignment(input: { token: string; studentId: nu
         correctAnswer: item.answerKey };
     });
     const photos = input.photos ?? [];
-    if (photos.length > Math.min(10, Math.ceil(items.length / 30))) badRequest("답안지 장수가 올바르지 않습니다.");
+    if (photos.length > Math.min(10, Math.ceil(items.length / mathAssignmentRowsPerPage))) badRequest("답안지 장수가 올바르지 않습니다.");
     const photoPages = new Set<number>();
     const imageRows = photos.map(photo => {
-      if (photo.pageNumber < 1 || photo.pageNumber > Math.ceil(items.length / 30) || photoPages.has(photo.pageNumber)) badRequest("사진 페이지 번호가 올바르지 않습니다.");
+      if (photo.pageNumber < 1 || photo.pageNumber > Math.ceil(items.length / mathAssignmentRowsPerPage) || photoPages.has(photo.pageNumber)) badRequest("사진 페이지 번호가 올바르지 않습니다.");
       photoPages.add(photo.pageNumber);
       return { pageNumber: photo.pageNumber, ...parseImageDataUrl(photo.imageDataUrl) };
     });
@@ -453,12 +456,12 @@ export async function beginMathOcrRequest(input: { token: string; studentId: num
     const assignment = rows[0];
     if (!assignment || assignment.code !== input.code) forbidden();
     const items = await loadItems(connection, input.assignmentId);
-    if (input.pageNumber < 1 || input.pageNumber > Math.ceil(items.length / 30)) badRequest("답안지 페이지가 올바르지 않습니다.");
-    if (!input.regions.length || input.regions.length > 30 || new Set(input.regions.map(region => region.ordinal)).size !== input.regions.length)
+    if (input.pageNumber < 1 || input.pageNumber > Math.ceil(items.length / mathAssignmentRowsPerPage)) badRequest("답안지 페이지가 올바르지 않습니다.");
+    if (!input.regions.length || input.regions.length > mathAssignmentRowsPerPage || new Set(input.regions.map(region => region.ordinal)).size !== input.regions.length)
       badRequest("수치 답란 위치가 올바르지 않습니다.");
     for (const region of input.regions) {
       const item = items.find(item => item.ordinal === region.ordinal);
-      if (!item || item.answerType !== "numeric" || Math.ceil(item.ordinal / 30) !== input.pageNumber) badRequest("수치 답란과 문항이 일치하지 않습니다.");
+      if (!item || item.answerType !== "numeric" || Math.ceil(item.ordinal / mathAssignmentRowsPerPage) !== input.pageNumber) badRequest("수치 답란과 문항이 일치하지 않습니다.");
     }
     const [attempts] = await connection.query<(RowDataPacket & { count: number })[]>(
       "SELECT COUNT(*) AS count FROM math_assignment_attempts WHERE assignmentId=?", [input.assignmentId]);

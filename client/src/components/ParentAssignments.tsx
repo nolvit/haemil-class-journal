@@ -11,7 +11,7 @@ import {
   type PreparedPhoto,
 } from "@/lib/answerSheetRecognition";
 import { trpc } from "@/lib/trpc";
-import { Camera, CheckCircle2, ClipboardCheck, PencilLine } from "lucide-react";
+import { Camera, CheckCircle2, ClipboardCheck, PencilLine, Upload } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -175,7 +175,6 @@ export default function ParentAssignments({ token, studentId }: { token: string;
             pageAnswers[answer.ordinal] = answer.value;
             if (answer.confidence === "uncertain") warnings.push(`${answer.ordinal}번 숫자 인식이 불확실합니다. 직접 확인해 주세요.`);
           }
-          warnings.push(...recognized.warnings);
         } catch (error) {
           const message = error instanceof Error ? error.message : "숫자 답 인식에 실패했습니다.";
           warnings.push(`${message} 숫자 답은 직접 입력해 주세요.`);
@@ -233,12 +232,13 @@ export default function ParentAssignments({ token, studentId }: { token: string;
           {(!assignment.canSubmit || latestResult) && <p className="mt-4 rounded-lg bg-[#F6F2E9] p-3 text-sm text-[#765E10]">현재 추가 제출은 열려 있지 않습니다. 재응시는 담당 교사가 허용하면 가능합니다.</p>}
           {assignment.canSubmit && !latestResult && <>
             <div className="mt-5 rounded-xl border border-[#D8E5DF] bg-[#F7FAF8] p-4">
-              <div className="flex items-start gap-2"><Camera className="mt-0.5 h-5 w-5 text-[#315B57]" /><div><h4 className="font-semibold text-[#193D3C]">답안지 사진으로 입력</h4><p className="text-xs leading-5 text-[#71817D]">과제 코드와 쪽 번호를 인쇄물에서 확인한 뒤 촬영하세요. 인식된 답은 아래에서 모두 수정할 수 있습니다.</p></div></div>
+              <div className="flex items-start gap-2"><Camera className="mt-0.5 h-5 w-5 text-[#315B57]" /><div><h4 className="font-semibold text-[#193D3C]">답안지 사진으로 입력</h4><p className="text-xs leading-5 text-[#71817D]">과제 코드와 쪽 번호를 확인하고, 종이 답안지를 촬영하거나 갤러리에서 원본 사진을 선택해 주세요. 화면을 다시 찍으면 줄무늬 때문에 인식이 어려울 수 있습니다.</p></div></div>
               <div className="mt-3 flex flex-wrap items-end gap-3">
                 <label className="text-xs font-medium text-[#53645F]">인쇄된 쪽
                   <select value={selectedPageNumber} onChange={event => { setSelectedPageNumber(Number(event.target.value)); setPendingPhoto(null); }} className="ml-2 rounded-md border border-[#D8D8D0] bg-white px-2 py-2 text-sm">{Array.from({length: pageCount}, (_, index) => <option key={index} value={index + 1}>{index + 1} / {pageCount}쪽</option>)}</select>
                 </label>
-                <label className="inline-flex cursor-pointer items-center rounded-md border border-[#D1DDD7] bg-white px-3 py-2 text-sm text-[#315B57] hover:bg-[#EDF4F0]"><Camera className="mr-2 h-4 w-4" />사진 찍기·선택<input className="sr-only" type="file" accept="image/*" capture="environment" onChange={event => { const file = event.target.files?.[0]; if (file) void loadPhoto(file); event.currentTarget.value = ""; }} /></label>
+                <label className="inline-flex cursor-pointer items-center rounded-md border border-[#D1DDD7] bg-white px-3 py-2 text-sm text-[#315B57] hover:bg-[#EDF4F0]"><Camera className="mr-2 h-4 w-4" />카메라로 찍기<input className="sr-only" type="file" accept="image/*" capture="environment" onChange={event => { const file = event.target.files?.[0]; if (file) void loadPhoto(file); event.currentTarget.value = ""; }} /></label>
+                <label className="inline-flex cursor-pointer items-center rounded-md border border-[#D1DDD7] bg-white px-3 py-2 text-sm text-[#315B57] hover:bg-[#EDF4F0]"><Upload className="mr-2 h-4 w-4" />갤러리에서 선택<input className="sr-only" type="file" accept="image/*" onChange={event => { const file = event.target.files?.[0]; if (file) void loadPhoto(file); event.currentTarget.value = ""; }} /></label>
                 {photos[selectedPageNumber] && <Badge className="bg-[#E5F0E9] text-[#2F7154]">{selectedPageNumber}쪽 인식 완료</Badge>}
               </div>
               <p className="mt-2 text-xs text-[#71817D]">사진이 없거나 OCR 한도에 도달해도 아래 답안 칸에 직접 입력할 수 있습니다. 휴대전화 키보드의 받아쓰기도 사용할 수 있습니다.</p>

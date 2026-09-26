@@ -5,6 +5,7 @@ import {
   getAdminMathAssignmentPhoto, getMathOcrUsage, getPublicMathAssignment,
   listAdminMathAssignments, listPublicMathAssignments, regradeMathAssignment,
   setMathOcrPaidAllowance, submitMathAssignment, currentMathOcrMonth,
+  mathAssignmentRowsPerPage,
 } from "../mathAssignmentStore";
 import { recognizeMathAssignmentPage } from "../mathAssignmentOcr";
 
@@ -14,26 +15,27 @@ const familyScope = z.object({
   studentId: z.number().int().positive(),
 });
 const reason = z.string().trim().min(1).max(500);
+const maxAnswerSheetPages = Math.ceil(150 / mathAssignmentRowsPerPage);
 
 export const mathAssignmentsRouter = router({
   publicList: publicProcedure.input(familyScope).query(({ input }) => listPublicMathAssignments(input.token, input.studentId)),
   publicDetail: publicProcedure.input(familyScope.extend({ assignmentId })).query(({ input }) =>
     getPublicMathAssignment(input.token, input.studentId, input.assignmentId)),
   recognizePage: publicProcedure.input(familyScope.extend({
-    assignmentId, code: z.string().min(1).max(20), pageNumber: z.number().int().min(1).max(5),
+    assignmentId, code: z.string().min(1).max(20), pageNumber: z.number().int().min(1).max(maxAnswerSheetPages),
     imageDataUrl: z.string().max(8_500_000),
     regions: z.array(z.object({ ordinal: z.number().int().min(1).max(150),
       x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
-      width: z.number().int().positive(), height: z.number().int().positive() }).strict()).min(1).max(30),
+      width: z.number().int().positive(), height: z.number().int().positive() }).strict()).min(1).max(mathAssignmentRowsPerPage),
   })).mutation(({ input }) => recognizeMathAssignmentPage(input)),
   submit: publicProcedure.input(familyScope.extend({
     assignmentId, code: z.string().min(1).max(20),
     answers: z.array(z.object({ ordinal: z.number().int().min(1).max(150), value: z.string().max(255) }).strict()).max(150),
-    photos: z.array(z.object({ pageNumber: z.number().int().min(1).max(5), imageDataUrl: z.string().max(8_500_000) }).strict()).max(5).optional(),
+    photos: z.array(z.object({ pageNumber: z.number().int().min(1).max(maxAnswerSheetPages), imageDataUrl: z.string().max(8_500_000) }).strict()).max(maxAnswerSheetPages).optional(),
   })).mutation(({ input }) => submitMathAssignment(input)),
   adminList: adminProcedure.query(() => listAdminMathAssignments()),
   adminDetail: adminProcedure.input(z.object({ assignmentId })).query(({ input }) => getAdminMathAssignment(input.assignmentId)),
-  adminPhoto: adminProcedure.input(z.object({ attemptId: z.string().uuid(), pageNumber: z.number().int().min(1).max(5) }))
+  adminPhoto: adminProcedure.input(z.object({ attemptId: z.string().uuid(), pageNumber: z.number().int().min(1).max(maxAnswerSheetPages) }))
     .query(({ input, ctx }) => { ctx.res.setHeader("Cache-Control", "private, no-store");
       return getAdminMathAssignmentPhoto(input.attemptId, input.pageNumber); }),
   close: adminProcedure.input(z.object({ assignmentId })).mutation(({ input, ctx }) =>

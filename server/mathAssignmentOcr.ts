@@ -4,6 +4,7 @@ import {
   beginMathOcrRequest, failMathOcrRequest, finishMathOcrRequest,
   getMathOcrUsage, parseImageDataUrl, type MathOcrRegion,
   getPublicMathAssignment,
+  mathAssignmentRowsPerPage,
 } from "./mathAssignmentStore";
 
 type VisionWord = { text: string; confidence: number; x: number; y: number };
@@ -108,7 +109,7 @@ export function mapVisionWordsToRegions(words: VisionWord[], regions: MathOcrReg
 export async function recognizeMathAssignmentPage(input: { token: string; studentId: number; assignmentId: string;
   code: string; pageNumber: number; imageDataUrl: string; regions: MathOcrRegion[] }, provider: VisionProvider = googleVisionWords) {
   const assignment = await getPublicMathAssignment(input.token, input.studentId, input.assignmentId);
-  if (assignment.code !== input.code || !assignment.canSubmit || input.pageNumber > Math.ceil(assignment.items.length / 30))
+  if (assignment.code !== input.code || !assignment.canSubmit || input.pageNumber > Math.ceil(assignment.items.length / mathAssignmentRowsPerPage))
     throw new TRPCError({ code: "FORBIDDEN", message: "답안지 과제 또는 페이지가 올바르지 않습니다." });
   // Obtain credentials before quota reservation; unknown Vision outcomes after reservation stay counted.
   if (provider === googleVisionWords) await visionAuthHeaders();
