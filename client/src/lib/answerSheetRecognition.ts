@@ -1,7 +1,9 @@
 import sheetSpec from "./answer-sheet-spec.json";
+import legacySheetSpec from "./answer-sheet-spec-v3.json";
+import { isolateNumericInk, type InkBox } from "./numericInk";
 
 /** Coordinates are in 0.1 mm on the A4 sheet printed by mathbank. Keep the JSON identical in both apps. */
-export const answerSheetGeometry = {
+function geometryFromSpec(sheetSpec: typeof legacySheetSpec) { return {
   width: sheetSpec.page.width,
   height: sheetSpec.page.height,
   markers: sheetSpec.fiducials.centers.map(([x, y]) => ({ x, y })),
@@ -12,12 +14,17 @@ export const answerSheetGeometry = {
   columns: sheetSpec.columns.map(column => ({ choiceXs: column.choiceXs, numericX: column.numericX })),
   choiceRadius: sheetSpec.choice.radius,
   numericBox: { width: sheetSpec.numeric.width, yOffset: sheetSpec.numeric.centerOffsetY, height: sheetSpec.numeric.height },
-};
+}; }
+export const answerSheetGeometry = geometryFromSpec(sheetSpec);
+export function answerSheetGeometryForVersion(version: number = 4) {
+  return version === 3 ? geometryFromSpec(legacySheetSpec) : answerSheetGeometry;
+}
 
 export type MarkerPoint = { x: number; y: number };
 export type SheetItem = { ordinal: number; answerType: "choice" | "numeric" };
 export type SheetAnswer = { ordinal: number; value: string; uncertain: boolean };
-export type NumericRegion = { ordinal: number; x: number; y: number; width: number; height: number };
+export type NumericRegion = InkBox & { ordinal: number; samples?: InkBox[];
+  fraction?: { numerator: InkBox[]; denominator: InkBox[] } };
 
 export type PreparedPhoto = {
   canvas: HTMLCanvasElement;
@@ -222,7 +229,7 @@ export function normalizeNumericPixels(source: Uint8ClampedArray, width: number,
   for (let y = 0; y < height; y++) {
     let darkCount = 0;
     for (let x = 0; x < width; x++) if (output[(y * width + x) * 4]! < 245) darkCount++;
-    if (darkCount > width * 0.45) ruleRows[y] = 1;
+    if (darkCount > width * 0.8) ruleRows[y] = 1;
   }
   for (let start = 0; start < height;) {
     if (!ruleRows[start]) { start++; continue; }
@@ -244,7 +251,8 @@ export function normalizeNumericPixels(source: Uint8ClampedArray, width: number,
 }
 
 /** The page number is selected by the user and never guessed from OCR text. */
-export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetItem[], markers: MarkerPoint[]): RecognizedSheet {
+export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetItem[], markers: MarkerPoint[], version = 4): RecognizedSheet {
+  const answerSheetGeometry = answerSheetGeometryForVersion(version);
   const h = sheetHomography(markers);
   const context = prepared.canvas.getContext("2d", { willReadFrequently: true });
   if (!context) throw new Error("사진을 읽을 수 없습니다.");
@@ -252,19 +260,16 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
   const answers: SheetAnswer[] = [];
   const warnings: string[] = [];
   const numericItems = pageItems.filter(item => item.answerType === "numeric");
-  const cropWidth = 560;
+  const cropWidth = answerSheetGeometry.numericBox.width - 24;
   // Writing often touches or extends below the 9 mm printed box. The old
   // 74-unit inner crop cut off digit strokes on the photographed sheet.
   const cropHeight = answerSheetGeometry.numericBox.height + 40;
-  const gap = 20;
   const mosaic = document.createElement("canvas");
-  mosaic.width = cropWidth + gap * 2;
-  mosaic.height = numericItems.length * (cropHeight + gap) + gap;
   const mosaicContext = mosaic.getContext("2d");
   if (!mosaicContext) throw new Error("답안 영역을 만들 수 없습니다.");
-  mosaicContext.fillStyle = "white";
-  mosaicContext.fillRect(0, 0, mosaic.width, mosaic.height);
   const regions: NumericRegion[] = [];
+  const crops: Array<{ ordinal: number; variants: HTMLCanvasElement[]; bounds: InkBox | null;
+    fraction?: { numerator: InkBox; denominator: InkBox } }> = [];
 
   for (const item of pageItems) {
     const pageIndex = (item.ordinal - 1) % answerSheetGeometry.rowsPerPage;
@@ -289,30 +294,85 @@ export function recognizeAnswerSheet(prepared: PreparedPhoto, pageItems: SheetIt
       if (result.uncertain) warnings.push(`${item.ordinal}번 마킹이 흐리거나 겹쳐 보입니다. 답을 직접 확인해 주세요.`);
       continue;
     }
-    const index = numericItems.findIndex(candidate => candidate.ordinal === item.ordinal);
     const box = answerSheetGeometry.numericBox;
     const output = mosaicContext.createImageData(cropWidth, cropHeight);
     for (let py = 0; py < cropHeight; py++) for (let px = 0; px < cropWidth; px++) {
       const u = column.numericX + 12 + (px / cropWidth) * (box.width - 24);
       const v = rowY + box.yOffset - 15 + (py / cropHeight) * cropHeight;
       const source = mapPoint(h, u, v);
-      const sx = Math.round(source.x);
-      const sy = Math.round(source.y);
       const dest = (py * cropWidth + px) * 4;
-      if (sx < 0 || sy < 0 || sx >= prepared.width || sy >= prepared.height) {
-        output.data[dest] = output.data[dest + 1] = output.data[dest + 2] = 255;
-      } else {
-        const src = (sy * prepared.width + sx) * 4;
-        output.data[dest] = pixels[src]!;
-        output.data[dest + 1] = pixels[src + 1]!;
-        output.data[dest + 2] = pixels[src + 2]!;
-      }
+      // Bilinear sampling preserves the thin gaps in small handwritten digits.
+      // Nearest-neighbour upscaling previously filled in 3/5 and fraction strokes.
+      const sx = Math.floor(source.x), sy = Math.floor(source.y);
+      const fx = source.x - sx, fy = source.y - sy;
+      const shade = (sampleGray(pixels, prepared.width, prepared.height, { x: sx, y: sy }) * (1 - fx) +
+        sampleGray(pixels, prepared.width, prepared.height, { x: sx + 1, y: sy }) * fx) * (1 - fy) +
+        (sampleGray(pixels, prepared.width, prepared.height, { x: sx, y: sy + 1 }) * (1 - fx) +
+        sampleGray(pixels, prepared.width, prepared.height, { x: sx + 1, y: sy + 1 }) * fx) * fy;
+      output.data[dest] = output.data[dest + 1] = output.data[dest + 2] = shade;
       output.data[dest + 3] = 255;
     }
-    const y = gap + index * (cropHeight + gap);
-    output.data.set(normalizeNumericPixels(output.data, cropWidth, cropHeight));
-    mosaicContext.putImageData(output, gap, y);
-    regions.push({ ordinal: item.ordinal, x: gap, y, width: cropWidth, height: cropHeight });
+    const ink = isolateNumericInk(normalizeNumericPixels(output.data, cropWidth, cropHeight), cropWidth, cropHeight);
+    const variants = ["soft", "binary", "thin"].map(mode => {
+      const canvas = document.createElement("canvas");
+      canvas.width = cropWidth; canvas.height = cropHeight;
+      const ctx = canvas.getContext("2d")!;
+      const data = ctx.createImageData(cropWidth, cropHeight);
+      for (let y = 0; y < cropHeight; y++) for (let x = 0; x < cropWidth; x++) {
+        const index = (y * cropWidth + x) * 4;
+        let shade = ink.pixels[index]!;
+        if (mode === "soft") {
+          let nearInk = false;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const nx = x + dx, ny = y + dy;
+            if (nx >= 0 && ny >= 0 && nx < cropWidth && ny < cropHeight && ink.pixels[(ny * cropWidth + nx) * 4]! < 128) nearInk = true;
+          }
+          shade = nearInk ? output.data[index]! : 255;
+        } else if (mode === "thin") {
+          // One-pixel erosion is an alternate reading only; it never replaces
+          // the original. Disagreeing readings must be reviewed by the user.
+          for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+            const nx = x + dx!, ny = y + dy!;
+            if (nx < 0 || ny < 0 || nx >= cropWidth || ny >= cropHeight || ink.pixels[(ny * cropWidth + nx) * 4]! >= 128) shade = 255;
+          }
+        }
+        data.data[index] = data.data[index + 1] = data.data[index + 2] = shade;
+        data.data[index + 3] = 255;
+      }
+      ctx.putImageData(data, 0, 0);
+      return canvas;
+    });
+    crops.push({ ordinal: item.ordinal, variants, bounds: ink.bounds, fraction: ink.fraction });
+  }
+  const rowCount = crops.reduce((count, crop) => count + (crop.fraction ? 2 : 1), 0);
+  const cellHeight = Math.min(160, Math.floor(9600 / Math.max(1, rowCount)));
+  mosaic.width = 1800;
+  mosaic.height = Math.max(1, rowCount * cellHeight);
+  mosaicContext.fillStyle = "white";
+  mosaicContext.fillRect(0, 0, mosaic.width, mosaic.height);
+  let row = 0;
+  for (const crop of crops) {
+    const startY = row * cellHeight;
+    const drawSamples = (bounds: InkBox | null) => {
+      const y = row++ * cellHeight;
+      return crop.variants.map((canvas, variant) => {
+        const x = variant * 600;
+        mosaicContext.fillStyle = "black";
+        mosaicContext.font = "32px Arial, sans-serif";
+        mosaicContext.fillText("Value =", x + 15, y + Math.min(100, cellHeight - 30));
+        if (bounds) {
+          const scale = Math.min(3, Math.min(100, cellHeight - 40) / bounds.height, 300 / bounds.width);
+          mosaicContext.drawImage(canvas, bounds.x, bounds.y, bounds.width, bounds.height,
+            x + 165, y + 20, bounds.width * scale, bounds.height * scale);
+        }
+        return { x: x + 160, y: y + 10, width: 350, height: cellHeight - 30 };
+      });
+    };
+    const readings = crop.fraction
+      ? { fraction: { numerator: drawSamples(crop.fraction.numerator), denominator: drawSamples(crop.fraction.denominator) } }
+      : { samples: drawSamples(crop.bounds) };
+    regions.push({ ordinal: crop.ordinal, x: 0, y: startY, width: mosaic.width,
+      height: (crop.fraction ? 2 : 1) * cellHeight, ...readings });
   }
   return { answers, numericImageDataUrl: numericItems.length ? mosaic.toDataURL("image/png") : null, regions, warnings, markers };
 }

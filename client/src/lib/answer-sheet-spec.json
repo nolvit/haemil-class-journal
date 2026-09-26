@@ -1,14 +1,15 @@
 {
-  "version": 3,
+  "version": 4,
   "units": "0.1mm",
   "page": {"width": 2100, "height": 2970, "orientation": "portrait"},
   "fiducials": {"size": 60, "centers": [[100, 100], [2000, 100], [2000, 2870], [100, 2870]]},
-  "rows": {"max": 40, "perColumn": 20, "firstCenterY": 430, "pitchY": 110},
+  "layoutMarker": {"center": [1050, 100], "size": 60},
+  "rows": {"max": 20, "perColumn": 10, "firstCenterY": 480, "pitchY": 220},
   "columns": [
-    {"numberX": 250, "choiceXs": [400, 535, 670, 805, 940], "numericX": 390},
-    {"numberX": 1110, "choiceXs": [1250, 1385, 1520, 1655, 1790], "numericX": 1240}
+    {"numberX": 250, "choiceXs": [400, 535, 670, 805, 940], "numericX": 510},
+    {"numberX": 1110, "choiceXs": [1250, 1385, 1520, 1655, 1790], "numericX": 1360}
   ],
   "choice": {"radius": 35},
-  "numeric": {"centerOffsetY": -45, "width": 560, "height": 90},
+  "numeric": {"centerOffsetY": -90, "width": 320, "height": 180},
   "identity": {"method": "visible assignment code and page number; uploader chooses page"}
 }

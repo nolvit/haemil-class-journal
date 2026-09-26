@@ -18,6 +18,7 @@ const issueSchema = z.object({
   studentId: z.number().int().positive(),
   idempotencyKey: z.string().min(8).max(128),
   title: z.string().trim().min(1).max(200).optional(),
+  answerSheetVersion: z.union([z.literal(3), z.literal(4)]).optional(),
   questions: z.array(questionSchema).min(1).max(150),
 }).strict();
 

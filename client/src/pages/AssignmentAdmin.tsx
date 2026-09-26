@@ -5,17 +5,14 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { trpc } from "@/lib/trpc";
+import { formatAssignmentTimestamp } from "@shared/assignmentDates";
 import { ClipboardCheck, RefreshCw, Trash2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { RestrictedPage } from "./Students";
 
 function formatDate(value: string | Date) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatAssignmentTimestamp(value);
 }
 
 export default function AssignmentAdmin() {

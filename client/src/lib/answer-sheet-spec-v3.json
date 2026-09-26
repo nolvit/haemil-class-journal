@@ -1,0 +1,14 @@
+{
+  "version": 3,
+  "units": "0.1mm",
+  "page": {"width": 2100, "height": 2970, "orientation": "portrait"},
+  "fiducials": {"size": 60, "centers": [[100, 100], [2000, 100], [2000, 2870], [100, 2870]]},
+  "rows": {"max": 40, "perColumn": 20, "firstCenterY": 430, "pitchY": 110},
+  "columns": [
+    {"numberX": 250, "choiceXs": [400, 535, 670, 805, 940], "numericX": 390},
+    {"numberX": 1110, "choiceXs": [1250, 1385, 1520, 1655, 1790], "numericX": 1240}
+  ],
+  "choice": {"radius": 35},
+  "numeric": {"centerOffsetY": -45, "width": 560, "height": 90},
+  "identity": {"method": "visible assignment code and page number; uploader chooses page"}
+}

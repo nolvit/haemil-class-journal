@@ -5,8 +5,8 @@ import {
   getAdminMathAssignmentPhoto, getMathOcrUsage, getPublicMathAssignment,
   listAdminMathAssignments, listPublicMathAssignments, regradeMathAssignment,
   setMathOcrPaidAllowance, submitMathAssignment, currentMathOcrMonth,
-  mathAssignmentRowsPerPage,
 } from "../mathAssignmentStore";
+import { maxMathAssignmentPages, maxMathAssignmentRowsPerPage } from "../../shared/mathAssignmentLayout";
 import { recognizeMathAssignmentPage } from "../mathAssignmentOcr";
 
 const assignmentId = z.string().uuid();
@@ -15,7 +15,20 @@ const familyScope = z.object({
   studentId: z.number().int().positive(),
 });
 const reason = z.string().trim().min(1).max(500);
-const maxAnswerSheetPages = Math.ceil(150 / mathAssignmentRowsPerPage);
+const maxAnswerSheetPages = maxMathAssignmentPages;
+const mathOcrRect = z.object({
+  x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
+  width: z.number().int().positive(), height: z.number().int().positive(),
+}).strict();
+export const mathOcrRegionSchema = mathOcrRect.extend({
+  ordinal: z.number().int().min(1).max(150),
+  samples: z.array(mathOcrRect).min(1).max(3).optional(),
+  fraction: z.object({
+    numerator: z.array(mathOcrRect).min(1).max(3),
+    denominator: z.array(mathOcrRect).min(1).max(3),
+  }).strict().optional(),
+}).strict().refine(region => !(region.samples && region.fraction),
+  { message: "일반 숫자와 분수 OCR 좌표를 동시에 지정할 수 없습니다." });
 
 export const mathAssignmentsRouter = router({
   publicList: publicProcedure.input(familyScope).query(({ input }) => listPublicMathAssignments(input.token, input.studentId)),
@@ -24,9 +37,7 @@ export const mathAssignmentsRouter = router({
   recognizePage: publicProcedure.input(familyScope.extend({
     assignmentId, code: z.string().min(1).max(20), pageNumber: z.number().int().min(1).max(maxAnswerSheetPages),
     imageDataUrl: z.string().max(8_500_000),
-    regions: z.array(z.object({ ordinal: z.number().int().min(1).max(150),
-      x: z.number().int().nonnegative(), y: z.number().int().nonnegative(),
-      width: z.number().int().positive(), height: z.number().int().positive() }).strict()).min(1).max(mathAssignmentRowsPerPage),
+    regions: z.array(mathOcrRegionSchema).min(1).max(maxMathAssignmentRowsPerPage),
   })).mutation(({ input }) => recognizeMathAssignmentPage(input)),
   submit: publicProcedure.input(familyScope.extend({
     assignmentId, code: z.string().min(1).max(20),

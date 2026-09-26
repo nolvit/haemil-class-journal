@@ -4,10 +4,9 @@ import { TRPCError } from "@trpc/server";
 import { getPortalFamilyByToken } from "./db";
 import { gradeAnswer, isSupportedAnswerKey, normalizeChoice, type GradingRule } from "./mathAssignmentRules";
 import allowedManifest from "../shared/autoGradeAllowlist.json";
-import answerSheetSpec from "../client/src/lib/answer-sheet-spec.json";
 import { deleteMathbankAssignmentCopy } from "./mathbankAssignmentDelete";
-
-export const mathAssignmentRowsPerPage = answerSheetSpec.rows.max;
+import { assignmentTimestampIso } from "../shared/assignmentDates";
+import { mathAssignmentRowsPerPageForVersion, normalizeAnswerSheetVersion, type MathAnswerSheetVersion } from "../shared/mathAssignmentLayout";
 
 const allowedIds = new Set<string>(allowedManifest.questionIds);
 if (allowedManifest.version !== 1 || allowedIds.size !== 1484 || allowedManifest.questionIds.length !== 1484)
@@ -27,11 +26,13 @@ export type IssueAssignmentInput = {
   studentId: number;
   idempotencyKey: string;
   title?: string;
+  answerSheetVersion?: MathAnswerSheetVersion;
   questions: AssignmentItemInput[];
 };
 type AssignmentRow = RowDataPacket & {
   id: string; code: string; studentId: number; studentName?: string; title: string;
   status: "open" | "closed"; retryGrants: number; createdAt: string; questionCount?: number; attemptCount?: number;
+  answerSheetVersion: MathAnswerSheetVersion;
 };
 type ItemRow = RowDataPacket & {
   assignmentId: string; ordinal: number; questionId: string; answerType: "choice" | "numeric";
@@ -58,10 +59,19 @@ export async function ensureMathAssignmentSchema() {
       sourceBasketId VARCHAR(128) NOT NULL, studentId INT NOT NULL,
       idempotencyKey VARCHAR(128) NOT NULL UNIQUE, requestHash VARCHAR(64) NOT NULL,
       title VARCHAR(200) NOT NULL, status ENUM('open','closed') NOT NULL DEFAULT 'open',
+      answerSheetVersion TINYINT UNSIGNED NOT NULL DEFAULT 3,
       retryGrants INT NOT NULL DEFAULT 0,
       createdAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updatedAt TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       KEY math_assignments_student_index(studentId, createdAt))`);
+    const [versionColumn] = await db.query<RowDataPacket[]>("SHOW COLUMNS FROM math_assignments LIKE 'answerSheetVersion'");
+    if (!versionColumn.length) {
+      try {
+        await db.query("ALTER TABLE math_assignments ADD COLUMN answerSheetVersion TINYINT UNSIGNED NOT NULL DEFAULT 3");
+      } catch (error) {
+        if ((error as { code?: string }).code !== "ER_DUP_FIELDNAME") throw error;
+      }
+    }
     await db.query(`CREATE TABLE IF NOT EXISTS math_assignment_items (
       assignmentId VARCHAR(36) NOT NULL, ordinal INT NOT NULL,
       questionId VARCHAR(128) NOT NULL, answerType ENUM('choice','numeric') NOT NULL,
@@ -119,7 +129,7 @@ export async function ensureFamilyAssignmentAccess(token: string, studentId: num
 }
 
 function publicAttempt(row: AttemptRow) {
-  return { id: row.id, submittedAt: row.submittedAt, score: row.score, total: row.total,
+  return { id: row.id, submittedAt: assignmentTimestampIso(row.submittedAt), score: row.score, total: row.total,
     photoPages: JSON.parse(row.photoPages) as number[],
     results: JSON.parse(row.results) as Array<{ ordinal: number; submittedAnswer: string; correct: boolean; correctAnswer: string }> };
 }
@@ -128,12 +138,16 @@ function publicAssignment(row: AssignmentRow) {
   const attemptCount = Number(row.attemptCount ?? 0);
   return { id: row.id, title: row.title, code: row.code, studentId: row.studentId,
     studentName: row.studentName, questionCount: Number(row.questionCount ?? 0),
-    createdAt: row.createdAt, status: row.status, attemptCount,
+    createdAt: assignmentTimestampIso(row.createdAt), status: row.status, attemptCount,
+    answerSheetVersion: normalizeAnswerSheetVersion(row.answerSheetVersion),
     canSubmit: row.status === "open" && attemptCount <= row.retryGrants };
 }
 
 export async function issueMathAssignment(input: IssueAssignmentInput) {
   await ensureMathAssignmentSchema();
+  if (input.answerSheetVersion !== undefined && input.answerSheetVersion !== 3 && input.answerSheetVersion !== 4)
+    badRequest("답안지 양식 버전이 올바르지 않습니다.");
+  const answerSheetVersion = normalizeAnswerSheetVersion(input.answerSheetVersion);
   if (input.questions.length < 1 || input.questions.length > 150) badRequest("문항은 1~150개여야 합니다.");
   const seen = new Set<string>();
   for (const [index, item] of input.questions.entries()) {
@@ -146,6 +160,8 @@ export async function issueMathAssignment(input: IssueAssignmentInput) {
       badRequest(`문항 ${index + 1}의 정답 형식을 확인해 주세요.`);
   }
   const normalized = { sourceBasketId: input.sourceBasketId, studentId: input.studentId,
+    // Keep the v3 hash identical to already issued, versionless requests.
+    ...(answerSheetVersion === 4 ? { answerSheetVersion } : {}),
     title: input.title || "수학 인쇄 과제", questions: input.questions.map(item => ({ ...item,
       exactForm: item.exactForm ?? false })) };
   const requestHash = createHash("sha256").update(JSON.stringify(normalized)).digest("hex");
@@ -157,7 +173,7 @@ export async function issueMathAssignment(input: IssueAssignmentInput) {
     if (existing.length) {
       if (existing[0].requestHash !== requestHash) badRequest("동일 발행 키에 다른 과제 내용이 사용됐습니다.");
       await connection.commit();
-      return { assignmentId: existing[0].id, code: existing[0].code, createdAt: existing[0].createdAt, alreadyExisted: true };
+      return { assignmentId: existing[0].id, code: existing[0].code, createdAt: assignmentTimestampIso(existing[0].createdAt), alreadyExisted: true };
     }
     const [students] = await connection.query<(RowDataPacket & { active: number; portalEnabled: number })[]>(
       "SELECT active,portalEnabled FROM students WHERE id=? LIMIT 1", [input.studentId]);
@@ -165,20 +181,21 @@ export async function issueMathAssignment(input: IssueAssignmentInput) {
     if (!students[0].portalEnabled) badRequest("학생의 보호자 페이지를 활성화한 뒤 과제를 발행해 주세요.");
     const id = randomUUID();
     const code = randomBytes(7).toString("base64url").toUpperCase();
-    await connection.query("INSERT INTO math_assignments(id,code,sourceBasketId,studentId,idempotencyKey,requestHash,title) VALUES(?,?,?,?,?,?,?)",
-      [id, code, input.sourceBasketId, input.studentId, input.idempotencyKey, requestHash, normalized.title]);
+    await connection.query("INSERT INTO math_assignments(id,code,sourceBasketId,studentId,idempotencyKey,requestHash,title,answerSheetVersion) VALUES(?,?,?,?,?,?,?,?)",
+      [id, code, input.sourceBasketId, input.studentId, input.idempotencyKey, requestHash, normalized.title, answerSheetVersion]);
     for (const item of normalized.questions)
       await connection.query("INSERT INTO math_assignment_items(assignmentId,ordinal,questionId,answerType,answerKey,gradingRule,exactForm,questionLabel) VALUES(?,?,?,?,?,?,?,?)",
         [id, item.order, item.questionId, item.answerType, item.answerKey, item.gradingRule, item.exactForm, item.questionLabel ?? null]);
+    const [created] = await connection.query<AssignmentRow[]>("SELECT createdAt FROM math_assignments WHERE id=?", [id]);
     await connection.commit();
-    return { assignmentId: id, code, createdAt: new Date().toISOString(), alreadyExisted: false };
+    return { assignmentId: id, code, createdAt: assignmentTimestampIso(created[0].createdAt), alreadyExisted: false };
   } catch (error) {
     await connection.rollback();
     if ((error as { code?: string }).code === "ER_DUP_ENTRY") {
       const [rows] = await database().query<(AssignmentRow & { requestHash: string })[]>(
         "SELECT id,code,requestHash,createdAt FROM math_assignments WHERE idempotencyKey=?", [input.idempotencyKey]);
       if (rows[0]?.requestHash === requestHash)
-        return { assignmentId: rows[0].id, code: rows[0].code, createdAt: rows[0].createdAt, alreadyExisted: true };
+        return { assignmentId: rows[0].id, code: rows[0].code, createdAt: assignmentTimestampIso(rows[0].createdAt), alreadyExisted: true };
     }
     throw error;
   } finally { connection.release(); }
@@ -191,7 +208,8 @@ export async function getIssuedMathAssignment(assignmentId: string) {
   const items = await loadItems(database(), assignmentId);
   return { assignmentId: rows[0].id, code: rows[0].code, studentId: rows[0].studentId,
     sourceBasketId: (rows[0] as AssignmentRow & { sourceBasketId: string }).sourceBasketId,
-    title: rows[0].title, status: rows[0].status, createdAt: rows[0].createdAt,
+    title: rows[0].title, status: rows[0].status, createdAt: assignmentTimestampIso(rows[0].createdAt),
+    answerSheetVersion: normalizeAnswerSheetVersion(rows[0].answerSheetVersion),
     questions: items.map(item => ({ questionId: item.questionId, order: item.ordinal,
       answerType: item.answerType, answerKey: item.answerKey, gradingRule: item.gradingRule,
       exactForm: !!item.exactForm, questionLabel: item.questionLabel })) };
@@ -252,6 +270,7 @@ export async function submitMathAssignment(input: { token: string; studentId: nu
     const [rows] = await connection.query<AssignmentRow[]>("SELECT * FROM math_assignments WHERE id=? AND studentId=? FOR UPDATE", [input.assignmentId, input.studentId]);
     const assignment = rows[0];
     if (!assignment || assignment.code !== input.code) forbidden();
+    const rowsPerPage = mathAssignmentRowsPerPageForVersion(assignment.answerSheetVersion);
     const items = await loadItems(connection, input.assignmentId);
     const attempts = await loadAttempts(connection, input.assignmentId);
     if (assignment.status !== "open" || attempts.length > assignment.retryGrants) badRequest("현재 제출할 수 없는 과제입니다.");
@@ -275,10 +294,10 @@ export async function submitMathAssignment(input: { token: string; studentId: nu
         correctAnswer: item.answerKey };
     });
     const photos = input.photos ?? [];
-    if (photos.length > Math.min(10, Math.ceil(items.length / mathAssignmentRowsPerPage))) badRequest("답안지 장수가 올바르지 않습니다.");
+    if (photos.length > Math.ceil(items.length / rowsPerPage)) badRequest("답안지 장수가 올바르지 않습니다.");
     const photoPages = new Set<number>();
     const imageRows = photos.map(photo => {
-      if (photo.pageNumber < 1 || photo.pageNumber > Math.ceil(items.length / mathAssignmentRowsPerPage) || photoPages.has(photo.pageNumber)) badRequest("사진 페이지 번호가 올바르지 않습니다.");
+      if (photo.pageNumber < 1 || photo.pageNumber > Math.ceil(items.length / rowsPerPage) || photoPages.has(photo.pageNumber)) badRequest("사진 페이지 번호가 올바르지 않습니다.");
       photoPages.add(photo.pageNumber);
       return { pageNumber: photo.pageNumber, ...parseImageDataUrl(photo.imageDataUrl) };
     });
@@ -289,8 +308,9 @@ export async function submitMathAssignment(input: { token: string; studentId: nu
     for (const photo of imageRows)
       await connection.query("INSERT INTO math_assignment_photos(id,attemptId,pageNumber,mimeType,image,expiresAt) VALUES(?,?,?,?,?,DATE_ADD(NOW(),INTERVAL 30 DAY))",
         [randomUUID(), id, photo.pageNumber, photo.mimeType, photo.bytes]);
+    const [submitted] = await connection.query<AttemptRow[]>("SELECT submittedAt FROM math_assignment_attempts WHERE id=?", [id]);
     await connection.commit();
-    return { attemptId: id, score, total: items.length, results, submittedAt: new Date().toISOString() };
+    return { attemptId: id, score, total: items.length, results, submittedAt: assignmentTimestampIso(submitted[0].submittedAt) };
   } catch (error) { await connection.rollback(); throw error; }
   finally { connection.release(); }
 }
@@ -474,7 +494,12 @@ export async function getMathOcrUsage() {
   return { month, used: rows[0]?.used ?? 0, freeLimit: 1000, paidAllowance: rows[0]?.paidAllowance ?? 0,
     configured: !!(process.env.GOOGLE_VISION_API_KEY?.trim() || process.env.GOOGLE_VISION_SERVICE_ACCOUNT_JSON) };
 }
-export type MathOcrRegion = { ordinal: number; x: number; y: number; width: number; height: number };
+export type MathOcrRect = { x: number; y: number; width: number; height: number };
+export type MathOcrRegion = MathOcrRect & {
+  ordinal: number;
+  samples?: MathOcrRect[];
+  fraction?: { numerator: MathOcrRect[]; denominator: MathOcrRect[] };
+};
 export async function beginMathOcrRequest(input: { token: string; studentId: number; assignmentId: string;
   code: string; pageNumber: number; imageHash: string; regions: MathOcrRegion[] }) {
   await ensureFamilyAssignmentAccess(input.token, input.studentId);
@@ -486,13 +511,14 @@ export async function beginMathOcrRequest(input: { token: string; studentId: num
     const [rows] = await connection.query<AssignmentRow[]>("SELECT * FROM math_assignments WHERE id=? AND studentId=? FOR UPDATE", [input.assignmentId, input.studentId]);
     const assignment = rows[0];
     if (!assignment || assignment.code !== input.code) forbidden();
+    const rowsPerPage = mathAssignmentRowsPerPageForVersion(assignment.answerSheetVersion);
     const items = await loadItems(connection, input.assignmentId);
-    if (input.pageNumber < 1 || input.pageNumber > Math.ceil(items.length / mathAssignmentRowsPerPage)) badRequest("답안지 페이지가 올바르지 않습니다.");
-    if (!input.regions.length || input.regions.length > mathAssignmentRowsPerPage || new Set(input.regions.map(region => region.ordinal)).size !== input.regions.length)
+    if (input.pageNumber < 1 || input.pageNumber > Math.ceil(items.length / rowsPerPage)) badRequest("답안지 페이지가 올바르지 않습니다.");
+    if (!input.regions.length || input.regions.length > rowsPerPage || new Set(input.regions.map(region => region.ordinal)).size !== input.regions.length)
       badRequest("수치 답란 위치가 올바르지 않습니다.");
     for (const region of input.regions) {
       const item = items.find(item => item.ordinal === region.ordinal);
-      if (!item || item.answerType !== "numeric" || Math.ceil(item.ordinal / mathAssignmentRowsPerPage) !== input.pageNumber) badRequest("수치 답란과 문항이 일치하지 않습니다.");
+      if (!item || item.answerType !== "numeric" || Math.ceil(item.ordinal / rowsPerPage) !== input.pageNumber) badRequest("수치 답란과 문항이 일치하지 않습니다.");
     }
     const [attempts] = await connection.query<(RowDataPacket & { count: number })[]>(
       "SELECT COUNT(*) AS count FROM math_assignment_attempts WHERE assignmentId=?", [input.assignmentId]);

@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  answerSheetGeometry,
+  answerSheetGeometryForVersion,
   detectAnswerSheetMarkers,
   prepareAnswerSheetPhoto,
   recognizeAnswerSheet,
@@ -11,6 +11,7 @@ import {
   type PreparedPhoto,
 } from "@/lib/answerSheetRecognition";
 import { trpc } from "@/lib/trpc";
+import { formatAssignmentTimestamp } from "@shared/assignmentDates";
 import { Camera, CheckCircle2, ClipboardCheck, PencilLine, Upload } from "lucide-react";
 import React, { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -27,10 +28,12 @@ type PendingPhoto = {
 export function AnswerEntryGrid({
   items,
   answers,
+  candidates = {},
   onChange,
 }: {
   items: Array<{ ordinal: number; answerType: "choice" | "numeric" }>;
   answers: Record<number, string>;
+  candidates?: Record<number, string>;
   onChange: (ordinal: number, value: string) => void;
 }) {
   return <div className="mt-3 grid max-h-[65vh] gap-2 overflow-auto sm:grid-cols-2">
@@ -39,17 +42,16 @@ export function AnswerEntryGrid({
       {item.answerType === "choice" ? <div className="mt-2 flex flex-wrap gap-1">
         {choiceLabels.map((label, index) => <button key={label} type="button" aria-label={`${item.ordinal}번 ${label}`} aria-pressed={answers[item.ordinal] === String(index + 1)} className={`h-9 w-9 rounded-full border text-sm ${answers[item.ordinal] === String(index + 1) ? "border-[#315B57] bg-[#315B57] text-white" : "border-[#D5DCD7] bg-white text-[#315B57]"}`} onClick={() => onChange(item.ordinal, String(index + 1))}>{label}</button>)}
         <Button size="sm" variant="ghost" onClick={() => onChange(item.ordinal, "")}>비움</Button>
-      </div> : <Input type="text" inputMode="text" autoComplete="off" aria-label={`${item.ordinal}번 수치 답`} placeholder="숫자만 입력 (예: 1/2, 5)" value={answers[item.ordinal] ?? ""} onChange={event => onChange(item.ordinal, event.target.value)} className="mt-2 bg-white" />}
+      </div> : <>
+        <Input type="text" inputMode="text" autoComplete="off" aria-label={`${item.ordinal}번 수치 답`} placeholder="숫자만 입력 (예: 1/2, 5)" value={answers[item.ordinal] ?? ""} onChange={event => onChange(item.ordinal, event.target.value)} className="mt-2 bg-white" />
+        {candidates[item.ordinal]?.trim() && answers[item.ordinal] !== candidates[item.ordinal] && <button type="button" aria-label={`${item.ordinal}번 인식 후보 ${candidates[item.ordinal]} 입력`} className="mt-2 rounded-md border border-[#E8D4AA] bg-[#FFF9E9] px-2 py-1 text-xs text-[#775B25] hover:bg-[#FFF1CF]" onClick={() => onChange(item.ordinal, candidates[item.ordinal])}>인식 후보 {candidates[item.ordinal]} · 입력</button>}
+      </>}
     </div>)}
   </div>;
 }
 
 function formatSubmittedAt(value: string | Date) {
-  return new Intl.DateTimeFormat("ko-KR", {
-    timeZone: "Asia/Seoul",
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatAssignmentTimestamp(value);
 }
 
 /** Printed problems stay on paper; the parent page shows only answer numbers. */
@@ -62,12 +64,14 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const selectedInList = selectedId !== null && Boolean(list.data?.assignments.some(item => item.id === selectedId));
   const contextRef = useRef("");
+  const photoRequestRef = useRef(0);
   contextRef.current = `${token}:${studentId}:${selectedId ?? ""}`;
   const detail = trpc.academy.assignments.publicDetail.useQuery(
     { token, studentId, assignmentId: selectedId ?? "" },
     { enabled: selectedInList, refetchInterval: 30_000 }
   );
   const [answers, setAnswers] = useState<Record<number, string>>({});
+  const [candidates, setCandidates] = useState<Record<number, string>>({});
   const [photos, setPhotos] = useState<Record<number, string>>({});
   const [pendingPhoto, setPendingPhoto] = useState<PendingPhoto | null>(null);
   const [manualMarkers, setManualMarkers] = useState(false);
@@ -90,6 +94,7 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
       setReviewChecked(false);
       setPendingPhoto(null);
       setPhotos({});
+      setCandidates({});
       void utils.academy.assignments.publicList.invalidate();
       void utils.academy.assignments.publicDetail.invalidate();
       toast.success("답안을 제출하고 채점했습니다.");
@@ -99,6 +104,7 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
   useEffect(() => {
     setSelectedId(null);
     setAnswers({});
+    setCandidates({});
     setPhotos({});
     setPendingPhoto(null);
     setLatestResult(null);
@@ -109,6 +115,7 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
   }, [list.data, selectedId]);
   useEffect(() => {
     setAnswers({});
+    setCandidates({});
     setPhotos({});
     setPendingPhoto(null);
     setPhotoWarnings([]);
@@ -124,17 +131,26 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
   }, [detail.data?.canSubmit, detail.data?.attempts, latestResult]);
 
   const assignment = selectedInList && !detail.error ? detail.data : undefined;
+  const answerSheetVersion = assignment?.answerSheetVersion ?? 3;
+  const answerSheetGeometry = answerSheetGeometryForVersion(answerSheetVersion);
   const pageCount = Math.ceil((assignment?.items.length ?? 0) / answerSheetGeometry.rowsPerPage);
+
+  function clearPageCandidates(pageNumber: number) {
+    setCandidates(previous => Object.fromEntries(Object.entries(previous)
+      .filter(([ordinal]) => Math.ceil(Number(ordinal) / answerSheetGeometry.rowsPerPage) !== pageNumber)));
+  }
 
   async function loadPhoto(file: File) {
     if (!file.type.startsWith("image/")) { toast.error("이미지 파일을 선택해 주세요."); return; }
     const contextKey = contextRef.current;
+    const requestId = ++photoRequestRef.current;
     setProcessingPhoto(true);
     setPageNumberConfirmed(false);
     setPhotoWarnings([]);
+    clearPageCandidates(selectedPageNumber);
     try {
       const prepared = await prepareAnswerSheetPhoto(file);
-      if (contextRef.current !== contextKey) return;
+      if (contextRef.current !== contextKey || photoRequestRef.current !== requestId) return;
       const markers = detectAnswerSheetMarkers(prepared.canvas) ?? [];
       setPendingPhoto({ pageNumber: selectedPageNumber, prepared, markers });
       setManualMarkers(markers.length !== 4);
@@ -159,12 +175,15 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
   async function scanPhoto() {
     if (!pendingPhoto || !assignment || pendingPhoto.markers.length !== 4 || !pageNumberConfirmed) return;
     const contextKey = contextRef.current;
+    const requestId = ++photoRequestRef.current;
     setProcessingPhoto(true);
     setPhotoWarnings([]);
+    clearPageCandidates(pendingPhoto.pageNumber);
     try {
       const currentPageItems = assignment.items.filter(item => Math.ceil(item.ordinal / answerSheetGeometry.rowsPerPage) === pendingPhoto.pageNumber);
-      const scanned = recognizeAnswerSheet(pendingPhoto.prepared, currentPageItems, pendingPhoto.markers);
+      const scanned = recognizeAnswerSheet(pendingPhoto.prepared, currentPageItems, pendingPhoto.markers, answerSheetVersion);
       const pageAnswers: Record<number, string> = Object.fromEntries(currentPageItems.map(item => [item.ordinal, ""]));
+      const pageCandidates: Record<number, string> = {};
       for (const answer of scanned.answers) pageAnswers[answer.ordinal] = answer.value;
       const warnings = [...scanned.warnings];
       if (scanned.numericImageDataUrl) {
@@ -178,9 +197,12 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
           });
           for (const answer of recognized.answers) {
             if (answer.confidence === "high") pageAnswers[answer.ordinal] = answer.value;
-            else warnings.push(answer.value
-              ? `${answer.ordinal}번 숫자 인식 후보 ${answer.value}을(를) 확인하고 직접 입력해 주세요.`
-              : `${answer.ordinal}번 숫자 인식이 불확실합니다. 직접 확인해 주세요.`);
+            else {
+              if (answer.value.trim()) pageCandidates[answer.ordinal] = answer.value;
+              warnings.push(answer.value
+                ? `${answer.ordinal}번 숫자 인식 후보 ${answer.value}을(를) 확인하고 직접 입력해 주세요.`
+                : `${answer.ordinal}번 숫자 인식이 불확실합니다. 직접 확인해 주세요.`);
+            }
           }
         } catch (error) {
           const message = error instanceof Error ? error.message : "숫자 답 인식에 실패했습니다.";
@@ -188,8 +210,9 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
           toast.message("숫자 OCR을 사용할 수 없어 직접 입력으로 전환했습니다.");
         }
       }
-      if (contextRef.current !== contextKey) return;
+      if (contextRef.current !== contextKey || photoRequestRef.current !== requestId) return;
       setAnswers(previous => ({ ...previous, ...pageAnswers }));
+      setCandidates(previous => ({ ...previous, ...pageCandidates }));
       setPhotos(previous => ({ ...previous, [pendingPhoto.pageNumber]: pendingPhoto.prepared.imageDataUrl }));
       setPhotoWarnings(warnings);
       setReviewChecked(false);
@@ -251,6 +274,7 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
                 {photos[selectedPageNumber] && <Badge className="bg-[#E5F0E9] text-[#2F7154]">{selectedPageNumber}쪽 인식 완료</Badge>}
               </div>
               <p className="mt-2 text-xs text-[#71817D]">사진이 없거나 OCR 한도에 도달해도 아래 답안 칸에 직접 입력할 수 있습니다. 휴대전화 키보드의 받아쓰기도 사용할 수 있습니다.</p>
+              <p className="mt-1 text-xs text-[#71817D]">종이에는 분수를 위아래로 써도 됩니다. 직접 입력할 때는 1/2처럼 쓰고, 단위는 생략해 주세요.</p>
               {pendingPhoto && <div className="mt-4 rounded-lg border border-[#D1DDD7] bg-white p-3">
                 <p className="text-sm font-semibold text-[#193D3C]">{pendingPhoto.pageNumber}쪽 사진 확인</p>
                 <p className="mt-1 text-xs text-[#71817D]">{manualMarkers ? `검은 기준 사각형을 ${markerNames[pendingPhoto.markers.length] ?? "모두"}부터 차례대로 눌러 주세요.` : "초록 점이 네 모서리의 검은 사각형 중앙에 있는지 확인하세요."}</p>
@@ -268,7 +292,7 @@ export default function ParentAssignments({ token, studentId, showEmptyState = f
             </div>
             <div className="mt-5 flex items-center gap-2"><PencilLine className="h-4 w-4 text-[#315B57]" /><h4 className="font-semibold text-[#193D3C]">답안 확인·수정</h4></div>
             <p className="mt-1 text-xs text-[#71817D]">사진 인식 후에도 모든 번호의 답을 확인해 주세요. 빈칸은 미입력으로 채점됩니다.</p>
-            <AnswerEntryGrid items={assignment.items} answers={answers} onChange={(ordinal, value) => { setAnswers(previous => ({ ...previous, [ordinal]: value })); setReviewChecked(false); }} />
+            <AnswerEntryGrid items={assignment.items} answers={answers} candidates={candidates} onChange={(ordinal, value) => { setAnswers(previous => ({ ...previous, [ordinal]: value })); setReviewChecked(false); }} />
             <div className="mt-5 rounded-xl border border-[#C9DCD1] bg-[#F0F7F2] p-4"><label className="flex items-start gap-2 text-sm text-[#315B57]"><input type="checkbox" checked={reviewChecked} onChange={event => setReviewChecked(event.target.checked)} className="mt-1" /><span>모든 번호의 인식 답과 직접 입력 답을 확인했습니다. 제출하면 채점 결과와 정답이 즉시 보이며, 추가 제출은 교사가 허용해야 합니다.</span></label><Button className="mt-3 journal-primary-button" disabled={!reviewChecked || submit.isPending || processingPhoto || Boolean(pendingPhoto)} onClick={submitAnswers}>{submit.isPending ? "채점 중…" : "답안 제출·채점"}</Button></div>
           </>}
         </div>}

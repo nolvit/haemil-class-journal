@@ -53,6 +53,16 @@ describe("mathbank assignment integration", () => {
     expect(response.status).toBe(400);
     expect(issue).not.toHaveBeenCalled();
   });
+  it("accepts the new sheet version and rejects unknown versions", async () => {
+    const issue = vi.fn().mockResolvedValue({ assignmentId: id, code: "PAPER1", createdAt: "2026-09-26T00:00:00Z", alreadyExisted: false });
+    const body = { sourceBasketId: "basket-1", studentId: 17, idempotencyKey: "attempt-key-1", answerSheetVersion: 4,
+      questions: [{ questionId: "one", order: 1, answerType: "choice", answerKey: "①", gradingRule: "exact" }] };
+    expect((await call({ ...valid, issue }, "POST", "/assignments", `Bearer ${token}`, body)).status).toBe(201);
+    expect(issue).toHaveBeenCalledWith(body);
+    issue.mockClear();
+    expect((await call({ ...valid, issue }, "POST", "/assignments", `Bearer ${token}`, { ...body, answerSheetVersion: 5 })).status).toBe(400);
+    expect(issue).not.toHaveBeenCalled();
+  });
   it("exposes the issued snapshot only to the write token", async () => {
     const getIssued = vi.fn().mockResolvedValue({ assignmentId: id, questions: [{ answerKey: "1" }] });
     const response = await call({ ...valid, getIssued }, "GET", `/assignments/${id}`, `Bearer ${token}`);

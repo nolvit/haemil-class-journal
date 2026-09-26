@@ -2,10 +2,10 @@ import { createHash, createSign } from "node:crypto";
 import { TRPCError } from "@trpc/server";
 import {
   beginMathOcrRequest, failMathOcrRequest, finishMathOcrRequest,
-  getMathOcrUsage, parseImageDataUrl, type MathOcrRegion,
+  getMathOcrUsage, parseImageDataUrl, type MathOcrRect, type MathOcrRegion,
   getPublicMathAssignment,
-  mathAssignmentRowsPerPage,
 } from "./mathAssignmentStore";
+import { mathAssignmentRowsPerPageForVersion } from "../shared/mathAssignmentLayout";
 import { isSupportedAnswerKey } from "./mathAssignmentRules";
 
 type VisionWord = { text: string; confidence: number; x: number; y: number };
@@ -54,9 +54,11 @@ async function visionAuthHeaders(): Promise<Record<string, string>> {
   return { Authorization: `Bearer ${await accessToken(serviceAccount())}` };
 }
 
-type VisionSymbol = { text?: string };
+type VisionVertex = { x?: number; y?: number };
+type VisionBox = { vertices?: VisionVertex[] };
+type VisionSymbol = { text?: string; confidence?: number; boundingBox?: VisionBox };
 type VisionParagraph = { words?: Array<{ symbols?: VisionSymbol[]; confidence?: number;
-  boundingBox?: { vertices?: Array<{ x?: number; y?: number }> } }> };
+  boundingBox?: VisionBox }> };
 type VisionResponse = { responses?: Array<{ error?: { message?: string };
   fullTextAnnotation?: { pages?: Array<{ blocks?: Array<{ paragraphs?: VisionParagraph[] }> }> } }> };
 
@@ -73,12 +75,17 @@ export async function googleVisionWords(base64Image: string): Promise<VisionWord
   const result = body.responses?.[0];
   if (result?.error) throw new Error(`Google Vision ${result.error.message || "feature error"}`);
   return (result?.fullTextAnnotation?.pages ?? []).flatMap(page => (page.blocks ?? []).flatMap(block =>
-    (block.paragraphs ?? []).flatMap(paragraph => (paragraph.words ?? []).map(word => {
-      const vertices = word.boundingBox?.vertices ?? [];
-      return { text: (word.symbols ?? []).map(symbol => symbol.text || "").join(""),
-        confidence: word.confidence ?? 0, x: vertices.reduce((sum, vertex) => sum + (vertex.x ?? 0), 0) / (vertices.length || 1),
-        y: vertices.reduce((sum, vertex) => sum + (vertex.y ?? 0), 0) / (vertices.length || 1) };
-    }))));
+    (block.paragraphs ?? []).flatMap(paragraph => (paragraph.words ?? []).flatMap(word =>
+      (word.symbols ?? []).flatMap(symbol => {
+        const vertices = symbol.boundingBox?.vertices ?? word.boundingBox?.vertices ?? [];
+        if (!symbol.text || !vertices.length) return [];
+        if (vertices.length >= 2 &&
+            Math.abs((vertices[1]!.y ?? 0) - (vertices[0]!.y ?? 0)) >
+            Math.abs((vertices[1]!.x ?? 0) - (vertices[0]!.x ?? 0))) return [];
+        return [{ text: symbol.text, confidence: symbol.confidence ?? word.confidence ?? 0,
+          x: vertices.reduce((sum, vertex) => sum + (vertex.x ?? 0), 0) / vertices.length,
+          y: vertices.reduce((sum, vertex) => sum + (vertex.y ?? 0), 0) / vertices.length }];
+      })))));
 }
 
 function dimensions(bytes: Buffer, mimeType: string): { width: number; height: number } | null {
@@ -99,21 +106,114 @@ function dimensions(bytes: Buffer, mimeType: string): { width: number; height: n
   return null;
 }
 
+function insideRect(point: VisionWord, rect: MathOcrRect) {
+  return point.x >= rect.x && point.x <= rect.x + rect.width &&
+    point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+function rectSymbols(words: VisionWord[], rect: MathOcrRect) {
+  return words.filter(word => insideRect(word, rect)).sort((a, b) => a.x - b.x);
+}
+
+function normalizeOcrText(text: string) {
+  return text.normalize("NFKC").replace(/\s+/g, "").replace(/[−–—]/g, "-").replace(/[／]/g, "/").replace(/[：]/g, ":");
+}
+
+type OcrReading = { value: string; confidences: number[] };
+function readRect(words: VisionWord[], rect: MathOcrRect, kind: "numeric" | "integer"): OcrReading | null {
+  const symbols = rectSymbols(words, rect);
+  if (!symbols.length) return null;
+  const raw = symbols.map(symbol => symbol.text).join("").replace(/\s+/g, "");
+  // Restrict the actual Vision symbols before NFKC so circled numerals and
+  // other compatibility characters cannot silently turn into digits.
+  if (!/^[0-9０-９+＋\-－−–—.．/／:：]+$/.test(raw)) return null;
+  const value = normalizeOcrText(raw);
+  const valid = kind === "integer"
+    ? /^[+-]?\d+$/.test(value)
+    : /^[0-9+\-./:]+$/.test(value) &&
+      (isSupportedAnswerKey("numeric", value, "value") || isSupportedAnswerKey("numeric", value, "ratio"));
+  return valid ? { value, confidences: symbols.map(symbol => symbol.confidence) } : null;
+}
+
+function readingConfidence(readings: OcrReading[]) {
+  const confidences = readings.flatMap(reading => reading.confidences);
+  return confidences.reduce((sum, confidence) => sum + confidence, 0) / confidences.length;
+}
+
+function reconcileReadings(readings: Array<OcrReading | null>) {
+  const groups = new Map<string, OcrReading[]>();
+  for (const reading of readings) if (reading) {
+    const group = groups.get(reading.value) ?? [];
+    group.push(reading);
+    groups.set(reading.value, group);
+  }
+  if (!groups.size) return { value: "", confidence: "uncertain" as const };
+  const [value, matching] = [...groups.entries()].sort((a, b) =>
+    b[1].length - a[1].length || readingConfidence(b[1]) - readingConfidence(a[1]))[0]!;
+  // Even a high-confidence OCR word is unsafe if another independent image
+  // reading yields a different valid numeric answer (for example 5/2 vs 5/12).
+  const hasConflict = groups.size > 1;
+  const oneStrong = matching.some(reading => reading.confidences.every(confidence => confidence >= 0.8));
+  const consensus = matching.length >= 2 &&
+    matching.every(reading => reading.confidences.every(confidence => confidence >= 0.65)) &&
+    readingConfidence(matching) >= 0.8;
+  return { value, confidence: !hasConflict && (oneStrong || consensus) ? "high" as const : "uncertain" as const };
+}
+
 export function mapVisionWordsToRegions(words: VisionWord[], regions: MathOcrRegion[]) {
   return regions.map(region => {
-    const inside = words.filter(word => word.x >= region.x && word.x <= region.x + region.width &&
-      word.y >= region.y && word.y <= region.y + region.height).sort((a, b) => a.x - b.x);
-    const candidate = inside.map(word => word.text).join("").normalize("NFKC").replace(/\s+/g, "");
+    if (region.fraction) {
+      const numerator = reconcileReadings(region.fraction.numerator.map(rect => readRect(words, rect, "integer")));
+      const denominator = reconcileReadings(region.fraction.denominator.map(rect => readRect(words, rect, "integer")));
+      const candidate = numerator.value && denominator.value && !/^[+-]?0+$/.test(denominator.value)
+        ? `${numerator.value}/${denominator.value}` : "";
+      const value = candidate && isSupportedAnswerKey("numeric", candidate, "value") ? candidate : "";
+      return { ordinal: region.ordinal, value,
+        confidence: value && numerator.confidence === "high" && denominator.confidence === "high"
+          ? "high" as const : "uncertain" as const };
+    }
+    if (region.samples) {
+      return { ordinal: region.ordinal,
+        ...reconcileReadings(region.samples.map(rect => readRect(words, rect, "numeric"))) };
+    }
+    // Older clients send one region without subrectangles. Preserve that
+    // response contract while using symbol positions when Vision supplies them.
+    const inside = rectSymbols(words, region);
+    const candidate = normalizeOcrText(inside.map(symbol => symbol.text).join(""));
     const supported = isSupportedAnswerKey("numeric", candidate, "value") || isSupportedAnswerKey("numeric", candidate, "ratio");
     return { ordinal: region.ordinal, value: supported ? candidate : "",
-      confidence: supported && inside.every(word => word.confidence >= 0.8) ? "high" as const : "uncertain" as const };
+      confidence: supported && inside.every(symbol => symbol.confidence >= 0.8) ? "high" as const : "uncertain" as const };
   });
+}
+
+function validRect(rect: MathOcrRect, size: { width: number; height: number }) {
+  return [rect.x, rect.y, rect.width, rect.height].every(Number.isSafeInteger) &&
+    rect.x >= 0 && rect.y >= 0 && rect.width > 0 && rect.height > 0 &&
+    rect.x + rect.width <= size.width && rect.y + rect.height <= size.height;
+}
+
+export function validateMathOcrRegions(regions: MathOcrRegion[], size: { width: number; height: number }) {
+  for (const region of regions) {
+    if (!validRect(region, size) || (region.samples && region.fraction))
+      throw new TRPCError({ code: "BAD_REQUEST", message: "답란 좌표가 올바르지 않습니다." });
+    if ((region.samples && (region.samples.length < 1 || region.samples.length > 3)) ||
+      (region.fraction && [region.fraction.numerator, region.fraction.denominator]
+        .some(parts => parts.length < 1 || parts.length > 3)))
+      throw new TRPCError({ code: "BAD_REQUEST", message: "OCR 답란 수가 올바르지 않습니다." });
+    const children = region.samples ?? (region.fraction
+      ? [...region.fraction.numerator, ...region.fraction.denominator] : []);
+    if (children.some(rect => !validRect(rect, size) ||
+      rect.x < region.x || rect.y < region.y ||
+      rect.x + rect.width > region.x + region.width ||
+      rect.y + rect.height > region.y + region.height))
+      throw new TRPCError({ code: "BAD_REQUEST", message: "답란 세부 좌표가 OCR 영역 밖에 있습니다." });
+  }
 }
 
 export async function recognizeMathAssignmentPage(input: { token: string; studentId: number; assignmentId: string;
   code: string; pageNumber: number; imageDataUrl: string; regions: MathOcrRegion[] }, provider: VisionProvider = googleVisionWords) {
   const assignment = await getPublicMathAssignment(input.token, input.studentId, input.assignmentId);
-  if (assignment.code !== input.code || !assignment.canSubmit || input.pageNumber > Math.ceil(assignment.items.length / mathAssignmentRowsPerPage))
+  if (assignment.code !== input.code || !assignment.canSubmit || input.pageNumber > Math.ceil(assignment.items.length / mathAssignmentRowsPerPageForVersion(assignment.answerSheetVersion)))
     throw new TRPCError({ code: "FORBIDDEN", message: "답안지 과제 또는 페이지가 올바르지 않습니다." });
   // Obtain credentials before quota reservation; unknown Vision outcomes after reservation stay counted.
   if (provider === googleVisionWords) await visionAuthHeaders();
@@ -121,10 +221,7 @@ export async function recognizeMathAssignmentPage(input: { token: string; studen
   const size = dimensions(bytes, mimeType);
   if (!size || size.width < 1 || size.height < 1 || size.width > 10000 || size.height > 10000)
     throw new TRPCError({ code: "BAD_REQUEST", message: "OCR 사진 크기를 확인해 주세요." });
-  if (input.regions.some(region => ![region.x, region.y, region.width, region.height].every(Number.isInteger) ||
-    region.x < 0 || region.y < 0 || region.width < 1 || region.height < 1 ||
-    region.x + region.width > size.width || region.y + region.height > size.height))
-    throw new TRPCError({ code: "BAD_REQUEST", message: "답란 좌표가 OCR 사진 밖에 있습니다." });
+  validateMathOcrRegions(input.regions, size);
   const imageHash = createHash("sha256").update(bytes).update(JSON.stringify(input.regions)).digest("hex");
   const request = await beginMathOcrRequest({ ...input, imageHash });
   if (request.cached) return request.response;
