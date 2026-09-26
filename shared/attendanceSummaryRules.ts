@@ -11,6 +11,20 @@ export function isAttendanceDay(status: AttendanceStatus | null | undefined) {
   return status === "present" || status === "makeup" || status === "makeup_double";
 }
 
+export function hasDeparted(
+  status: AttendanceStatus | null | undefined,
+  departureTime: string | null | undefined
+) {
+  return isAttendanceDay(status) && Boolean(departureTime?.trim());
+}
+
+export function isAtAcademy(
+  status: AttendanceStatus | null | undefined,
+  departureTime: string | null | undefined
+) {
+  return isAttendanceDay(status) && !hasDeparted(status, departureTime);
+}
+
 /** 출석 행이 없거나 명시적으로 미입력인 경우, 출석 입력 업무의 미입력 대상으로 본다. */
 export function isAttendancePending(status: AttendanceStatus | null | undefined) {
   return !status || status === "not_entered";

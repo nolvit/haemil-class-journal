@@ -40,6 +40,7 @@ import {
   weeklySubjectComments,
 } from "../drizzle/schema";
 import { formatMathJournalContent, isEnglishFocusedLesson, type MathJournalPayload } from "../shared/mathProgress";
+import { dashboardMathExamTargets, previousDashboardDate } from "../shared/dashboardMathExams";
 import { isMathLessonCopyCandidate } from "./recentMathLesson";
 import { relocatedMathJournalPayloads } from "../shared/mathJournalMoves";
 import {
@@ -1397,6 +1398,41 @@ async function getDashboardWorkspace(journalDate: string) {
 
 export async function getDashboard(journalDate: string) {
   const workspace = await getDashboardWorkspace(journalDate);
+  const mathStudents = new Map(
+    workspace
+      .filter(row => row.classGroup.subject === "수학")
+      .map(row => [row.student.id, row.student] as const)
+  );
+  const mathStudentIds = Array.from(mathStudents.keys());
+  const mathJournalRows = mathStudentIds.length
+    ? await (await requireDb())
+        .select({
+          studentId: lessonJournals.studentId,
+          classGroupId: lessonJournals.classGroupId,
+          journalDate: lessonJournals.journalDate,
+          content: lessonJournals.content,
+          mathProgressPayload: mathJournalProgress.payload,
+        })
+        .from(lessonJournals)
+        .innerJoin(classGroups, eq(classGroups.id, lessonJournals.classGroupId))
+        .leftJoin(mathJournalProgress, eq(mathJournalProgress.journalId, lessonJournals.id))
+        .where(and(
+          inArray(lessonJournals.studentId, mathStudentIds),
+          inArray(lessonJournals.journalDate, [previousDashboardDate(journalDate), journalDate]),
+          eq(classGroups.subject, "수학")
+        ))
+    : [];
+  const mathExamTargets = dashboardMathExamTargets(mathJournalRows.map(row => ({
+    studentId: row.studentId,
+    studentName: mathStudents.get(row.studentId)!.name,
+    studentGrade: mathStudents.get(row.studentId)!.grade,
+    classGroupId: row.classGroupId,
+    journalDate: row.journalDate,
+    content: row.content,
+    mathProgress: row.mathProgressPayload
+      ? JSON.parse(row.mathProgressPayload) as MathJournalPayload
+      : null,
+  })), journalDate);
   const studentSummary = new Map<
     number,
     {
@@ -1507,6 +1543,7 @@ export async function getDashboard(journalDate: string) {
     attendancePendingStudents,
     journalAttentionItems,
     countAlertStudents,
+    mathExamTargets,
   };
 }
 

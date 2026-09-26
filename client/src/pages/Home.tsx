@@ -9,7 +9,7 @@ import { useAttendanceLiveUpdates } from "@/hooks/useAttendanceLiveUpdates";
 import { ArrowRight, BookOpenCheck, CalendarCheck2, CalendarDays, ChevronLeft, ChevronRight, ClipboardList, UserCheck, UserRoundX, Users } from "lucide-react";
 import { dashboardAttendanceHref, dashboardJournalHref, dashboardStudentJournalHref, shouldShowDashboardPendingList } from "@shared/dashboardNavigation";
 import { attendanceStatusBadgeClass, attendanceStatusLabels, attendanceStatusValues, formatAttendanceProgressLabel, formatArrivalTimeForDisplay, type AttendanceStatus } from "../../../shared/journalRules";
-import { isAttendanceDay, isAttendancePending } from "@shared/attendanceSummaryRules";
+import { hasDeparted, isAtAcademy, isAttendanceDay, isAttendancePending } from "@shared/attendanceSummaryRules";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { toast } from "sonner";
@@ -25,11 +25,11 @@ function gradeOrder(value: string) { const normalized = value.trim(); const leve
 const dashboardScrollKey = "haemil.dashboard.scroll-position";
 const dashboardArrivalFilterKey = (journalDate: string) =>
   `haemil.dashboard.arrival-filter.${journalDate}`;
-type ArrivalFilter = "arrived" | "pending" | undefined;
+type ArrivalFilter = "atAcademy" | "departed" | "pending" | undefined;
 function storedArrivalFilter(journalDate: string): ArrivalFilter {
   if (typeof window === "undefined") return undefined;
   const stored = sessionStorage.getItem(dashboardArrivalFilterKey(journalDate));
-  return stored === "arrived" || stored === "pending" ? stored : undefined;
+  return stored === "atAcademy" || stored === "departed" || stored === "pending" ? stored : undefined;
 }
 function isReloadNavigation() {
   return performance.getEntriesByType("navigation").some(entry => (entry as PerformanceNavigationTiming).type === "reload");
@@ -60,22 +60,28 @@ export default function Home() {
   });
   const stats = data?.stats;
   const attendancePendingStudents = data?.attendancePendingStudents ?? [];
-  const journalAttentionItems = data?.journalAttentionItems ?? [];
+  const mathExamTargets = data?.mathExamTargets ?? [];
+  const mathExamSummary = mathExamTargets.length
+    ? `${mathExamTargets.slice(0, 3).map(target => target.studentName).join(", ")}${mathExamTargets.length > 3 ? ` 외 ${mathExamTargets.length - 3}명` : ""}`
+    : "오늘 예정된 평가가 없습니다.";
   const showAttendancePendingList = shouldShowDashboardPendingList(attendancePendingStudents.length);
-  const showJournalPendingList = shouldShowDashboardPendingList(journalAttentionItems.length);
+  const showMathExamList = mathExamTargets.length > 0;
   const students = data?.students ?? [];
   const grades = useMemo(() => Array.from(new Set(students.map(student => student.grade))).sort((a, b) => gradeOrder(a) - gradeOrder(b) || a.localeCompare(b, "ko")), [students]);
   const visibleStudents = useMemo(() => students.filter(student => {
     if (selectedGrade && student.grade !== selectedGrade) return false;
-    if (arrivalFilter === "arrived") return isAttendanceDay(student.attendanceStatus as AttendanceStatus | null);
+    if (arrivalFilter === "atAcademy") return isAtAcademy(student.attendanceStatus as AttendanceStatus | null, student.departureTime);
+    if (arrivalFilter === "departed") return hasDeparted(student.attendanceStatus as AttendanceStatus | null, student.departureTime);
     if (arrivalFilter === "pending") return isAttendancePending(student.attendanceStatus as AttendanceStatus | null);
     return true;
   }), [arrivalFilter, selectedGrade, students]);
   const arrivalCounts = useMemo(() => ({
-    arrived: students.filter(student => isAttendanceDay(student.attendanceStatus as AttendanceStatus | null)).length,
+    atAcademy: students.filter(student => isAtAcademy(student.attendanceStatus as AttendanceStatus | null, student.departureTime)).length,
+    departed: students.filter(student => hasDeparted(student.attendanceStatus as AttendanceStatus | null, student.departureTime)).length,
     pending: students.filter(student => isAttendancePending(student.attendanceStatus as AttendanceStatus | null)).length,
   }), [students]);
-  const filterLabel = arrivalFilter === "arrived" ? "등원 완료" : arrivalFilter === "pending" ? "등원 미완료" : undefined;
+  const atAcademyLabel = journalDate === todayInKorea() ? "학원에 있음" : "하원 미기록";
+  const filterLabel = arrivalFilter === "atAcademy" ? atAcademyLabel : arrivalFilter === "departed" ? "하원 완료" : arrivalFilter === "pending" ? "등원 미완료" : undefined;
   const toggleArrivalFilter = (nextFilter: Exclude<ArrivalFilter, undefined>) => {
     setArrivalFilter(current => {
       const next = current === nextFilter ? undefined : nextFilter;
@@ -144,18 +150,55 @@ export default function Home() {
       <div className="journal-date-control dashboard-date-control"><div className="dashboard-date-label"><CalendarDays className="h-3.5 w-3.5" /><label htmlFor="dashboard-date">업무 날짜</label></div><div className="journal-date-nav"><Button variant="outline" size="icon" onClick={() => setJournalDate(shiftDate(journalDate, -1))} aria-label="전날"><ChevronLeft className="h-4 w-4" /></Button><Input id="dashboard-date" type="date" value={journalDate} onChange={event => setJournalDate(event.target.value)} /><Button variant="outline" size="icon" onClick={() => setJournalDate(shiftDate(journalDate, 1))} aria-label="다음 날"><ChevronRight className="h-4 w-4" /></Button></div><Button variant="ghost" size="sm" className="dashboard-today-button" onClick={() => setJournalDate(todayInKorea())}>오늘</Button></div>
     </section>
 
-    <section className={`dashboard-workboard ${showAttendancePendingList || showJournalPendingList ? "has-pending" : ""}`} aria-label="오늘의 운영 업무판">
+    <section className={`dashboard-workboard ${showAttendancePendingList || showMathExamList ? "has-pending" : ""}`} aria-label="오늘의 운영 업무판">
       <div className="dashboard-workboard-main">
-        <section className="dashboard-action-grid" aria-label="오늘의 입력 업무">
+        <section className="dashboard-action-grid" aria-label="오늘의 주요 업무">
           <button className="dashboard-action-card" onClick={() => setLocation(`/attendance?date=${journalDate}`)}><span className="journal-step-index">01</span><span><b>출석 입력</b><small>등원 시간과 상태를 입력합니다.</small></span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">등원 전 {stats?.attendancePending ?? 0}명</Badge><ArrowRight className="h-4 w-4" /></button>
-          <button className="dashboard-action-card" onClick={() => setLocation(`/journal?date=${journalDate}`)}><span className="journal-step-index">02</span><span><b>수업일지 작성</b><small>수업 내용과 과제를 기록합니다.</small></span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">입력 전 {stats?.needsAttention ?? 0}건</Badge><ArrowRight className="h-4 w-4" /></button>
+          <button className="dashboard-action-card" onClick={() => setLocation(`/journal?date=${journalDate}`)}><span className="journal-step-index">02</span><span><b>수학 시험 대상</b><small>{mathExamSummary}</small></span><Badge className="ml-auto bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">{mathExamTargets.length}명</Badge><ArrowRight className="h-4 w-4" /></button>
         </section>
         <section className="dashboard-summary-grid" aria-label="오늘의 운영 요약">
-          <StatCard compact icon={Users} label="등록 학생" value={selectedGrade || arrivalFilter ? visibleStudents.length : stats?.enrolledStudents} suffix="명" loading={isLoading} tone="teal"><div className="space-y-3"><div className="flex flex-wrap gap-1.5" aria-label="학생 진행 현황 학년 선택"><Button type="button" variant={selectedGrade === undefined ? "default" : "outline"} size="sm" className={selectedGrade === undefined ? "h-7 rounded-md px-2 text-[10px] journal-primary-button" : "h-7 rounded-md bg-[#FFFEFA] px-2 text-[10px]"} onClick={() => setSelectedGrade(undefined)}>전체</Button>{grades.map(grade => <Button type="button" key={grade} variant={selectedGrade === grade ? "default" : "outline"} size="sm" className={selectedGrade === grade ? "h-7 rounded-md px-2 text-[10px] journal-primary-button" : "h-7 rounded-md bg-[#FFFEFA] px-2 text-[10px]"} onClick={() => setSelectedGrade(grade)}>{grade}</Button>)}</div><div className="dashboard-count-alert-list" aria-label="횟수·원비 확인 학생 명단">{data?.countAlertStudents?.length ? <>{data.countAlertStudents.map(student => <span className={`dashboard-count-alert-item${student.remainingCount <= 0 ? " is-depleted" : ""}`} key={student.id}>{student.name}<small>남은 {Number(student.remainingCount.toFixed(1))}회</small></span>)}</> : <span className="dashboard-count-alert-empty">확인 대상 없음</span>}</div><div className="flex flex-wrap justify-end gap-2" aria-label="등원 상태 선택"><Button type="button" variant={arrivalFilter === "arrived" ? "default" : "outline"} size="sm" className={arrivalFilter === "arrived" ? "h-9 rounded-lg px-3 text-xs journal-primary-button" : "h-9 rounded-lg bg-[#FFFEFA] px-3 text-xs text-[#2F7154]"} onClick={() => toggleArrivalFilter("arrived")} aria-pressed={arrivalFilter === "arrived"}><UserCheck className="mr-1.5 h-4 w-4" />등원 완료 {arrivalCounts.arrived}명</Button><Button type="button" variant={arrivalFilter === "pending" ? "default" : "outline"} size="sm" className={arrivalFilter === "pending" ? "h-9 rounded-lg px-3 text-xs journal-primary-button" : "h-9 rounded-lg bg-[#FFFEFA] px-3 text-xs text-[#9A7316]"} onClick={() => toggleArrivalFilter("pending")} aria-pressed={arrivalFilter === "pending"}><UserRoundX className="mr-1.5 h-4 w-4" />등원 미완료 {arrivalCounts.pending}명</Button></div></div></StatCard>
+          <StatCard compact icon={Users} label="등록 학생" value={selectedGrade || arrivalFilter ? visibleStudents.length : stats?.enrolledStudents} suffix="명" loading={isLoading} tone="teal">
+            <div className="space-y-3">
+              <div className="flex flex-wrap gap-1.5" aria-label="학생 진행 현황 학년 선택">
+                <Button type="button" variant={selectedGrade === undefined ? "default" : "outline"} size="sm" className={selectedGrade === undefined ? "h-7 rounded-md px-2 text-[10px] journal-primary-button" : "h-7 rounded-md bg-[#FFFEFA] px-2 text-[10px]"} onClick={() => setSelectedGrade(undefined)}>전체</Button>
+                {grades.map(grade => <Button type="button" key={grade} variant={selectedGrade === grade ? "default" : "outline"} size="sm" className={selectedGrade === grade ? "h-7 rounded-md px-2 text-[10px] journal-primary-button" : "h-7 rounded-md bg-[#FFFEFA] px-2 text-[10px]"} onClick={() => setSelectedGrade(grade)}>{grade}</Button>)}
+              </div>
+              <div className="dashboard-count-alert-list" aria-label="횟수·원비 확인 학생 명단">
+                {data?.countAlertStudents?.length ? data.countAlertStudents.map(student => <span className={`dashboard-count-alert-item${student.remainingCount <= 0 ? " is-depleted" : ""}`} key={student.id}>{student.name}<small>남은 {Number(student.remainingCount.toFixed(1))}회</small></span>) : <span className="dashboard-count-alert-empty">확인 대상 없음</span>}
+              </div>
+              <div className="flex flex-wrap justify-end gap-2" aria-label="등원 상태 선택">
+                <Button type="button" variant={arrivalFilter === "atAcademy" ? "default" : "outline"} size="sm" className={arrivalFilter === "atAcademy" ? "h-9 rounded-lg px-3 text-xs journal-primary-button" : "h-9 rounded-lg bg-[#FFFEFA] px-3 text-xs text-[#2F7154]"} onClick={() => toggleArrivalFilter("atAcademy")} aria-pressed={arrivalFilter === "atAcademy"}><UserCheck className="mr-1.5 h-4 w-4" />{atAcademyLabel} {arrivalCounts.atAcademy}명</Button>
+                <Button type="button" variant={arrivalFilter === "departed" ? "default" : "outline"} size="sm" className={arrivalFilter === "departed" ? "h-9 rounded-lg px-3 text-xs journal-primary-button" : "h-9 rounded-lg bg-[#FFFEFA] px-3 text-xs text-[#657673]"} onClick={() => toggleArrivalFilter("departed")} aria-pressed={arrivalFilter === "departed"}>하원 완료 {arrivalCounts.departed}명</Button>
+                <Button type="button" variant={arrivalFilter === "pending" ? "default" : "outline"} size="sm" className={arrivalFilter === "pending" ? "h-9 rounded-lg px-3 text-xs journal-primary-button" : "h-9 rounded-lg bg-[#FFFEFA] px-3 text-xs text-[#9A7316]"} onClick={() => toggleArrivalFilter("pending")} aria-pressed={arrivalFilter === "pending"}><UserRoundX className="mr-1.5 h-4 w-4" />등원 미완료 {arrivalCounts.pending}명</Button>
+              </div>
+            </div>
+          </StatCard>
           <StatCard compact icon={BookOpenCheck} label="일지 작성" value={stats ? `${stats.journalsComplete} / ${stats.journalsTotal}` : undefined} loading={isLoading} tone="ink" />
         </section>
       </div>
-      {(showAttendancePendingList || showJournalPendingList) && <aside className="dashboard-pending-stack" aria-label="입력 대기 대상 목록"><Card className="journal-surface dashboard-pending-card"><CardContent className="p-4"><div className="flex items-center justify-between gap-3"><div><p className="eyebrow">PENDING TASKS</p><h2 className="mt-1 font-serif text-xl text-[#173D3C]">입력 대기 대상</h2></div><div className="flex shrink-0 gap-1.5">{showAttendancePendingList && <Badge className="bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">출석 {attendancePendingStudents.length}명</Badge>}{showJournalPendingList && <Badge className="bg-[#F2EEE3] text-[#69746F] hover:bg-[#F2EEE3]">일지 {journalAttentionItems.length}건</Badge>}</div></div>{showAttendancePendingList && <section className="dashboard-pending-section"><p>출석 입력</p><div className="mt-2 flex flex-wrap gap-2">{attendancePendingStudents.map(student => <button type="button" className="rounded-lg bg-[#FFF9E8] px-2.5 py-1.5 text-sm font-medium text-[#765E10] transition-colors hover:bg-[#FFF1C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardAttendanceHref(journalDate, student.id))} key={student.id} aria-label={`${student.name} 학생의 ${journalDate} 출석 입력으로 이동`}>{student.name}<small className="ml-1 text-xs font-normal text-[#907A40]">{student.grade}</small></button>)}</div></section>}{showAttendancePendingList && showJournalPendingList && <div className="dashboard-pending-divider" />}{showJournalPendingList && <section className="dashboard-pending-section"><p>수업일지 작성</p><div className="mt-2 flex flex-wrap gap-2">{journalAttentionItems.map(item => <button type="button" className="rounded-lg bg-[#FFF9E8] px-2.5 py-1.5 text-left text-sm font-medium text-[#765E10] transition-colors hover:bg-[#FFF1C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardJournalHref(journalDate, item.studentId, item.classGroupId))} key={`${item.studentId}-${item.classGroupId}`} aria-label={`${item.studentName} 학생 ${item.subject}의 ${journalDate} 수업일지 입력으로 이동`}>{item.studentName}<small className="ml-1 text-xs font-normal text-[#907A40]">{item.subject}</small></button>)}</div></section>}</CardContent></Card></aside>}
+      {(showAttendancePendingList || showMathExamList) && <aside className="dashboard-pending-stack" aria-label="오늘 확인 대상 목록">
+        <Card className="journal-surface dashboard-pending-card"><CardContent className="p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div><p className="eyebrow">TODAY'S TASKS</p><h2 className="mt-1 font-serif text-xl text-[#173D3C]">오늘 확인 대상</h2></div>
+            <div className="flex shrink-0 gap-1.5">
+              {showAttendancePendingList && <Badge className="bg-[#FFF1B7] text-[#765E10] hover:bg-[#FFF1B7]">출석 {attendancePendingStudents.length}명</Badge>}
+              {showMathExamList && <Badge className="bg-[#F2EEE3] text-[#69746F] hover:bg-[#F2EEE3]">수학 시험 {mathExamTargets.length}명</Badge>}
+            </div>
+          </div>
+          {showAttendancePendingList && <section className="dashboard-pending-section">
+            <p>출석 입력</p>
+            <div className="mt-2 flex flex-wrap gap-2">{attendancePendingStudents.map(student => <button type="button" className="rounded-lg bg-[#FFF9E8] px-2.5 py-1.5 text-sm font-medium text-[#765E10] transition-colors hover:bg-[#FFF1C7] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardAttendanceHref(journalDate, student.id))} key={student.id} aria-label={`${student.name} 학생의 ${journalDate} 출석 입력으로 이동`}>{student.name}<small className="ml-1 text-xs font-normal text-[#907A40]">{student.grade}</small></button>)}</div>
+          </section>}
+          {showAttendancePendingList && showMathExamList && <div className="dashboard-pending-divider" />}
+          {showMathExamList && <section className="dashboard-pending-section">
+            <p>수학 시험 대상</p>
+            <div className="mt-2 grid gap-2">{mathExamTargets.map(target => <button type="button" className="rounded-lg border border-[#E3DCCB] bg-[#FFFEFA] px-3 py-2 text-left transition-colors hover:bg-[#F5F2E8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#B8891B]" onClick={() => setLocation(dashboardJournalHref(target.sourceDate, target.studentId, target.classGroupId))} key={target.studentId} aria-label={`${target.studentName} 학생의 ${target.sourceDate} 수학 평가 일지로 이동`}>
+              <span className="flex flex-wrap items-center gap-1.5 text-sm font-semibold text-[#234E52]">{target.studentName}<small className="font-normal text-[#71817D]">{target.studentGrade}</small>{target.fromYesterday && <span className="rounded bg-[#FFF1B7] px-1.5 py-0.5 text-[10px] text-[#765E10]">전날 과정 기준 · 오늘 영어 집중</span>}</span>
+              <small className="mt-1 block text-xs text-[#526460]">{target.exams.join(" · ")}</small>
+            </button>)}</div>
+          </section>}
+        </CardContent></Card>
+      </aside>}
     </section>
 
     <section className="mt-9"><div className="journal-section-title"><div><p className="eyebrow">STUDENT STATUS</p><h2>학생별 진행 현황</h2>{(selectedGrade || filterLabel) && <p className="mt-1 text-xs font-medium text-[#657673]">{[selectedGrade, filterLabel].filter(Boolean).join(" · ")} {visibleStudents.length}명</p>}</div><Button variant="outline" onClick={() => setLocation(`/journal?date=${journalDate}`)}>일지 화면 열기 <ArrowRight className="ml-1.5 h-4 w-4" /></Button></div>
